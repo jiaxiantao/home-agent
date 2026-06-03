@@ -15,9 +15,6 @@ jobs:
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       SMOKE_BASE_URL: http://localhost:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000
-      AUTH_TOKEN_SECRET: ci-token-secret
-      ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: ci-admin-password
       # CI 不启动 Ollama；用演示回答保证 smoke / SSE 探测稳定
       LLM_DISABLED: "1"
       HOSTNAME: "0.0.0.0"

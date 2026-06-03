@@ -12,7 +12,7 @@
 
 - 页面：`/agents`（`/` 自动跳转）
 - API：`POST /api/agent`（SSE trace）
-- 可选：登录 admin 后通过 `PUT /api/intelligence/profile` 同步编排偏好
+- 编排偏好保存在浏览器 localStorage
 
 ## 技术栈
 
@@ -57,8 +57,6 @@ pnpm test:e2e                 # 终端 2
 - `GET /api/health` — DB / LLM / pg_trgm 状态
 - `POST /api/agent` — Agent 工具循环（SSE）
 - `GET /api/notes/search?q=&limit=` — 笔记检索（供工具与调试）
-- `GET/PUT /api/intelligence/profile` — 编排偏好（需 admin）
-- `POST /api/auth/login` · `GET /api/auth/session` · `POST /api/auth/logout`
 
 ## Docker
 

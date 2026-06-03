@@ -38,9 +38,6 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://postgres:postgres@db:5432/home_agent?schema=public
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      AUTH_TOKEN_SECRET: change-this-auth-token-secret
-      ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: change-this-admin-password
       LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: llama3.2

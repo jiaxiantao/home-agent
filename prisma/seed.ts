@@ -49,7 +49,6 @@ const seededNotes = [
 ];
 
 async function main() {
-  await prisma.intelligenceProfile.deleteMany();
   await prisma.note.deleteMany();
 
   for (const note of seededNotes) {

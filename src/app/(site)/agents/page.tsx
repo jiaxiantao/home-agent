@@ -19,7 +19,7 @@ export default function AgentsPage() {
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400">
           用户输入 → 规划器判断工具 → 执行 search_notes / calculate / current_time →
-          再规划 → 流式 trace 输出。登录 admin 后可将编排偏好同步到 PostgreSQL。
+          再规划 → 流式 trace 输出。编排偏好保存在浏览器本地。
         </p>
       </section>
 
