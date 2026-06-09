@@ -84,6 +84,12 @@ async function runCheck(check: Check) {
     if (!text.includes("event:")) {
       throw new Error("agent response missing SSE events");
     }
+    if (!text.includes('"type":"answer"')) {
+      throw new Error("agent response missing answer event");
+    }
+    if (!text.includes('"type":"done"')) {
+      throw new Error("agent response missing done event");
+    }
     check.assert(response.status, text);
     return;
   }

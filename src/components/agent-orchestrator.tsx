@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { IntelligenceLearningPanel } from "@/components/intelligence-learning-panel";
+import { useAgentStream } from "@/hooks/use-agent-sse";
 import { agentQuickPrompts } from "@/lib/agent-quick-prompts";
 import { agentToolCatalog } from "@/lib/agent/tool-catalog";
-import type { AgentPlan, AgentToolName, AgentTraceEvent } from "@/lib/agent/types";
 import {
   bumpLearningProfile,
   defaultIntelligencePreferences,
@@ -25,45 +25,6 @@ import {
   type IntelligenceStyle,
 } from "@/lib/front-intelligence-preferences";
 
-type TraceLine = {
-  id: string;
-  kind: string;
-  text: string;
-};
-
-type StepMetric = {
-  step: number;
-  planMs: number;
-  toolMs?: number;
-  totalMs: number;
-};
-
-function formatPlan(plan: AgentPlan) {
-  if (plan.action === "tool") {
-    return `调用 ${plan.tool} · ${plan.reasoning || "执行工具步骤"}`;
-  }
-
-  return `直接回答 · ${plan.reasoning || "生成最终回答"}`;
-}
-
-function formatToolResult(tool: AgentToolName, output: string) {
-  if (tool === "search_notes") {
-    if (/^未找到与「.+」相关的笔记。$/.test(output)) {
-      return `检索结果：未命中\n${output}`;
-    }
-
-    const hitCount = output
-      .split("\n")
-      .filter((line) => /^\d+\.\s/.test(line.trim())).length;
-
-    if (hitCount > 0) {
-      return `检索结果：命中 ${hitCount} 条\n${output}`;
-    }
-  }
-
-  return output;
-}
-
 function getAgentPromptHint(preferences: IntelligencePreferences) {
   const styleHint =
     preferences.style === "risk"
@@ -80,29 +41,6 @@ function getAgentPromptHint(preferences: IntelligencePreferences) {
   return `${styleHint} ${depthHint} ${metricHint}`;
 }
 
-function parseSseBlock(block: string) {
-  let event = "message";
-  let data = "";
-
-  for (const line of block.split("\n")) {
-    if (line.startsWith("event:")) {
-      event = line.slice(6).trim();
-    } else if (line.startsWith("data:")) {
-      data += line.slice(5).trim();
-    }
-  }
-
-  if (!data) {
-    return null;
-  }
-
-  try {
-    return { event, payload: JSON.parse(data) as AgentTraceEvent };
-  } catch {
-    return null;
-  }
-}
-
 export function AgentOrchestratorDemo({
   initialMessage,
 }: {
@@ -111,27 +49,19 @@ export function AgentOrchestratorDemo({
   const [message, setMessage] = useState(
     initialMessage ?? "帮我搜索笔记里关于前端架构的内容",
   );
-  const [lines, setLines] = useState<TraceLine[]>([]);
-  const [finalAnswer, setFinalAnswer] = useState("");
-  const [running, setRunning] = useState(false);
-  const [stepMetrics, setStepMetrics] = useState<StepMetric[]>([]);
-  const [stats, setStats] = useState<{ steps: number; toolCalls: number; totalMs: number } | null>(
-    null,
-  );
   const [preferences, setPreferences] = useState(() => loadIntelligencePreferences());
   const [learningProfile, setLearningProfile] = useState(() => loadLearningProfile());
   const [historyEvents, setHistoryEvents] = useState(() => loadHistoryEvents());
-  const abortRef = useRef<AbortController | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  useEffect(() => {
-    if (initialMessage?.trim()) {
-      setMessage(initialMessage);
-    }
-  }, [initialMessage]);
+  const { run, stop, appendLine, running, lines, finalAnswer, stats, stepMetrics } =
+    useAgentStream();
+
   const recommendedPromptSuffix = useMemo(
     () => getAgentPromptHint(preferences),
     [preferences],
   );
+
   useEffect(() => {
     saveIntelligencePreferences(preferences);
   }, [preferences]);
@@ -143,138 +73,8 @@ export function AgentOrchestratorDemo({
   }, [historyEvents]);
 
   async function runAgent() {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setRunning(true);
-    setLines([]);
-    setFinalAnswer("");
-    setStats(null);
-    setStepMetrics([]);
-
-    try {
-      const response = await fetch("/api/agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: `${message.trim()}\n\n[偏好约束] ${recommendedPromptSuffix}`.trim(),
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok || !response.body) {
-        setLines([
-          {
-            id: crypto.randomUUID(),
-            kind: "error",
-            text: `HTTP ${response.status}`,
-          },
-        ]);
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        let boundary = buffer.indexOf("\n\n");
-
-        while (boundary !== -1) {
-          const block = buffer.slice(0, boundary).trim();
-          buffer = buffer.slice(boundary + 2);
-
-          const parsed = parseSseBlock(block);
-
-          if (parsed?.payload) {
-            const { payload } = parsed;
-            const id = crypto.randomUUID();
-
-            if (payload.type === "trace") {
-              setLines((current) => [
-                ...current,
-                { id, kind: "trace", text: `[${payload.phase}] ${payload.message}` },
-              ]);
-            } else if (payload.type === "plan") {
-              setLines((current) => [
-                ...current,
-                { id, kind: "plan", text: formatPlan(payload.plan) },
-              ]);
-            } else if (payload.type === "tool_call") {
-              setLines((current) => [
-                ...current,
-                {
-                  id,
-                  kind: "tool",
-                  text: `→ ${payload.tool}(${JSON.stringify(payload.args)})`,
-                },
-              ]);
-            } else if (payload.type === "tool_result") {
-              setLines((current) => [
-                ...current,
-                {
-                  id,
-                  kind: "result",
-                  text: formatToolResult(payload.tool, payload.output),
-                },
-              ]);
-            } else if (payload.type === "answer") {
-              setFinalAnswer(payload.text);
-            } else if (payload.type === "error") {
-              setLines((current) => [
-                ...current,
-                { id, kind: "error", text: payload.message },
-              ]);
-            } else if (payload.type === "done") {
-              setStats({
-                steps: payload.steps,
-                toolCalls: payload.toolCalls,
-                totalMs: payload.totalMs,
-              });
-            } else if (payload.type === "step_metric") {
-              setStepMetrics((current) => [
-                ...current.filter((item) => item.step !== payload.step),
-                {
-                  step: payload.step,
-                  planMs: payload.planMs,
-                  toolMs: payload.toolMs,
-                  totalMs: payload.totalMs,
-                },
-              ]);
-            }
-          }
-
-          boundary = buffer.indexOf("\n\n");
-        }
-      }
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError")) {
-        setLines((current) => [
-          ...current,
-          {
-            id: crypto.randomUUID(),
-            kind: "error",
-            text: error instanceof Error ? error.message : "请求失败",
-          },
-        ]);
-      }
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  function stopAgent() {
-    abortRef.current?.abort();
-    setRunning(false);
-    setLines((current) => [
-      ...current,
-      { id: crypto.randomUUID(), kind: "trace", text: "[client] 已手动停止" },
-    ]);
+    const payload = `${message.trim()}\n\n[偏好约束] ${recommendedPromptSuffix}`.trim();
+    await run(payload);
   }
 
   return (
@@ -292,163 +92,158 @@ export function AgentOrchestratorDemo({
           className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
         />
 
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              { key: "steps", label: "偏步骤" },
-              { key: "risk", label: "偏风险" },
-              { key: "code", label: "偏代码" },
-            ] as Array<{ key: IntelligenceStyle; label: string }>
-          ).map((item) => (
-            <button
-              key={item.key}
-              type="button"
-                onClick={() => {
-                  setPreferences((current) => {
-                    const next = {
-                      ...current,
-                      style: item.key,
-                    };
-                    setHistoryEvents((history) => pushHistoryEvent(history, next));
-                    return next;
-                  });
-                  setLearningProfile((current) =>
-                    bumpLearningProfile(current, { style: item.key }),
-                  );
-                }}
-              className={`rounded-full border px-3 py-1 text-xs ${
-                preferences.style === item.key
-                  ? "border-cyan-200/40 bg-cyan-200/15 text-cyan-100"
-                  : "border-white/10 text-slate-400"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-          {(
-            [
-              { key: "brief", label: "简略" },
-              { key: "detailed", label: "详细" },
-            ] as Array<{ key: IntelligenceDepth; label: string }>
-          ).map((item) => (
-            <button
-              key={item.key}
-              type="button"
-                onClick={() => {
-                  setPreferences((current) => {
-                    const next = {
-                      ...current,
-                      depth: item.key,
-                    };
-                    setHistoryEvents((history) => pushHistoryEvent(history, next));
-                    return next;
-                  });
-                  setLearningProfile((current) =>
-                    bumpLearningProfile(current, { depth: item.key }),
-                  );
-                }}
-              className={`rounded-full border px-3 py-1 text-xs ${
-                preferences.depth === item.key
-                  ? "border-emerald-200/40 bg-emerald-200/15 text-emerald-100"
-                  : "border-white/10 text-slate-400"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() =>
-              setPreferences((current) => {
-                const next = {
-                  ...current,
-                  includeMetrics: !current.includeMetrics,
-                };
-                setHistoryEvents((history) => pushHistoryEvent(history, next));
-                return next;
-              })
-            }
-            className={`rounded-full border px-3 py-1 text-xs ${
-              preferences.includeMetrics
-                ? "border-violet-200/40 bg-violet-200/15 text-violet-100"
-                : "border-white/10 text-slate-400"
-            }`}
-          >
-            指标{preferences.includeMetrics ? "开启" : "关闭"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setPreferences(defaultIntelligencePreferences);
-              setHistoryEvents((history) =>
-                pushHistoryEvent(history, defaultIntelligencePreferences),
-              );
-              setLearningProfile(resetLearningProfile());
-            }}
-            className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400"
-          >
-            恢复默认
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((current) => !current)}
+          className="text-xs text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
+        >
+          {showAdvanced ? "收起" : "展开"}编排偏好（进阶，localStorage）
+        </button>
 
-        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-slate-300">
-          Agent 偏好约束：{recommendedPromptSuffix}
-        </div>
-        <IntelligenceLearningPanel
-          learningProfile={learningProfile}
-          preferences={preferences}
-          onApplyRecommendation={(next) =>
-            setPreferences((current) => {
-              const merged = {
-                ...current,
-                style: next.style,
-                depth: next.depth,
-              };
-              setHistoryEvents((history) => pushHistoryEvent(history, merged));
-              return merged;
-            })
-          }
-          history={historyEvents}
-          onResetLearning={() => {
-            setLearningProfile(resetLearningProfile());
-            setHistoryEvents(resetHistoryEvents());
-          }}
-          onExport={() => {
-            const blob = new Blob(
-              [
-                exportIntelligenceConfig({
-                  preferences,
-                  learning: learningProfile,
-                  history: historyEvents,
-                }),
-              ],
-              { type: "application/json" },
-            );
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = "agent-intelligence-config.json";
-            link.click();
-            URL.revokeObjectURL(url);
-          }}
-          onImport={(raw) => {
-            const imported = importIntelligenceConfig(raw);
-            if (!imported) {
-              setLines((current) => [
-                ...current,
-                {
-                  id: crypto.randomUUID(),
-                  kind: "error",
-                  text: "导入失败：配置格式无效",
-                },
-              ]);
-              return;
-            }
-            setPreferences(imported.preferences);
-            setLearningProfile(imported.learning);
-            setHistoryEvents(imported.history);
-          }}
-        />
+        {showAdvanced ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  { key: "steps", label: "偏步骤" },
+                  { key: "risk", label: "偏风险" },
+                  { key: "code", label: "偏代码" },
+                ] as Array<{ key: IntelligenceStyle; label: string }>
+              ).map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    setPreferences((current) => {
+                      const next = { ...current, style: item.key };
+                      setHistoryEvents((history) => pushHistoryEvent(history, next));
+                      return next;
+                    });
+                    setLearningProfile((current) =>
+                      bumpLearningProfile(current, { style: item.key }),
+                    );
+                  }}
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    preferences.style === item.key
+                      ? "border-cyan-200/40 bg-cyan-200/15 text-cyan-100"
+                      : "border-white/10 text-slate-400"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+              {(
+                [
+                  { key: "brief", label: "简略" },
+                  { key: "detailed", label: "详细" },
+                ] as Array<{ key: IntelligenceDepth; label: string }>
+              ).map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    setPreferences((current) => {
+                      const next = { ...current, depth: item.key };
+                      setHistoryEvents((history) => pushHistoryEvent(history, next));
+                      return next;
+                    });
+                    setLearningProfile((current) =>
+                      bumpLearningProfile(current, { depth: item.key }),
+                    );
+                  }}
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    preferences.depth === item.key
+                      ? "border-emerald-200/40 bg-emerald-200/15 text-emerald-100"
+                      : "border-white/10 text-slate-400"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  setPreferences((current) => {
+                    const next = {
+                      ...current,
+                      includeMetrics: !current.includeMetrics,
+                    };
+                    setHistoryEvents((history) => pushHistoryEvent(history, next));
+                    return next;
+                  })
+                }
+                className={`rounded-full border px-3 py-1 text-xs ${
+                  preferences.includeMetrics
+                    ? "border-violet-200/40 bg-violet-200/15 text-violet-100"
+                    : "border-white/10 text-slate-400"
+                }`}
+              >
+                指标{preferences.includeMetrics ? "开启" : "关闭"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPreferences(defaultIntelligencePreferences);
+                  setHistoryEvents((history) =>
+                    pushHistoryEvent(history, defaultIntelligencePreferences),
+                  );
+                  setLearningProfile(resetLearningProfile());
+                }}
+                className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400"
+              >
+                恢复默认
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-slate-300">
+              Agent 偏好约束：{recommendedPromptSuffix}
+            </div>
+            <IntelligenceLearningPanel
+              learningProfile={learningProfile}
+              preferences={preferences}
+              onApplyRecommendation={(next) =>
+                setPreferences((current) => {
+                  const merged = { ...current, style: next.style, depth: next.depth };
+                  setHistoryEvents((history) => pushHistoryEvent(history, merged));
+                  return merged;
+                })
+              }
+              history={historyEvents}
+              onResetLearning={() => {
+                setLearningProfile(resetLearningProfile());
+                setHistoryEvents(resetHistoryEvents());
+              }}
+              onExport={() => {
+                const blob = new Blob(
+                  [
+                    exportIntelligenceConfig({
+                      preferences,
+                      learning: learningProfile,
+                      history: historyEvents,
+                    }),
+                  ],
+                  { type: "application/json" },
+                );
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "agent-intelligence-config.json";
+                link.click();
+                URL.revokeObjectURL(url);
+              }}
+              onImport={(raw) => {
+                const imported = importIntelligenceConfig(raw);
+                if (!imported) {
+                  appendLine("error", "导入失败：配置格式无效");
+                  return;
+                }
+                setPreferences(imported.preferences);
+                setLearningProfile(imported.learning);
+                setHistoryEvents(imported.history);
+              }}
+            />
+          </>
+        ) : null}
 
         <div className="space-y-2">
           <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
@@ -482,7 +277,7 @@ export function AgentOrchestratorDemo({
           </button>
           <button
             type="button"
-            onClick={stopAgent}
+            onClick={stop}
             disabled={!running}
             className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200 disabled:opacity-40"
           >

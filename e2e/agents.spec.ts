@@ -16,4 +16,11 @@ test.describe("Agents page", () => {
 
     await expect(page.locator("textarea").first()).toHaveValue(/计算 1\+1/);
   });
+
+  test("runs agent loop and shows final answer", async ({ page }) => {
+    await page.goto("/agents?q=" + encodeURIComponent("现在几点？"));
+
+    await page.getByRole("button", { name: "运行 Agent 循环" }).click();
+    await expect(page.getByText("Final")).toBeVisible({ timeout: 30_000 });
+  });
 });

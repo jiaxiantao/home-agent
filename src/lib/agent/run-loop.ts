@@ -1,8 +1,7 @@
-import { executeAgentTool } from "@/lib/agent/tools";
+import { getAgentMaxSteps } from "@/lib/agent/config";
 import { planAgentStep } from "@/lib/agent/planner";
+import { executeAgentTool } from "@/lib/agent/tools";
 import type { AgentTraceEvent, AgentToolResult } from "@/lib/agent/types";
-
-const MAX_STEPS = 4;
 
 function assertNotAborted(signal?: AbortSignal) {
   if (!signal?.aborted) {
@@ -23,7 +22,9 @@ export async function* runAgentLoop(
 
   yield { type: "trace", phase: "start", message: "Agent 循环启动" };
 
-  while (steps < MAX_STEPS) {
+  const maxSteps = getAgentMaxSteps();
+
+  while (steps < maxSteps) {
     assertNotAborted(options.signal);
     steps += 1;
     yield {
@@ -78,7 +79,7 @@ export async function* runAgentLoop(
       return;
     }
 
-    if (steps >= MAX_STEPS) {
+    if (steps >= maxSteps) {
       break;
     }
   }
@@ -87,7 +88,7 @@ export async function* runAgentLoop(
   const text =
     plan.action === "answer"
       ? plan.answer
-      : `已达最大步数（${MAX_STEPS}），请缩小问题范围后重试。`;
+      : `已达最大步数（${maxSteps}），请缩小问题范围后重试。`;
 
   yield { type: "answer", text, mock };
   yield {

@@ -10,7 +10,12 @@ function AgentsOrchestratorInner() {
   const searchParams = useSearchParams();
   const initialMessage = searchParams.get("q") ?? undefined;
 
-  return <AgentOrchestratorDemo initialMessage={initialMessage} />;
+  return (
+    <AgentOrchestratorDemo
+      key={initialMessage ?? "default"}
+      initialMessage={initialMessage}
+    />
+  );
 }
 
 export function AgentsOrchestratorSection() {

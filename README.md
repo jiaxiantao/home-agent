@@ -1,6 +1,11 @@
 # Home Agent
 
-专注于 **AI Agent 前端编排** 的 Next.js 项目：规划器 → 工具调用 → SSE trace 流式输出。
+[![CI](https://github.com/jiaxiantao/home-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/jiaxiantao/home-agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+
+专注于 **AI Agent 前端编排** 的 Next.js 学习项目：规划器 → 工具调用 → SSE trace 流式输出。
+
+适合用来理解：Agent 循环如何设计、如何用 SSE 驱动编排 UI、如何在无 API Key 时用规则回退跑通 CI。
 
 ## 能力
 
@@ -12,15 +17,43 @@
 
 - 页面：`/agents`（`/` 自动跳转）
 - API：`POST /api/agent`（SSE trace）
-- 编排偏好保存在浏览器 localStorage
+- 编排偏好（进阶）：浏览器 localStorage，默认折叠
+
+## 架构一览
+
+```mermaid
+flowchart LR
+  UI["/agents"] --> API["POST /api/agent"]
+  API --> Loop["runAgentLoop"]
+  Loop --> Plan["planAgentStep"]
+  Plan -->|tool| Tools["executeAgentTool"]
+  Tools --> Loop
+  Plan -->|answer| SSE["SSE events"]
+  SSE --> UI
+```
+
+详细说明见 [docs/architecture.md](./docs/architecture.md) · SSE 协议见 [docs/sse-protocol.md](./docs/sse-protocol.md)
+
+## 推荐阅读顺序
+
+1. `src/lib/agent/types.ts` — 事件与规划类型
+2. `src/lib/agent/run-loop.ts` — Agent 主循环
+3. `src/lib/agent/planner.ts` + `planner-mock.ts` — LLM / 规则规划
+4. `src/app/api/agent/route.ts` — SSE 出口
+5. `src/hooks/use-agent-sse.ts` — 前端消费 Hook
+
+扩展工具：[docs/add-a-tool.md](./docs/add-a-tool.md)
 
 ## 技术栈
 
 - Next.js 16 · React 19 · TypeScript · Tailwind CSS 4
 - Prisma · PostgreSQL（`pg_trgm` 可选）
 - OpenAI SDK（兼容 Ollama）
+- Vitest · Playwright
 
 ## 本地开发
+
+要求：Node.js 22（见 `.nvmrc`）、pnpm 9、Docker
 
 ```bash
 pnpm install
@@ -32,37 +65,60 @@ pnpm dev
 
 打开 [http://localhost:3000/agents](http://localhost:3000/agents)。
 
-### Ollama
+### Ollama（可选）
 
 ```bash
 ollama pull llama3.2
 ollama serve
 ```
 
-未配置 LLM 或设置 `LLM_DISABLED=1` 时使用规则规划器（适合 CI）。
+未配置 LLM 或设置 `LLM_DISABLED=1` 时使用规则规划器（适合 CI 与离线学习）。
 
-### 冒烟与 E2E
+### 常用命令
 
 ```bash
-pnpm db:setup
-pnpm dev          # 终端 1
-pnpm smoke        # 终端 2
+pnpm typecheck    # TypeScript
+pnpm lint         # ESLint
+pnpm test         # Vitest 单元测试
+pnpm format       # Prettier
 
-pnpm build && pnpm start:ci   # 终端 1
-pnpm test:e2e                 # 终端 2
+pnpm db:setup     # 快速本地：db push + seed
+pnpm db:migrate   # 正式流程：Prisma migrate
+
+pnpm smoke        # API 冒烟（需先 pnpm dev）
+pnpm test:e2e     # E2E（需先 pnpm build && pnpm start:ci）
 ```
 
 ## API
 
-- `GET /api/health` — DB / LLM / pg_trgm 状态
-- `POST /api/agent` — Agent 工具循环（SSE）
-- `GET /api/notes/search?q=&limit=` — 笔记检索（供工具与调试）
+| 端点 | 说明 |
+|------|------|
+| `GET /api/health` | DB / LLM / pg_trgm 状态 |
+| `POST /api/agent` | Agent 工具循环（SSE） |
+| `GET /api/notes/search?q=&limit=` | 笔记检索 |
+
+## 环境变量
+
+见 [.env.example](./.env.example)。常用项：
+
+- `LLM_DISABLED=1` — 关闭 LLM，使用规则规划器
+- `AGENT_MAX_STEPS` — 循环最大步数（默认 4，上限 12）
 
 ## Docker
 
 ```bash
 docker compose up --build
 ```
+
+Web 默认通过 `host.docker.internal` 连接本机 Ollama。
+
+## 贡献
+
+欢迎 Issue 与 PR，见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+
+## 许可
+
+[MIT](./LICENSE)
 
 ## 仓库
 
