@@ -35,11 +35,19 @@ export async function listNotes() {
     return [] as NoteRecord[];
   }
 
-  const notes = await db.note.findMany({
-    orderBy: {
-      updatedAt: "desc",
-    },
-  });
+  try {
+    const notes = await db.note.findMany({
+      orderBy: {
+        updatedAt: "desc",
+      },
+    });
 
-  return notes.map(mapNote);
+    return notes.map(mapNote);
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[notes-service] listNotes failed:", error);
+    }
+
+    return [];
+  }
 }

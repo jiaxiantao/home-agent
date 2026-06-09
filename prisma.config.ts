@@ -2,7 +2,7 @@ import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
 const defaultDatabaseUrl =
-  "postgresql://postgres:postgres@localhost:5432/ai_my_home?schema=public";
+  "postgresql://postgres:postgres@localhost:5432/home_agent?schema=public";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

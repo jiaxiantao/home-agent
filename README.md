@@ -65,6 +65,14 @@ pnpm dev
 
 打开 [http://localhost:3000/agents](http://localhost:3000/agents)。
 
+### 数据库连不上？
+
+`search_notes` 依赖 PostgreSQL。若 trace 出现 Prisma / `findMany` 错误，请检查：
+
+1. `.env` 中 `DATABASE_URL` 与 [docker-compose.yml](./docker-compose.yml) 一致（默认 `home_agent` / `postgres`）
+2. 已启动数据库：`docker compose up -d db`
+3. 已初始化表与种子数据：`pnpm db:setup`
+
 ### Ollama（可选）
 
 ```bash

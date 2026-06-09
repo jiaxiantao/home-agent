@@ -31,7 +31,21 @@ export async function runAgentTool(
         return "未提供检索关键词。";
       }
 
-      const results = await searchNotes(query, 4);
+      let results;
+
+      try {
+        results = await searchNotes(query, 4);
+      } catch (error) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[search_notes] query failed:", error);
+        }
+
+        return [
+          "笔记检索失败：无法连接数据库或表未初始化。",
+          "请确认：1) docker compose up -d db  2) pnpm db:setup",
+          "DATABASE_URL 需与 docker-compose 一致（默认库名 home_agent，密码 postgres）。",
+        ].join("\n");
+      }
 
       if (!results.length) {
         return `未找到与「${query}」相关的笔记。`;
