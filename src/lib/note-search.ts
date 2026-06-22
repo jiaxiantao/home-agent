@@ -1,7 +1,7 @@
 import { getDb } from "@/lib/db";
 import type { NoteRecord } from "@/lib/notes-service";
 import { listNotes } from "@/lib/notes-service";
-import { ensurePgTrgmExtension } from "@/lib/pg-trgm";
+import { ensurePgTrgmExtension, isPgTrgmEnabled } from "@/lib/pg-trgm";
 
 export type NoteSearchResult = NoteRecord & {
   score: number;
@@ -172,7 +172,7 @@ export async function searchNotesMemoryOnly(
     };
   }
 
-  const extensionEnabled = await ensurePgTrgmExtension();
+  const extensionEnabled = await isPgTrgmEnabled();
   const memoryResults = await searchNotesInMemoryAsync(trimmed, limit);
 
   return {

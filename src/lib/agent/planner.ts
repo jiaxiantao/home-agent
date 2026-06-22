@@ -6,7 +6,8 @@ import { parsePlanFromLlm } from "@/lib/agent/planner-schema";
 import type { AgentToolResult } from "@/lib/agent/types";
 import { getLlmConfig, isLlmConfigured } from "@/lib/llm-config";
 
-const plannerSystem = `你是前端 Agent 编排器的规划器。根据用户问题决定是否调用工具。
+function getPlannerSystem() {
+  return `你是前端 Agent 编排器的规划器。根据用户问题决定是否调用工具。
 
 可用工具：
 - search_notes: { "query": string } — 搜索知识库笔记
@@ -18,10 +19,21 @@ const plannerSystem = `你是前端 Agent 编排器的规划器。根据用户�
 2) 直接回答: {"action":"answer","answer":"...","reasoning":"..."}
 
 若问题明显需要多个工具，可分多步调用，每次只调用一个工具。最多 ${getAgentMaxSteps()} 步。`;
+}
+
+let cachedClient: OpenAI | null = null;
+let cachedClientKey = "";
 
 function getClient() {
   const { baseURL, apiKey } = getLlmConfig();
-  return new OpenAI({ apiKey, baseURL });
+  const clientKey = `${baseURL}\0${apiKey}`;
+
+  if (!cachedClient || cachedClientKey !== clientKey) {
+    cachedClient = new OpenAI({ apiKey, baseURL });
+    cachedClientKey = clientKey;
+  }
+
+  return cachedClient;
 }
 
 export async function planAgentStep(
@@ -50,7 +62,7 @@ export async function planAgentStep(
       temperature: 0.1,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: plannerSystem },
+        { role: "system", content: getPlannerSystem() },
         { role: "user", content: JSON.stringify(userPayload) },
       ],
     });

@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 
 import type { AgentPlan, AgentToolName, AgentTraceEvent } from "@/lib/agent/types";
+import { parseSseBlock } from "@/lib/sse";
 
 export type AgentTraceLine = {
   id: string;
@@ -49,29 +50,6 @@ function formatToolResult(tool: AgentToolName, output: string) {
   return output;
 }
 
-export function parseSseBlock(block: string) {
-  let event = "message";
-  let data = "";
-
-  for (const line of block.split("\n")) {
-    if (line.startsWith("event:")) {
-      event = line.slice(6).trim();
-    } else if (line.startsWith("data:")) {
-      data += line.slice(5).trim();
-    }
-  }
-
-  if (!data) {
-    return null;
-  }
-
-  try {
-    return { event, payload: JSON.parse(data) as AgentTraceEvent };
-  } catch {
-    return null;
-  }
-}
-
 function traceLineFromEvent(payload: AgentTraceEvent): AgentTraceLine | null {
   const id = crypto.randomUUID();
 
@@ -106,6 +84,9 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
   const [stepMetrics, setStepMetrics] = useState<AgentStepMetric[]>([]);
   const [stats, setStats] = useState<AgentRunStats | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const onEventRef = useRef(options?.onEvent);
+
+  onEventRef.current = options?.onEvent;
 
   const reset = useCallback(() => {
     setLines([]);
@@ -174,7 +155,7 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
 
             if (parsed?.payload) {
               const { payload } = parsed;
-              options?.onEvent?.(payload);
+              onEventRef.current?.(payload);
 
               const line = traceLineFromEvent(payload);
               if (line) {
@@ -220,7 +201,7 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
         setRunning(false);
       }
     },
-    [options, reset],
+    [reset],
   );
 
   return {

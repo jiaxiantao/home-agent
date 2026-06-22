@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { runAgentLoop } from "@/lib/agent/run-loop";
+import { encodeSseEvent } from "@/lib/sse";
 
 const agentSchema = z.object({
   message: z.string().min(1, "message is required"),
@@ -14,9 +15,7 @@ export async function POST(request: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         const send = (event: string, data: unknown) => {
-          controller.enqueue(
-            encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
-          );
+          controller.enqueue(encoder.encode(encodeSseEvent(event, data)));
         };
 
         try {

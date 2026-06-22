@@ -11,6 +11,15 @@ function assertNotAborted(signal?: AbortSignal) {
   throw new Error("Agent request aborted");
 }
 
+function buildExhaustedAnswer(prior: AgentToolResult[], maxSteps: number) {
+  if (!prior.length) {
+    return `已达最大步数（${maxSteps}），请缩小问题范围后重试。`;
+  }
+
+  const context = prior.map((item) => `${item.tool}: ${item.output}`).join("\n");
+  return `已达最大步数（${maxSteps}）。基于已有工具结果：\n${context}\n\n请缩小问题范围后重试。`;
+}
+
 export async function* runAgentLoop(
   message: string,
   options: { signal?: AbortSignal } = {},
@@ -84,13 +93,13 @@ export async function* runAgentLoop(
     }
   }
 
-  const { plan, mock } = await planAgentStep(message, prior);
-  const text =
-    plan.action === "answer"
-      ? plan.answer
-      : `已达最大步数（${maxSteps}），请缩小问题范围后重试。`;
+  yield {
+    type: "trace",
+    phase: "limit",
+    message: `已达最大步数（${maxSteps}），合成最终回答`,
+  };
 
-  yield { type: "answer", text, mock };
+  yield { type: "answer", text: buildExhaustedAnswer(prior, maxSteps) };
   yield {
     type: "done",
     steps,
