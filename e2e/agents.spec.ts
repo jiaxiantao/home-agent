@@ -21,6 +21,8 @@ test.describe("Agents page", () => {
     await page.goto("/agents?q=" + encodeURIComponent("现在几点？"));
 
     await page.getByRole("button", { name: "运行 Agent 循环" }).click();
-    await expect(page.getByText("最终回答")).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.getByText("最终回答", { exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
   });
 });
