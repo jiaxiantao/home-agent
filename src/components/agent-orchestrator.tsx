@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AgentFinalAnswer } from "@/components/agent-final-answer";
+import { AgentStepMetrics } from "@/components/agent-step-metrics";
+import { AgentTracePanel } from "@/components/agent-trace-panel";
+import { AgentWorkflowBar } from "@/components/agent-workflow-bar";
 import { IntelligenceLearningPanel } from "@/components/intelligence-learning-panel";
 import { useAgentStream } from "@/hooks/use-agent-sse";
 import { agentQuickPrompts } from "@/lib/agent-quick-prompts";
@@ -24,6 +28,7 @@ import {
   type IntelligencePreferences,
   type IntelligenceStyle,
 } from "@/lib/front-intelligence-preferences";
+import { cn } from "@/lib/utils";
 
 function getAgentPromptHint(preferences: IntelligencePreferences) {
   const styleHint =
@@ -53,14 +58,36 @@ export function AgentOrchestratorDemo({
   const [learningProfile, setLearningProfile] = useState(() => loadLearningProfile());
   const [historyEvents, setHistoryEvents] = useState(() => loadHistoryEvents());
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { run, stop, appendLine, running, lines, finalAnswer, stats, stepMetrics } =
-    useAgentStream();
+  const {
+    run,
+    stop,
+    reset,
+    appendLine,
+    running,
+    phase,
+    currentStep,
+    isMock,
+    lines,
+    finalAnswer,
+    stats,
+    stepMetrics,
+  } = useAgentStream();
 
   const recommendedPromptSuffix = useMemo(
     () => getAgentPromptHint(preferences),
     [preferences],
   );
+
+  const runAgent = useCallback(async () => {
+    if (running || !message.trim()) {
+      return;
+    }
+
+    const payload = `${message.trim()}\n\n[偏好约束] ${recommendedPromptSuffix}`.trim();
+    await run(payload);
+  }, [message, recommendedPromptSuffix, run, running]);
 
   useEffect(() => {
     saveIntelligencePreferences(preferences);
@@ -72,36 +99,130 @@ export function AgentOrchestratorDemo({
     saveHistoryEvents(historyEvents);
   }, [historyEvents]);
 
-  async function runAgent() {
-    const payload = `${message.trim()}\n\n[偏好约束] ${recommendedPromptSuffix}`.trim();
-    await run(payload);
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && running) {
+        event.preventDefault();
+        stop();
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [running, stop]);
+
+  function handleQuickPrompt(prompt: string, runImmediately = false) {
+    setMessage(prompt);
+    textareaRef.current?.focus();
+
+    if (runImmediately && !running) {
+      const payload = `${prompt.trim()}\n\n[偏好约束] ${recommendedPromptSuffix}`.trim();
+      void run(payload);
+    }
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-      <div className="space-y-4">
-        <p className="text-sm leading-7 text-slate-400">
-          简化 Agent 循环：用户输入 → LLM/规则规划 → 可选工具 → 结果再规划 →
-          最终回答。全程 SSE 推送 trace，便于前端编排 UI。
-        </p>
-
-        <textarea
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          rows={3}
-          className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="space-y-5">
+        <AgentWorkflowBar
+          phase={phase}
+          running={running}
+          currentStep={currentStep}
+          stats={stats}
+          isMock={isMock}
         />
 
-        <button
-          type="button"
-          onClick={() => setShowAdvanced((current) => !current)}
-          className="text-xs text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
-        >
-          {showAdvanced ? "收起" : "展开"}编排偏好（进阶，localStorage）
-        </button>
+        <div className="space-y-2">
+          <label htmlFor="agent-message" className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+            任务输入
+          </label>
+          <textarea
+            id="agent-message"
+            ref={textareaRef}
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                void runAgent();
+              }
+            }}
+            rows={4}
+            placeholder="描述你的任务，例如：检索前端架构笔记并计算指标…"
+            className="w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40 focus:ring-2 focus:ring-cyan-300/10"
+          />
+          <p className="text-[11px] text-slate-500">
+            <kbd className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px]">
+              ⌘/Ctrl + Enter
+            </kbd>{" "}
+            运行 ·{" "}
+            <kbd className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px]">
+              Esc
+            </kbd>{" "}
+            停止
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">工具快捷任务</p>
+            <p className="text-[10px] text-slate-600">单击填入 · 双击立即运行</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {agentQuickPrompts.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleQuickPrompt(item.prompt)}
+                onDoubleClick={() => handleQuickPrompt(item.prompt, true)}
+                className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-300 transition hover:border-cyan-300/30 hover:bg-cyan-300/5 hover:text-white active:scale-[0.98]"
+              >
+                <span className="mr-1.5 font-mono text-[10px] text-cyan-300/70">{item.tool}</span>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void runAgent()}
+            disabled={running || !message.trim()}
+            className="rounded-full bg-cyan-300 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {running ? "运行中…" : "运行 Agent 循环"}
+          </button>
+          <button
+            type="button"
+            onClick={stop}
+            disabled={!running}
+            className="rounded-full border border-white/10 px-4 py-2.5 text-sm text-slate-200 transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            停止
+          </button>
+          <button
+            type="button"
+            onClick={reset}
+            disabled={running || (!lines.length && !finalAnswer)}
+            className="rounded-full border border-white/10 px-4 py-2.5 text-sm text-slate-400 transition hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            清空结果
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((current) => !current)}
+            className="rounded-full border border-white/10 px-4 py-2.5 text-sm text-slate-400 transition hover:text-slate-200"
+          >
+            {showAdvanced ? "收起偏好" : "编排偏好"}
+          </button>
+        </div>
 
         {showAdvanced ? (
-          <>
+          <div className="space-y-3 rounded-2xl border border-white/10 bg-white/3 p-4">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+              进阶偏好（localStorage）
+            </p>
             <div className="flex flex-wrap gap-2">
               {(
                 [
@@ -123,11 +244,12 @@ export function AgentOrchestratorDemo({
                       bumpLearningProfile(current, { style: item.key }),
                     );
                   }}
-                  className={`rounded-full border px-3 py-1 text-xs ${
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs transition",
                     preferences.style === item.key
                       ? "border-cyan-200/40 bg-cyan-200/15 text-cyan-100"
-                      : "border-white/10 text-slate-400"
-                  }`}
+                      : "border-white/10 text-slate-400 hover:border-white/20",
+                  )}
                 >
                   {item.label}
                 </button>
@@ -151,11 +273,12 @@ export function AgentOrchestratorDemo({
                       bumpLearningProfile(current, { depth: item.key }),
                     );
                   }}
-                  className={`rounded-full border px-3 py-1 text-xs ${
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs transition",
                     preferences.depth === item.key
                       ? "border-emerald-200/40 bg-emerald-200/15 text-emerald-100"
-                      : "border-white/10 text-slate-400"
-                  }`}
+                      : "border-white/10 text-slate-400 hover:border-white/20",
+                  )}
                 >
                   {item.label}
                 </button>
@@ -172,11 +295,12 @@ export function AgentOrchestratorDemo({
                     return next;
                   })
                 }
-                className={`rounded-full border px-3 py-1 text-xs ${
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs transition",
                   preferences.includeMetrics
                     ? "border-violet-200/40 bg-violet-200/15 text-violet-100"
-                    : "border-white/10 text-slate-400"
-                }`}
+                    : "border-white/10 text-slate-400 hover:border-white/20",
+                )}
               >
                 指标{preferences.includeMetrics ? "开启" : "关闭"}
               </button>
@@ -242,132 +366,51 @@ export function AgentOrchestratorDemo({
                 setHistoryEvents(imported.history);
               }}
             />
-          </>
-        ) : null}
-
-        <div className="space-y-2">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-            工具快捷任务
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {agentQuickPrompts.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setMessage(item.prompt)}
-                className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300 transition hover:border-cyan-300/30 hover:text-white"
-              >
-                <span className="mr-1.5 font-mono text-[10px] text-cyan-300/70">
-                  {item.tool}
-                </span>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void runAgent()}
-            disabled={running || !message.trim()}
-            className="rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50"
-          >
-            {running ? "运行中…" : "运行 Agent 循环"}
-          </button>
-          <button
-            type="button"
-            onClick={stop}
-            disabled={!running}
-            className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200 disabled:opacity-40"
-          >
-            停止
-          </button>
-        </div>
-
-        {stats ? (
-          <p className="font-mono text-xs text-slate-500">
-            steps {stats.steps} · tools {stats.toolCalls} · total {stats.totalMs} ms
-          </p>
-        ) : null}
-
-        {stepMetrics.length ? (
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-            <p className="font-mono text-[11px] text-slate-500">step latency</p>
-            <div className="mt-3 space-y-2">
-              {[...stepMetrics]
-                .sort((a, b) => a.step - b.step)
-                .map((metric) => {
-                  const total = Math.max(metric.planMs + (metric.toolMs ?? 0), 1);
-                  const planWidth = Math.max((metric.planMs / total) * 100, 8);
-                  const toolWidth = metric.toolMs
-                    ? Math.max((metric.toolMs / total) * 100, 8)
-                    : 0;
-
-                  return (
-                    <div key={metric.step} className="space-y-1">
-                      <p className="font-mono text-[11px] text-slate-400">
-                        step {metric.step} · total {metric.totalMs} ms
-                      </p>
-                      <div className="flex h-2 overflow-hidden rounded bg-white/10">
-                        <div
-                          className="bg-cyan-300/80"
-                          style={{ width: `${planWidth}%` }}
-                          title={`plan ${metric.planMs}ms`}
-                        />
-                        {toolWidth ? (
-                          <div
-                            className="bg-violet-300/80"
-                            style={{ width: `${toolWidth}%` }}
-                            title={`tool ${metric.toolMs}ms`}
-                          />
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
           </div>
         ) : null}
 
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-4 font-mono text-xs leading-6 text-slate-300">
-          {lines.length ? (
-            <ul className="space-y-2">
-              {lines.map((line) => (
-                <li key={line.id} className="whitespace-pre-wrap">
-                  <span className="text-cyan-200/70">{line.kind}</span> {line.text}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-slate-500">trace 将显示在这里</p>
-          )}
-        </div>
-
-        {finalAnswer ? (
-          <div className="rounded-2xl border border-cyan-300/25 bg-cyan-300/5 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200/80">
-              Final
-            </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-200">
-              {finalAnswer}
-            </p>
-          </div>
-        ) : null}
+        <AgentStepMetrics metrics={stepMetrics} />
+        <AgentTracePanel lines={lines} running={running} />
+        {finalAnswer ? <AgentFinalAnswer text={finalAnswer} running={running && phase === "answering"} /> : null}
       </div>
 
-      <aside className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-          Tools
-        </p>
-        <ul className="mt-3 space-y-3">
-          {agentToolCatalog.map((tool) => (
-            <li key={tool.name} className="text-xs leading-6 text-slate-400">
-              <span className="font-mono text-cyan-200/80">{tool.name}</span>
-              <span className="block text-slate-500">{tool.description}</span>
-            </li>
-          ))}
-        </ul>
+      <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Tools</p>
+          <ul className="mt-3 space-y-3">
+            {agentToolCatalog.map((tool) => {
+              const quickPrompt = agentQuickPrompts.find((item) => item.tool === tool.name);
+
+              return (
+                <li key={tool.name}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (quickPrompt) {
+                        handleQuickPrompt(quickPrompt.prompt);
+                      }
+                    }}
+                    className="w-full rounded-xl border border-transparent p-2 text-left transition hover:border-white/10 hover:bg-white/5"
+                  >
+                    <span className="font-mono text-xs text-cyan-200/80">{tool.name}</span>
+                    <span className="mt-1 block text-sm font-medium text-white">{tool.label}</span>
+                    <span className="mt-1 block text-xs leading-6 text-slate-500">
+                      {tool.description}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-xs leading-6 text-slate-500">
+          <p className="font-semibold text-slate-400">学习提示</p>
+          <p className="mt-2">
+            观察工作流条如何从「规划」进入「工具」再到「回答」，Trace 面板会同步展示 SSE
+            事件，便于理解 Agent 编排 UI 的数据流。
+          </p>
+        </div>
       </aside>
     </div>
   );

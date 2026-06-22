@@ -24,6 +24,14 @@ export type AgentRunStats = {
   totalMs: number;
 };
 
+export type AgentPhase =
+  | "idle"
+  | "planning"
+  | "tool"
+  | "answering"
+  | "done"
+  | "error";
+
 function formatPlan(plan: AgentPlan) {
   if (plan.action === "tool") {
     return `调用 ${plan.tool} · ${plan.reasoning || "执行工具步骤"}`;
@@ -77,10 +85,38 @@ function traceLineFromEvent(payload: AgentTraceEvent): AgentTraceLine | null {
   }
 }
 
+function phaseFromEvent(payload: AgentTraceEvent): AgentPhase | null {
+  switch (payload.type) {
+    case "trace":
+      if (payload.phase === "plan") {
+        return "planning";
+      }
+      if (payload.phase === "limit") {
+        return "answering";
+      }
+      return null;
+    case "plan":
+      return "planning";
+    case "tool_call":
+      return "tool";
+    case "answer":
+      return "answering";
+    case "done":
+      return "done";
+    case "error":
+      return "error";
+    default:
+      return null;
+  }
+}
+
 export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) => void }) {
   const [lines, setLines] = useState<AgentTraceLine[]>([]);
   const [finalAnswer, setFinalAnswer] = useState("");
   const [running, setRunning] = useState(false);
+  const [phase, setPhase] = useState<AgentPhase>("idle");
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isMock, setIsMock] = useState(false);
   const [stepMetrics, setStepMetrics] = useState<AgentStepMetric[]>([]);
   const [stats, setStats] = useState<AgentRunStats | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -93,6 +129,9 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
     setFinalAnswer("");
     setStats(null);
     setStepMetrics([]);
+    setPhase("idle");
+    setCurrentStep(0);
+    setIsMock(false);
   }, []);
 
   const appendLine = useCallback((kind: string, text: string) => {
@@ -105,6 +144,7 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
   const stop = useCallback(() => {
     abortRef.current?.abort();
     setRunning(false);
+    setPhase("idle");
     appendLine("trace", "[client] 已手动停止");
   }, [appendLine]);
 
@@ -115,6 +155,7 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
       abortRef.current = controller;
       setRunning(true);
       reset();
+      setPhase("planning");
 
       try {
         const response = await fetch("/api/agent", {
@@ -125,6 +166,7 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
         });
 
         if (!response.ok || !response.body) {
+          setPhase("error");
           setLines([
             {
               id: crypto.randomUUID(),
@@ -157,6 +199,11 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
               const { payload } = parsed;
               onEventRef.current?.(payload);
 
+              const nextPhase = phaseFromEvent(payload);
+              if (nextPhase) {
+                setPhase(nextPhase);
+              }
+
               const line = traceLineFromEvent(payload);
               if (line) {
                 setLines((current) => [...current, line]);
@@ -164,13 +211,16 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
 
               if (payload.type === "answer") {
                 setFinalAnswer(payload.text);
+                setIsMock(Boolean(payload.mock));
               } else if (payload.type === "done") {
                 setStats({
                   steps: payload.steps,
                   toolCalls: payload.toolCalls,
                   totalMs: payload.totalMs,
                 });
+                setPhase("done");
               } else if (payload.type === "step_metric") {
+                setCurrentStep(payload.step);
                 setStepMetrics((current) => [
                   ...current.filter((item) => item.step !== payload.step),
                   {
@@ -180,6 +230,8 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
                     totalMs: payload.totalMs,
                   },
                 ]);
+              } else if (payload.type === "tool_call") {
+                setCurrentStep((current) => current + 1);
               }
             }
 
@@ -188,6 +240,7 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
         }
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setPhase("error");
           setLines((current) => [
             ...current,
             {
@@ -210,6 +263,9 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
     reset,
     appendLine,
     running,
+    phase,
+    currentStep,
+    isMock,
     lines,
     finalAnswer,
     stats,

@@ -93,3 +93,45 @@ a {
 .streaming-cursor {
   animation: streaming-cursor-blink 1s step-end infinite;
 }
+
+@keyframes trace-line-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes answer-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.trace-line-enter {
+  animation: trace-line-enter 220ms ease-out both;
+}
+
+.answer-enter {
+  animation: answer-enter 320ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .streaming-cursor,
+  .trace-line-enter,
+  .answer-enter {
+    animation: none;
+  }
+}
