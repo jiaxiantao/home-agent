@@ -34,6 +34,15 @@ flowchart LR
 
 详细说明见 [docs/architecture.md](./docs/architecture.md) · SSE 协议见 [docs/sse-protocol.md](./docs/sse-protocol.md)
 
+## 协议约定
+
+项目后续演进默认采用两层协议分工：
+
+- `AG-UI` 负责 Agent 与前端之间的双向事件通信与状态同步。
+- `A2UI` 负责声明式生成 UI，避免把界面结构混入自由文本或不可校验的 HTML 字符串。
+
+当前仓库中的 SSE trace 可以视为过渡实现。新增交互能力时，优先按 `AG-UI` 事件模型设计；需要表单、列表、按钮、卡片等交互式界面时，优先按 `A2UI` 的结构化消息建模。
+
 ## 推荐阅读顺序
 
 1. `src/lib/agent/types.ts` — 事件与规划类型
