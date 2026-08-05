@@ -46,4 +46,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/docs
+/docs/*
+!docs/add-a-tool.md
+!docs/architecture.md
+!docs/sse-protocol.md
+!docs/roadmap.md

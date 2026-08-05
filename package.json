@@ -1,6 +1,6 @@
 {
   "name": "home-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "Learn AI Agent frontend orchestration with Next.js — plan, tools, and SSE traces",
   "license": "MIT",

@@ -27,4 +27,12 @@ describe("getAgentMaxSteps", () => {
     process.env.AGENT_MAX_STEPS = "99";
     expect(getAgentMaxSteps()).toBe(12);
   });
+
+  it("falls back to default for invalid values", () => {
+    process.env.AGENT_MAX_STEPS = "0";
+    expect(getAgentMaxSteps()).toBe(4);
+
+    process.env.AGENT_MAX_STEPS = "not-a-number";
+    expect(getAgentMaxSteps()).toBe(4);
+  });
 });

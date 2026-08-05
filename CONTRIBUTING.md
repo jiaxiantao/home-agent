@@ -44,7 +44,7 @@ CI 会在 push / PR 时自动跑 typecheck、lint、build、smoke、e2e。
 4. `src/app/api/agent/route.ts`
 5. `src/hooks/use-agent-sse.ts`
 
-扩展工具见 [docs/add-a-tool.md](./docs/add-a-tool.md)。
+扩展工具见 [docs/add-a-tool.md](./docs/add-a-tool.md)。演进规划见 [docs/roadmap.md](./docs/roadmap.md)，提交前可更新 [CHANGELOG.md](./CHANGELOG.md) 的 Unreleased 区块。
 
 ## 报告问题
 

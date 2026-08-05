@@ -7,6 +7,8 @@
 
 适合用来理解：Agent 循环如何设计、如何用 SSE 驱动编排 UI、如何在无 API Key 时用规则回退跑通 CI。
 
+演进方向见 [docs/roadmap.md](./docs/roadmap.md)，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。
+
 ## 能力
 
 | 工具 | 说明 |
@@ -110,7 +112,7 @@ pnpm test:e2e     # E2E（需先 pnpm build && pnpm start:ci）
 
 | 端点 | 说明 |
 |------|------|
-| `GET /api/health` | DB / LLM / pg_trgm 状态 |
+| `GET /api/health` | DB / LLM / pg_trgm / Agent 步数配置 |
 | `POST /api/agent` | Agent 工具循环（SSE） |
 | `GET /api/notes/search?q=&limit=` | 笔记检索 |
 

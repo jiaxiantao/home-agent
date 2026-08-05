@@ -8,6 +8,7 @@ export type HealthStatus = {
   db: { connected: boolean; ok: boolean; latencyMs: number };
   llm: { configured: boolean; label: string };
   search: { pgTrgm: boolean };
+  agent?: { maxSteps: number };
 };
 
 export function useHealthStatus() {

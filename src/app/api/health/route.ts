@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getAgentMaxSteps } from "@/lib/agent/config";
 import { getDb } from "@/lib/db";
 import { getLlmLabel, isLlmConfigured } from "@/lib/llm-config";
 import { isPgTrgmEnabled } from "@/lib/pg-trgm";
@@ -44,6 +45,7 @@ export async function GET() {
     db: { connected: Boolean(db), ok: dbOk, latencyMs: dbMs },
     llm: { configured: llmConfigured, label: llmLabel },
     search: { pgTrgm },
+    agent: { maxSteps: getAgentMaxSteps() },
     server: {
       node: process.version,
       totalMs,
