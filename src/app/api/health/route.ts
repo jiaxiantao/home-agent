@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { checkAnalyticsMysqlHealth } from "@/lib/analytics/mysql";
 import { getAgentMaxSteps } from "@/lib/agent/config";
 import { getDb } from "@/lib/db";
 import { getLlmLabel, isLlmConfigured } from "@/lib/llm-config";
@@ -26,6 +27,8 @@ export async function GET() {
     }
   }
 
+  const analyticsMysql = await checkAnalyticsMysqlHealth();
+
   const llmConfigured = isLlmConfigured();
   let llmLabel = "unconfigured";
 
@@ -43,6 +46,14 @@ export async function GET() {
     ok,
     ready,
     db: { connected: Boolean(db), ok: dbOk, latencyMs: dbMs },
+    analyticsMysql: {
+      configured: analyticsMysql.configured,
+      ok: analyticsMysql.ok,
+      latencyMs: analyticsMysql.latencyMs,
+      env: analyticsMysql.env,
+      database: analyticsMysql.database,
+      error: analyticsMysql.error,
+    },
     llm: { configured: llmConfigured, label: llmLabel },
     search: { pgTrgm },
     agent: { maxSteps: getAgentMaxSteps() },

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "%s | Home Agent",
   },
   description:
-    "Frontend agent orchestration: plan, tool calls, and SSE traces with search_notes, calculate, and current_time.",
+    "Dafengche data analysis agent: natural language to read-only SQL, HITL confirm, tables and charts via A2UI.",
 };
 
 export default function RootLayout({

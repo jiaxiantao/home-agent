@@ -2,7 +2,13 @@
 
 import { useCallback, useRef, useState } from "react";
 
-import type { AgentPlan, AgentToolName, AgentTraceEvent } from "@/lib/agent/types";
+import type { A2UISurface } from "@/lib/a2ui/types";
+import type {
+  AgentPlan,
+  AgentResumeAction,
+  AgentToolName,
+  AgentTraceEvent,
+} from "@/lib/agent/types";
 import { parseSseBlock } from "@/lib/sse";
 
 export type AgentTraceLine = {
@@ -28,6 +34,7 @@ export type AgentPhase =
   | "idle"
   | "planning"
   | "tool"
+  | "awaiting"
   | "answering"
   | "done"
   | "error";
@@ -78,6 +85,18 @@ function traceLineFromEvent(payload: AgentTraceEvent): AgentTraceLine | null {
         kind: "result",
         text: formatToolResult(payload.tool, payload.output),
       };
+    case "awaiting_input":
+      return {
+        id,
+        kind: "awaiting",
+        text: `等待确认 SQL（runId=${payload.runId}）`,
+      };
+    case "a2ui":
+      return {
+        id,
+        kind: "a2ui",
+        text: `A2UI surface: ${payload.surface.title ?? payload.surface.surfaceId}`,
+      };
     case "error":
       return { id, kind: "error", text: payload.message };
     default:
@@ -91,7 +110,7 @@ function phaseFromEvent(payload: AgentTraceEvent): AgentPhase | null {
       if (payload.phase === "plan") {
         return "planning";
       }
-      if (payload.phase === "limit") {
+      if (payload.phase === "limit" || payload.phase === "resume") {
         return "answering";
       }
       return null;
@@ -99,6 +118,8 @@ function phaseFromEvent(payload: AgentTraceEvent): AgentPhase | null {
       return "planning";
     case "tool_call":
       return "tool";
+    case "awaiting_input":
+      return "awaiting";
     case "answer":
       return "answering";
     case "done":
@@ -107,6 +128,47 @@ function phaseFromEvent(payload: AgentTraceEvent): AgentPhase | null {
       return "error";
     default:
       return null;
+  }
+}
+
+async function consumeAgentStream(
+  body: unknown,
+  signal: AbortSignal,
+  onPayload: (payload: AgentTraceEvent) => void,
+) {
+  const response = await fetch("/api/agent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  if (!response.ok || !response.body) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    let boundary = buffer.indexOf("\n\n");
+
+    while (boundary !== -1) {
+      const block = buffer.slice(0, boundary).trim();
+      buffer = buffer.slice(boundary + 2);
+      const parsed = parseSseBlock(block);
+
+      if (parsed?.payload) {
+        onPayload(parsed.payload);
+      }
+
+      boundary = buffer.indexOf("\n\n");
+    }
   }
 }
 
@@ -119,6 +181,8 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
   const [isMock, setIsMock] = useState(false);
   const [stepMetrics, setStepMetrics] = useState<AgentStepMetric[]>([]);
   const [stats, setStats] = useState<AgentRunStats | null>(null);
+  const [surfaces, setSurfaces] = useState<A2UISurface[]>([]);
+  const [pendingRunId, setPendingRunId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const onEventRef = useRef(options?.onEvent);
 
@@ -132,6 +196,8 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
     setPhase("idle");
     setCurrentStep(0);
     setIsMock(false);
+    setSurfaces([]);
+    setPendingRunId(null);
   }, []);
 
   const appendLine = useCallback((kind: string, text: string) => {
@@ -148,6 +214,55 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
     appendLine("trace", "[client] 已手动停止");
   }, [appendLine]);
 
+  const handlePayload = useCallback((payload: AgentTraceEvent) => {
+    onEventRef.current?.(payload);
+
+    const nextPhase = phaseFromEvent(payload);
+    if (nextPhase) {
+      setPhase(nextPhase);
+    }
+
+    const line = traceLineFromEvent(payload);
+    if (line) {
+      setLines((current) => [...current, line]);
+    }
+
+    if (payload.type === "answer") {
+      setFinalAnswer(payload.text);
+      setIsMock(Boolean(payload.mock));
+    } else if (payload.type === "done") {
+      setStats({
+        steps: payload.steps,
+        toolCalls: payload.toolCalls,
+        totalMs: payload.totalMs,
+      });
+      setPhase("done");
+    } else if (payload.type === "step_metric") {
+      setCurrentStep(payload.step);
+      setStepMetrics((current) => [
+        ...current.filter((item) => item.step !== payload.step),
+        {
+          step: payload.step,
+          planMs: payload.planMs,
+          toolMs: payload.toolMs,
+          totalMs: payload.totalMs,
+        },
+      ]);
+    } else if (payload.type === "tool_call") {
+      setCurrentStep((current) => current + 1);
+    } else if (payload.type === "a2ui") {
+      setSurfaces((current) => {
+        const without = current.filter(
+          (surface) => surface.surfaceId !== payload.surface.surfaceId,
+        );
+        return [...without, payload.surface];
+      });
+    } else if (payload.type === "awaiting_input") {
+      setPendingRunId(payload.runId);
+      setPhase("awaiting");
+    }
+  }, []);
+
   const run = useCallback(
     async (message: string) => {
       abortRef.current?.abort();
@@ -158,86 +273,11 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
       setPhase("planning");
 
       try {
-        const response = await fetch("/api/agent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: message.trim() }),
-          signal: controller.signal,
-        });
-
-        if (!response.ok || !response.body) {
-          setPhase("error");
-          setLines([
-            {
-              id: crypto.randomUUID(),
-              kind: "error",
-              text: `HTTP ${response.status}`,
-            },
-          ]);
-          return;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-
-          let boundary = buffer.indexOf("\n\n");
-
-          while (boundary !== -1) {
-            const block = buffer.slice(0, boundary).trim();
-            buffer = buffer.slice(boundary + 2);
-
-            const parsed = parseSseBlock(block);
-
-            if (parsed?.payload) {
-              const { payload } = parsed;
-              onEventRef.current?.(payload);
-
-              const nextPhase = phaseFromEvent(payload);
-              if (nextPhase) {
-                setPhase(nextPhase);
-              }
-
-              const line = traceLineFromEvent(payload);
-              if (line) {
-                setLines((current) => [...current, line]);
-              }
-
-              if (payload.type === "answer") {
-                setFinalAnswer(payload.text);
-                setIsMock(Boolean(payload.mock));
-              } else if (payload.type === "done") {
-                setStats({
-                  steps: payload.steps,
-                  toolCalls: payload.toolCalls,
-                  totalMs: payload.totalMs,
-                });
-                setPhase("done");
-              } else if (payload.type === "step_metric") {
-                setCurrentStep(payload.step);
-                setStepMetrics((current) => [
-                  ...current.filter((item) => item.step !== payload.step),
-                  {
-                    step: payload.step,
-                    planMs: payload.planMs,
-                    toolMs: payload.toolMs,
-                    totalMs: payload.totalMs,
-                  },
-                ]);
-              } else if (payload.type === "tool_call") {
-                setCurrentStep((current) => current + 1);
-              }
-            }
-
-            boundary = buffer.indexOf("\n\n");
-          }
-        }
+        await consumeAgentStream(
+          { message: message.trim() },
+          controller.signal,
+          handlePayload,
+        );
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
           setPhase("error");
@@ -254,11 +294,46 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
         setRunning(false);
       }
     },
-    [reset],
+    [handlePayload, reset],
+  );
+
+  const resume = useCallback(
+    async (action: AgentResumeAction) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setRunning(true);
+      setPhase("tool");
+      setPendingRunId(null);
+
+      try {
+        await consumeAgentStream(
+          { message: "", resume: action },
+          controller.signal,
+          handlePayload,
+        );
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setPhase("error");
+          setLines((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              kind: "error",
+              text: error instanceof Error ? error.message : "确认请求失败",
+            },
+          ]);
+        }
+      } finally {
+        setRunning(false);
+      }
+    },
+    [handlePayload],
   );
 
   return {
     run,
+    resume,
     stop,
     reset,
     appendLine,
@@ -270,5 +345,7 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
     finalAnswer,
     stats,
     stepMetrics,
+    surfaces,
+    pendingRunId,
   };
 }

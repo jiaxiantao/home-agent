@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { A2UISurfaceView } from "@/components/a2ui/surface-view";
 import { AgentFinalAnswer } from "@/components/agent-final-answer";
 import { AgentStepMetrics } from "@/components/agent-step-metrics";
 import { AgentTracePanel } from "@/components/agent-trace-panel";
@@ -10,6 +11,7 @@ import { IntelligenceLearningPanel } from "@/components/intelligence-learning-pa
 import { useAgentStream } from "@/hooks/use-agent-sse";
 import { agentQuickPrompts } from "@/lib/agent-quick-prompts";
 import { agentToolCatalog } from "@/lib/agent/tool-catalog";
+import type { AgentResumeAction } from "@/lib/agent/types";
 import {
   bumpLearningProfile,
   defaultIntelligencePreferences,
@@ -52,7 +54,7 @@ export function AgentOrchestratorDemo({
   initialMessage?: string;
 }) {
   const [message, setMessage] = useState(
-    initialMessage ?? "帮我搜索笔记里关于前端架构的内容",
+    initialMessage ?? "大风车正式车源一共有多少辆？",
   );
   const [preferences, setPreferences] = useState(() => loadIntelligencePreferences());
   const [learningProfile, setLearningProfile] = useState(() => loadLearningProfile());
@@ -62,6 +64,7 @@ export function AgentOrchestratorDemo({
 
   const {
     run,
+    resume,
     stop,
     reset,
     appendLine,
@@ -73,7 +76,31 @@ export function AgentOrchestratorDemo({
     finalAnswer,
     stats,
     stepMetrics,
+    surfaces,
+    pendingRunId,
   } = useAgentStream();
+
+  const handleA2UIAction = useCallback(
+    (action: string, payload?: Record<string, unknown>) => {
+      if (running) {
+        return;
+      }
+
+      if (action !== "confirm_sql" && action !== "cancel_sql") {
+        return;
+      }
+
+      const runId =
+        typeof payload?.runId === "string" ? payload.runId : pendingRunId ?? undefined;
+
+      const resumeAction: AgentResumeAction = {
+        actionId: action,
+        payload: { runId },
+      };
+      void resume(resumeAction);
+    },
+    [pendingRunId, resume, running],
+  );
 
   const recommendedPromptSuffix = useMemo(
     () => getAgentPromptHint(preferences),
@@ -148,7 +175,7 @@ export function AgentOrchestratorDemo({
               }
             }}
             rows={4}
-            placeholder="描述你的任务，例如：检索前端架构笔记并计算指标…"
+            placeholder="用自然语言问数，例如：统计各状态正式车源分布…"
             className="w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/40 focus:ring-2 focus:ring-cyan-300/10"
           />
           <p className="text-[11px] text-slate-500">
@@ -369,6 +396,20 @@ export function AgentOrchestratorDemo({
           </div>
         ) : null}
 
+        {surfaces.length ? (
+          <div className="space-y-3">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">结果 / 确认（A2UI）</p>
+            {surfaces.map((surface) => (
+              <A2UISurfaceView
+                key={surface.surfaceId}
+                surface={surface}
+                onAction={handleA2UIAction}
+                disabled={running}
+              />
+            ))}
+          </div>
+        ) : null}
+
         <AgentStepMetrics metrics={stepMetrics} />
         <AgentTracePanel lines={lines} running={running} />
         {finalAnswer ? <AgentFinalAnswer text={finalAnswer} running={running && phase === "answering"} /> : null}
@@ -405,10 +446,10 @@ export function AgentOrchestratorDemo({
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-xs leading-6 text-slate-500">
-          <p className="font-semibold text-slate-400">学习提示</p>
+          <p className="font-semibold text-slate-400">问数提示</p>
           <p className="mt-2">
-            观察工作流条如何从「规划」进入「工具」再到「回答」，Trace 面板会同步展示 SSE
-            事件，便于理解 Agent 编排 UI 的数据流。
+            自然语言提问后，助手会先提出只读 SQL 并等待你确认；确认后查询大风车 matador
+            测试库，结果以表格/图表（A2UI）展示。需内网访问分析库。
           </p>
         </div>
       </aside>

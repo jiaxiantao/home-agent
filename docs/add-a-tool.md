@@ -34,7 +34,7 @@ export type AgentToolName =
 ```ts
 case "echo": {
   const text = String(args.text ?? "").trim();
-  return text || "（空输入）";
+  return { output: text || "（空输入）" };
 }
 ```
 

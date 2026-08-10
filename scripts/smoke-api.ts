@@ -26,6 +26,7 @@ const checks: Check[] = [
       const data = body as {
         ok?: boolean;
         db?: { connected?: boolean; ok?: boolean };
+        analyticsMysql?: { configured?: boolean; ok?: boolean };
         llm?: { configured?: boolean };
       };
 
@@ -36,6 +37,12 @@ const checks: Check[] = [
       if (!data.db?.connected || !data.db?.ok) {
         throw new Error(
           `database unhealthy (connected=${String(data.db?.connected)}, ok=${String(data.db?.ok)})`,
+        );
+      }
+
+      if (data.analyticsMysql?.configured && !data.analyticsMysql.ok) {
+        console.warn(
+          "[smoke] analyticsMysql configured but not reachable (VPN/intranet required)",
         );
       }
     },

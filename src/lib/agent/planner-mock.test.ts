@@ -42,4 +42,14 @@ describe("buildMockPlan", () => {
 
     expect(plan.action).toBe("answer");
   });
+
+  it("proposes sql for analytics questions", () => {
+    const plan = buildMockPlan("大风车正式车源一共有多少辆？", []);
+
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("propose_sql");
+      expect(String(plan.args.sql)).toMatch(/select/i);
+    }
+  });
 });

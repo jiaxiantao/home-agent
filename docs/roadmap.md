@@ -1,26 +1,23 @@
 # 演进路线图
 
-Home Agent 当前是一条可学习的 **Plan → Tool → Answer** 最小闭环。若要走向真实业务使用，建议按阶段推进，而非一次性堆功能。
+Home Agent 已从学习型 Plan→Tool 演示，转向 **大风车数据分析助手**（自然语言 → 只读 SQL → HITL 确认 → 表格/图表）。
 
-## 阶段 0：定场景 + 硬化骨架
+## 已完成（一期）
 
-- [ ] 选定第一个业务楔子（知识工作台 / 研发协作 / 生成式 UI）
-- [ ] 会话与 Run 持久化（`Session` / `Message` / `AgentRun`）
+- [x] 对接 matador **test** MySQL（`ANALYTICS_MYSQL_*`）
+- [x] 只读 SQL guard + LIMIT + 超时
+- [x] 车源 / 订单 / 求购 / 运营报表 schema catalog
+- [x] `propose_sql` → 用户确认 → `execute_sql` → A2UI 表格/图表
+- [x] SSE 扩展 `a2ui` / `awaiting_input`（向 AG-UI 对齐）
+
+## 下一阶段
+
+- [ ] Session / Message / AgentRun 持久化
 - [ ] 最小鉴权（API Key 或登录）
-- [ ] 至少一个真实只读业务工具
-
-## 阶段 1：可交互业务闭环
-
-- [ ] 工具输出结构化 JSON，而非纯文本拼接
-- [ ] SSE 事件映射到 AG-UI 模型
-- [ ] A2UI 最小渲染器（列表、表单、确认按钮）
-- [ ] 写操作 Human-in-the-loop 确认
-
-## 阶段 2：可信与可运营
-
-- [ ] Run 回放与审计日志
-- [ ] 黄金用例评测集 + CI 回归
-- [ ] 错误恢复策略（澄清、重试、部分结果）
+- [ ] 只读账号替换 `souche_rw`
+- [ ] Schema 从 `information_schema` 轻量刷新
+- [ ] 多轮追问带最近 SQL/结果上下文加深
+- [ ] 导出 / 收藏问法 / 下钻
 
 ## 协议约定
 

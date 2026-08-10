@@ -33,6 +33,53 @@ describe("runAgentLoop", () => {
     expect(events.some((event) => event.type === "done")).toBe(true);
   });
 
+  it("pauses for SQL confirmation on analytics questions", async () => {
+    process.env.LLM_DISABLED = "1";
+
+    const events = [];
+    for await (const event of runAgentLoop("大风车正式车源一共有多少辆？")) {
+      events.push(event);
+    }
+
+    expect(events.some((event) => event.type === "awaiting_input")).toBe(true);
+    expect(events.some((event) => event.type === "a2ui")).toBe(true);
+    expect(events.some((event) => event.type === "done")).toBe(false);
+
+    const awaiting = events.find((event) => event.type === "awaiting_input");
+    expect(awaiting?.type).toBe("awaiting_input");
+    if (awaiting?.type === "awaiting_input") {
+      expect(awaiting.sql.toLowerCase()).toContain("select");
+    }
+  });
+
+  it("cancels pending sql on resume", async () => {
+    process.env.LLM_DISABLED = "1";
+
+    const events = [];
+    for await (const event of runAgentLoop("统计各状态的正式车源数量分布")) {
+      events.push(event);
+    }
+
+    const awaiting = events.find((event) => event.type === "awaiting_input");
+    expect(awaiting?.type).toBe("awaiting_input");
+    if (awaiting?.type !== "awaiting_input") {
+      return;
+    }
+
+    const resumeEvents = [];
+    for await (const event of runAgentLoop("", {
+      resume: { actionId: "cancel_sql", payload: { runId: awaiting.runId } },
+    })) {
+      resumeEvents.push(event);
+    }
+
+    const answer = resumeEvents.find((event) => event.type === "answer");
+    expect(answer?.type).toBe("answer");
+    if (answer?.type === "answer") {
+      expect(answer.text).toContain("取消");
+    }
+  });
+
   it("synthesizes an answer when max steps are exhausted", async () => {
     process.env.LLM_DISABLED = "1";
     process.env.AGENT_MAX_STEPS = "1";

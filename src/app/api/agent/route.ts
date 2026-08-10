@@ -4,12 +4,31 @@ import { runAgentLoop } from "@/lib/agent/run-loop";
 import { encodeSseEvent } from "@/lib/sse";
 
 const agentSchema = z.object({
-  message: z.string().min(1, "message is required"),
+  message: z.string().default(""),
+  threadId: z.string().optional(),
+  resume: z
+    .object({
+      actionId: z.enum(["confirm_sql", "cancel_sql"]),
+      payload: z
+        .object({
+          runId: z.string().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 
 export async function POST(request: Request) {
   try {
     const body = agentSchema.parse(await request.json());
+
+    if (!body.resume && !body.message.trim()) {
+      return Response.json(
+        { error: "Invalid agent payload", details: "message or resume is required" },
+        { status: 400 },
+      );
+    }
+
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
@@ -19,8 +38,9 @@ export async function POST(request: Request) {
         };
 
         try {
-          for await (const trace of runAgentLoop(body.message, {
+          for await (const trace of runAgentLoop(body.message.trim() || "(resume)", {
             signal: request.signal,
+            resume: body.resume,
           })) {
             send(trace.type, trace);
           }

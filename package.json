@@ -2,7 +2,7 @@
   "name": "home-agent",
   "version": "0.1.1",
   "private": false,
-  "description": "Learn AI Agent frontend orchestration with Next.js — plan, tools, and SSE traces",
+  "description": "Dafengche data analysis agent — NL to SQL, HITL confirm, charts via A2UI",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -10,11 +10,12 @@
   },
   "keywords": [
     "ai-agent",
+    "data-analysis",
+    "text-to-sql",
     "nextjs",
     "sse",
-    "ollama",
-    "agent-orchestration",
-    "learning"
+    "a2ui",
+    "mysql"
   ],
   "engines": {
     "node": ">=22"
@@ -46,11 +47,13 @@
     "@prisma/client": "^7.8.0",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
+    "mysql2": "^3.23.2",
     "next": "16.2.6",
     "openai": "^6.39.0",
     "pg": "^8.21.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "recharts": "^3.10.1",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
   },
@@ -64,10 +67,10 @@
     "eslint-config-next": "16.2.6",
     "prettier": "^3.6.2",
     "prisma": "^7.8.0",
-    "vitest": "^3.2.4",
     "tailwindcss": "^4",
     "tsx": "^4.22.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

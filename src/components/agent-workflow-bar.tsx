@@ -26,14 +26,14 @@ function stepState(
     if (phase === "planning") {
       return running ? "current" : "done";
     }
-    if (["tool", "answering", "done"].includes(phase)) {
+    if (["tool", "awaiting", "answering", "done"].includes(phase)) {
       return "done";
     }
     return "upcoming";
   }
 
   if (stepKey === "tool") {
-    if (phase === "tool") {
+    if (phase === "tool" || phase === "awaiting") {
       return "current";
     }
     if (["answering", "done"].includes(phase)) {
@@ -59,6 +59,7 @@ const phaseLabels: Record<AgentPhase, string> = {
   idle: "等待运行",
   planning: "规划器中…",
   tool: "执行工具中…",
+  awaiting: "等待确认 SQL…",
   answering: "生成最终回答…",
   done: "运行完成",
   error: "运行出错",

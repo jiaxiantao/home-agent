@@ -5,10 +5,10 @@ test.describe("Agents page", () => {
     await page.goto("/agents");
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      /AI Agent/,
+      /数据分析助手/,
     );
     await expect(page.getByRole("button", { name: "运行 Agent 循环" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "架构笔记" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "车源总数" })).toBeVisible();
   });
 
   test("prefills task from query string", async ({ page }) => {
