@@ -6,6 +6,14 @@ export type HealthStatus = {
   ok: boolean;
   ready: boolean;
   db: { connected: boolean; ok: boolean; latencyMs: number };
+  analyticsMysql?: {
+    configured: boolean;
+    ok: boolean;
+    latencyMs: number;
+    env?: string;
+    database?: string;
+    error?: string;
+  };
   llm: { configured: boolean; label: string };
   search: { pgTrgm: boolean };
   agent?: { maxSteps: number };

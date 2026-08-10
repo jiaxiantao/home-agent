@@ -21,7 +21,7 @@ export function getLlmConfig(): LlmConfig {
       provider: "ollama",
       baseURL: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1",
       apiKey: process.env.OLLAMA_API_KEY ?? "ollama",
-      model: process.env.OLLAMA_MODEL ?? "llama3.2",
+      model: process.env.OLLAMA_MODEL ?? "qwen3",
     };
   }
 

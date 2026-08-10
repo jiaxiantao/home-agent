@@ -40,7 +40,7 @@ services:
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
-      OLLAMA_MODEL: llama3.2
+      OLLAMA_MODEL: qwen3
       OLLAMA_API_KEY: ollama
     extra_hosts:
       - "host.docker.internal:host-gateway"
