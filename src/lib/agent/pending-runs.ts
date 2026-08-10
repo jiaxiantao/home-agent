@@ -10,7 +10,19 @@ export type PendingSqlRun = {
   mock?: boolean;
 };
 
-const pendingRuns = new Map<string, PendingSqlRun>();
+const globalForPending = globalThis as typeof globalThis & {
+  __homeAgentPendingSqlRuns?: Map<string, PendingSqlRun>;
+};
+
+/** Dev HMR 会重载模块；挂到 globalThis 避免待确认 SQL 丢失 */
+const pendingRuns =
+  globalForPending.__homeAgentPendingSqlRuns ??
+  new Map<string, PendingSqlRun>();
+
+if (!globalForPending.__homeAgentPendingSqlRuns) {
+  globalForPending.__homeAgentPendingSqlRuns = pendingRuns;
+}
+
 const TTL_MS = 30 * 60 * 1000;
 
 function pruneExpired() {
@@ -46,4 +58,13 @@ export function takePendingSqlRun(runId: string) {
 
 export function createRunId() {
   return `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** 测试用 */
+export function clearPendingSqlRunsForTest() {
+  pendingRuns.clear();
+}
+
+export function pendingSqlRunCountForTest() {
+  return pendingRuns.size;
 }

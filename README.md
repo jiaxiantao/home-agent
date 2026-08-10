@@ -57,6 +57,16 @@ pnpm dev
 
 `GET /api/health` 的 `analyticsMysql` 字段可查看分析库连通性。
 
+### 开发异常排查
+
+若点击「确认执行」出现 `HTTP 500` / `TurbopackInternalError` / `ENOENT .next/...`：
+
+1. 停止当前 `pnpm dev`（Ctrl+C）
+2. 执行 `pnpm dev:clean`（或 `rm -rf .next && pnpm dev`）
+3. 重新提问并确认 SQL
+
+不要在 dev 进程运行时手动删除 `.next` 目录。
+
 ### Ollama（qwen3）
 
 ```bash
