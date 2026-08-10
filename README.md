@@ -85,7 +85,7 @@ pnpm dev
 ### Ollama（可选）
 
 ```bash
-ollama pull llama3.2
+ollama pull qwen3
 ollama serve
 ```
 
