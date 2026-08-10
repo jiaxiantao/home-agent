@@ -24,4 +24,4 @@ labels: bug
 - OS:
 - Node 版本:
 - 是否启用 Ollama / `LLM_DISABLED`:
-- 数据库：Docker / 本地 Postgres / 无
+- 分析库：matador MySQL（内网）/ 未配置
