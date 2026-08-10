@@ -48,18 +48,8 @@ function formatPlan(plan: AgentPlan) {
 }
 
 function formatToolResult(tool: AgentToolName, output: string) {
-  if (tool === "search_notes") {
-    if (/^未找到与「.+」相关的笔记。$/.test(output)) {
-      return `检索结果：未命中\n${output}`;
-    }
-
-    const hitCount = output
-      .split("\n")
-      .filter((line) => /^\d+\.\s/.test(line.trim())).length;
-
-    if (hitCount > 0) {
-      return `检索结果：命中 ${hitCount} 条\n${output}`;
-    }
+  if (tool === "list_schema") {
+    return `表目录已加载\n${output.slice(0, 500)}${output.length > 500 ? "…" : ""}`;
   }
 
   return output;

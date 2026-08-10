@@ -30,22 +30,4 @@ export const agentToolCatalog: Array<{
     description: "根据查询结果生成 bar/line/pie 图表描述",
     args: { columns: "string[]", rows: "object[]", chartType: "bar|line|pie" },
   },
-  {
-    name: "search_notes",
-    label: "笔记检索",
-    description: "用 pg_trgm / memory 引擎搜索知识库笔记",
-    args: { query: "string" },
-  },
-  {
-    name: "calculate",
-    label: "安全计算器",
-    description: "对受限数学表达式求值",
-    args: { expression: "string" },
-  },
-  {
-    name: "current_time",
-    label: "当前时间",
-    description: "返回服务器本地时间",
-    args: {},
-  },
 ];

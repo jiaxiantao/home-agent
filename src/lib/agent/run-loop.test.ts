@@ -20,17 +20,20 @@ describe("runAgentLoop", () => {
     }
   });
 
-  it("completes a time query with answer and done events", async () => {
+  it("lists schema for table catalog questions", async () => {
     process.env.LLM_DISABLED = "1";
 
     const events = [];
-    for await (const event of runAgentLoop("现在几点？")) {
+    for await (const event of runAgentLoop("列出分析库的表目录")) {
       events.push(event);
     }
 
     expect(events.some((event) => event.type === "tool_call")).toBe(true);
-    expect(events.some((event) => event.type === "answer")).toBe(true);
-    expect(events.some((event) => event.type === "done")).toBe(true);
+    const toolCall = events.find((event) => event.type === "tool_call");
+    expect(toolCall?.type).toBe("tool_call");
+    if (toolCall?.type === "tool_call") {
+      expect(toolCall.tool).toBe("list_schema");
+    }
   });
 
   it("pauses for SQL confirmation on analytics questions", async () => {
@@ -85,7 +88,7 @@ describe("runAgentLoop", () => {
     process.env.AGENT_MAX_STEPS = "1";
 
     const events = [];
-    for await (const event of runAgentLoop("帮我搜索笔记里关于前端架构的内容")) {
+    for await (const event of runAgentLoop("分析库有哪些核心表和字段？")) {
       events.push(event);
     }
 
@@ -94,7 +97,7 @@ describe("runAgentLoop", () => {
     expect(answer?.type).toBe("answer");
     if (answer?.type === "answer") {
       expect(answer.text).toContain("已达最大步数（1）");
-      expect(answer.text).toContain("search_notes:");
+      expect(answer.text).toContain("list_schema:");
     }
     expect(events.filter((event) => event.type === "plan")).toHaveLength(1);
   });
@@ -105,7 +108,7 @@ describe("runAgentLoop", () => {
     const controller = new AbortController();
     const events = [];
 
-    const loop = runAgentLoop("帮我搜索笔记里关于前端架构的内容", {
+    const loop = runAgentLoop("大风车正式车源一共有多少辆？", {
       signal: controller.signal,
     });
 

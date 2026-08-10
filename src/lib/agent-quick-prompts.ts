@@ -39,9 +39,9 @@ export const agentQuickPrompts: AgentQuickPrompt[] = [
     prompt: "正式求购线索总量是多少？",
   },
   {
-    id: "time-now",
-    tool: "current_time",
-    label: "服务器时间",
-    prompt: "告诉我现在服务器本地时间是几点？",
+    id: "schema",
+    tool: "list_schema",
+    label: "表目录",
+    prompt: "列出分析库有哪些核心表和字段？",
   },
 ];

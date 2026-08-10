@@ -1,6 +1,6 @@
 # 如何新增一个 Tool
 
-以添加 `echo`（回显用户输入）为例，需改 4 处并保持类型一致。
+以添加 `count_tables`（统计表行数）为例，需改 4 处并保持类型一致。
 
 ## 1. 声明工具名与类型
 
@@ -8,10 +8,11 @@
 
 ```ts
 export type AgentToolName =
-  | "search_notes"
-  | "calculate"
-  | "current_time"
-  | "echo"; // 新增
+  | "list_schema"
+  | "propose_sql"
+  | "execute_sql"
+  | "build_chart"
+  | "count_tables"; // 新增
 ```
 
 ## 2. 注册工具目录（UI 展示）
@@ -20,10 +21,10 @@ export type AgentToolName =
 
 ```ts
 {
-  name: "echo",
-  label: "回显",
-  description: "原样返回输入文本",
-  args: { text: "string" },
+  name: "count_tables",
+  label: "表行数",
+  description: "统计指定表的行数",
+  args: { table: "string" },
 },
 ```
 
@@ -32,21 +33,22 @@ export type AgentToolName =
 `src/lib/agent/tools.ts` 的 `runAgentTool`：
 
 ```ts
-case "echo": {
-  const text = String(args.text ?? "").trim();
-  return { output: text || "（空输入）" };
+case "count_tables": {
+  const table = String(args.table ?? "").trim();
+  // 调用 runAnalyticsQuery 等
+  return { output: `表 ${table} 共 N 行` };
 }
 ```
 
 ## 4. 告诉规划器有这个工具
 
-`src/lib/agent/planner.ts` 的 `plannerSystem` 字符串中加入：
+`src/lib/agent/planner.ts` 的 system prompt 中加入：
 
 ```
-- echo: { "text": string } — 回显文本
+- count_tables: { "table": string } — 统计表行数
 ```
 
-并在 `planner-schema.ts` 的 `agentToolNameSchema` 枚举中加入 `"echo"`。
+并在 `planner-schema.ts` 的 `agentToolNameSchema` 枚举中加入 `"count_tables"`。
 
 可选：在 `planner-mock.ts` 增加关键词规则，便于 `LLM_DISABLED=1` 时演示。
 
@@ -58,8 +60,6 @@ pnpm test
 pnpm dev   # 另一终端
 pnpm smoke
 ```
-
-在 `/agents` 页面输入「请 echo 你好」观察 trace 是否出现 `tool_call → echo`。
 
 ## 检查清单
 

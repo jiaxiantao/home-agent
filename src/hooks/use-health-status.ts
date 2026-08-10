@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 export type HealthStatus = {
   ok: boolean;
   ready: boolean;
-  db: { connected: boolean; ok: boolean; latencyMs: number };
   analyticsMysql?: {
     configured: boolean;
     ok: boolean;
@@ -15,7 +14,6 @@ export type HealthStatus = {
     error?: string;
   };
   llm: { configured: boolean; label: string };
-  search: { pgTrgm: boolean };
   agent?: { maxSteps: number };
 };
 

@@ -10,29 +10,12 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     env:
-      # GitHub Actions service 容器通过服务名 postgres 访问（不要用错 host）
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci?schema=public
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       SMOKE_BASE_URL: http://localhost:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000
-      # CI 不启动 Ollama；用演示回答保证 smoke / SSE 探测稳定
       LLM_DISABLED: "1"
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: ci
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d ci"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -45,32 +28,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Wait for PostgreSQL
-        run: |
-          for i in $(seq 1 30); do
-            if node -e "
-              const { Client } = require('pg');
-              const client = new Client({ connectionString: process.env.DATABASE_URL });
-              client.connect()
-                .then(() => client.end())
-                .then(() => process.exit(0))
-                .catch(() => process.exit(1));
-            "; then
-              echo "Postgres ready after ${i} attempts"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Postgres did not become ready in time"
-          exit 1
-
       - run: pnpm typecheck
 
       - run: pnpm lint
 
       - run: pnpm test
-
-      - run: pnpm db:setup
 
       - run: pnpm build
 
@@ -79,8 +41,6 @@ jobs:
 
       - name: Start production server
         run: |
-          # 使用 next start（完整 node_modules）以便 Prisma 连上 CI 的 Postgres；
-          # standalone server.js 在 CI 中常出现 db.ok=false
           pnpm start:ci > /tmp/next.log 2>&1 &
           echo $! > /tmp/next.pid
           for i in $(seq 1 45); do
@@ -90,7 +50,7 @@ jobs:
               process.stdin.on('end', () => {
                 try {
                   const data = JSON.parse(Buffer.concat(chunks).toString());
-                  if (data.db?.ok) process.exit(0);
+                  if (data.ok) process.exit(0);
                   console.error('health not ready:', JSON.stringify(data));
                   process.exit(1);
                 } catch (e) {
@@ -99,7 +59,7 @@ jobs:
                 }
               });
             "; then
-              echo "Server ready (db ok) after ${i} attempts"
+              echo "Server ready after ${i} attempts"
               exit 0
             fi
             sleep 2

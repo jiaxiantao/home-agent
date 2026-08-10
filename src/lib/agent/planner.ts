@@ -14,9 +14,6 @@ function getPlannerSystem() {
 - list_schema: {} — 查看分析库表目录
 - propose_sql: { "sql": string, "explanation": string } — 提出待确认的只读 SQL（不要直接执行）
 - build_chart: { "columns": string[], "rows": object[], "title"?: string, "chartType"?: "bar"|"line"|"pie" } — 根据已有查询结果生成图表
-- search_notes: { "query": string } — 搜索本地知识库笔记（非业务库）
-- calculate: { "expression": string } — 计算数学表达式
-- current_time: {} — 返回当前时间
 
 重要约束：
 1. 业务问数必须先 propose_sql，绝不要调用 execute_sql（执行由用户确认后的系统完成）。
@@ -88,7 +85,6 @@ export async function planAgentStep(
 
     const plan = parsePlanFromLlm(content);
 
-    // Harden: never let the model execute SQL directly.
     if (plan.action === "tool" && plan.tool === "execute_sql") {
       return {
         plan: {

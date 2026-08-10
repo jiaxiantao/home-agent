@@ -2,31 +2,10 @@ import { NextResponse } from "next/server";
 
 import { checkAnalyticsMysqlHealth } from "@/lib/analytics/mysql";
 import { getAgentMaxSteps } from "@/lib/agent/config";
-import { getDb } from "@/lib/db";
 import { getLlmLabel, isLlmConfigured } from "@/lib/llm-config";
-import { isPgTrgmEnabled } from "@/lib/pg-trgm";
 
 export async function GET() {
   const started = performance.now();
-  let dbOk = false;
-  let dbMs = 0;
-  let pgTrgm = false;
-
-  const db = getDb();
-
-  if (db) {
-    const dbStarted = performance.now();
-
-    try {
-      await db.$queryRaw`SELECT 1`;
-      dbOk = true;
-      dbMs = Math.round(performance.now() - dbStarted);
-      pgTrgm = await isPgTrgmEnabled();
-    } catch {
-      dbOk = false;
-    }
-  }
-
   const analyticsMysql = await checkAnalyticsMysqlHealth();
 
   const llmConfigured = isLlmConfigured();
@@ -39,13 +18,13 @@ export async function GET() {
   }
 
   const totalMs = Math.round(performance.now() - started);
-  const ready = dbOk && llmConfigured;
-  const ok = dbOk;
+  const mysqlReady = !analyticsMysql.configured || analyticsMysql.ok;
+  const ready = mysqlReady && llmConfigured;
+  const ok = mysqlReady;
 
   return NextResponse.json({
     ok,
     ready,
-    db: { connected: Boolean(db), ok: dbOk, latencyMs: dbMs },
     analyticsMysql: {
       configured: analyticsMysql.configured,
       ok: analyticsMysql.ok,
@@ -55,7 +34,6 @@ export async function GET() {
       error: analyticsMysql.error,
     },
     llm: { configured: llmConfigured, label: llmLabel },
-    search: { pgTrgm },
     agent: { maxSteps: getAgentMaxSteps() },
     server: {
       node: process.version,

@@ -64,16 +64,10 @@ export function SiteHealthBadge() {
         }
       />
       <StatusDot
-        ok={health.db.ok}
-        label={health.db.ok ? "应用库" : "应用库异常"}
-        title="Prisma Postgres（笔记等元数据）"
-      />
-      <StatusDot
         ok={health.llm.configured}
         label={health.llm.configured ? health.llm.label : "规则模式"}
         title={health.llm.label}
       />
-      {health.search.pgTrgm ? <StatusDot ok label="pg_trgm" /> : null}
     </div>
   );
 }

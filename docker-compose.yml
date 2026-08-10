@@ -1,42 +1,14 @@
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: home_agent
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d home_agent"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: migrate
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/home_agent?schema=public
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: "no"
-
   web:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/home_agent?schema=public
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
@@ -44,11 +16,3 @@ services:
       OLLAMA_API_KEY: ollama
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      db:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-
-volumes:
-  postgres-data:

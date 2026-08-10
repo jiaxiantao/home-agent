@@ -17,15 +17,22 @@ function lastToolData<T>(prior: AgentToolResult[], tool: AgentToolResult["tool"]
 
 export function buildMockPlan(message: string, prior: AgentToolResult[]): AgentPlan {
   const normalized = message.trim();
-  const wantsSearch = /笔记|检索|搜索|架构|性能|RAG|note/i.test(normalized);
-  const wantsMath = /计算|等于|多少|\+|\-|\*|\//.test(normalized) && !/车源|订单|求购|分布|趋势/.test(normalized);
-  const wantsTime = /几点|时间|现在几点|日期/.test(normalized) && !/近\s*\d+|本月|上周/.test(normalized);
-  const mathMatch = normalized.match(/([\d.+\-*/()\s]+)/);
+
+  const wantsSchema = /表结构|字段|schema|目录|核心表|什么表|有哪些表|表目录/i.test(normalized);
 
   const wantsAnalytics =
-    /车源|订单|求购|线索|成交|分布|趋势|统计|多少辆|总量|operate_report|大风车|分析/.test(
+    /车源|订单|求购|线索|成交|分布|趋势|统计|多少|总量|operate_report|大风车|分析|sql|查询/.test(
       normalized,
     );
+
+  if (wantsSchema && !hasTool(prior, "list_schema")) {
+    return {
+      action: "tool",
+      tool: "list_schema",
+      args: {},
+      reasoning: "用户需要了解表结构，先列出分析库目录",
+    };
+  }
 
   if (wantsAnalytics && !hasTool(prior, "propose_sql") && !hasTool(prior, "execute_sql")) {
     if (/分布|状态/.test(normalized) && /车源/.test(normalized)) {
@@ -105,37 +112,6 @@ export function buildMockPlan(message: string, prior: AgentToolResult[]): AgentP
         reasoning: "已有多行结果，尝试生成图表",
       };
     }
-  }
-
-  if (wantsSearch && !hasTool(prior, "search_notes")) {
-    return {
-      action: "tool",
-      tool: "search_notes",
-      args: {
-        query:
-          normalized.replace(/^(请|帮我)?(搜索|检索|查找)/, "").trim() ||
-          "前端架构",
-      },
-      reasoning: "问题涉及知识库，先检索笔记",
-    };
-  }
-
-  if (wantsMath && !hasTool(prior, "calculate") && mathMatch?.[1]?.trim()) {
-    return {
-      action: "tool",
-      tool: "calculate",
-      args: { expression: mathMatch[1].trim() },
-      reasoning: "问题包含算式，继续执行计算",
-    };
-  }
-
-  if (wantsTime && !hasTool(prior, "current_time")) {
-    return {
-      action: "tool",
-      tool: "current_time",
-      args: {},
-      reasoning: "用户提到时间，补充当前时刻",
-    };
   }
 
   if (prior.length > 0) {

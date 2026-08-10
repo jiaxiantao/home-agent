@@ -7,17 +7,17 @@ describe("parsePlanFromLlm", () => {
     const plan = parsePlanFromLlm(
       JSON.stringify({
         action: "tool",
-        tool: "calculate",
-        args: { expression: "1+1" },
-        reasoning: "需要计算",
+        tool: "propose_sql",
+        args: { sql: "SELECT 1", explanation: "test" },
+        reasoning: "需要查询",
       }),
     );
 
     expect(plan).toEqual({
       action: "tool",
-      tool: "calculate",
-      args: { expression: "1+1" },
-      reasoning: "需要计算",
+      tool: "propose_sql",
+      args: { sql: "SELECT 1", explanation: "test" },
+      reasoning: "需要查询",
     });
   });
 

@@ -12,17 +12,17 @@ test.describe("Agents page", () => {
   });
 
   test("prefills task from query string", async ({ page }) => {
-    await page.goto("/agents?q=" + encodeURIComponent("计算 1+1"));
+    await page.goto("/agents?q=" + encodeURIComponent("大风车正式车源一共有多少辆？"));
 
-    await expect(page.locator("textarea").first()).toHaveValue(/计算 1\+1/);
+    await expect(page.locator("textarea").first()).toHaveValue(/车源/);
   });
 
-  test("runs agent loop and shows final answer", async ({ page }) => {
-    await page.goto("/agents?q=" + encodeURIComponent("现在几点？"));
+  test("runs agent loop and shows sql confirmation", async ({ page }) => {
+    await page.goto("/agents?q=" + encodeURIComponent("大风车正式车源一共有多少辆？"));
 
     await page.getByRole("button", { name: "运行 Agent 循环" }).click();
-    await expect(
-      page.getByText("最终回答", { exact: true }),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("确认执行 SQL", { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
   });
 });

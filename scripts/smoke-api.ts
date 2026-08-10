@@ -25,19 +25,12 @@ const checks: Check[] = [
 
       const data = body as {
         ok?: boolean;
-        db?: { connected?: boolean; ok?: boolean };
         analyticsMysql?: { configured?: boolean; ok?: boolean };
         llm?: { configured?: boolean };
       };
 
       if (typeof data.ok !== "boolean") {
         throw new Error("missing ok flag");
-      }
-
-      if (!data.db?.connected || !data.db?.ok) {
-        throw new Error(
-          `database unhealthy (connected=${String(data.db?.connected)}, ok=${String(data.db?.ok)})`,
-        );
       }
 
       if (data.analyticsMysql?.configured && !data.analyticsMysql.ok) {
@@ -48,29 +41,10 @@ const checks: Check[] = [
     },
   },
   {
-    name: "notes-search",
-    path: "/api/notes/search?q=架构&limit=3",
-    assert: (status, body) => {
-      if (status !== 200) {
-        throw new Error(`expected 200, got ${status}`);
-      }
-
-      const data = body as { results?: unknown[]; engine?: string };
-
-      if (!Array.isArray(data.results)) {
-        throw new Error("missing results array");
-      }
-
-      if (!data.engine) {
-        throw new Error("missing engine");
-      }
-    },
-  },
-  {
     name: "agent-sse",
     path: "/api/agent",
     method: "POST",
-    body: { message: "smoke: 现在几点？" },
+    body: { message: "大风车正式车源一共有多少辆？" },
     assert: (status) => {
       if (status !== 200) {
         throw new Error(`expected 200, got ${status}`);
@@ -91,11 +65,11 @@ async function runCheck(check: Check) {
     if (!text.includes("event:")) {
       throw new Error("agent response missing SSE events");
     }
-    if (!text.includes('"type":"answer"')) {
-      throw new Error("agent response missing answer event");
+    if (!text.includes('"type":"awaiting_input"')) {
+      throw new Error("agent response missing awaiting_input event");
     }
-    if (!text.includes('"type":"done"')) {
-      throw new Error("agent response missing done event");
+    if (!text.includes('"type":"a2ui"')) {
+      throw new Error("agent response missing a2ui event");
     }
     check.assert(response.status, text);
     return;

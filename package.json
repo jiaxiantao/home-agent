@@ -1,6 +1,6 @@
 {
   "name": "home-agent",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": false,
   "description": "Dafengche data analysis agent — NL to SQL, HITL confirm, charts via A2UI",
   "license": "MIT",
@@ -15,14 +15,15 @@
     "nextjs",
     "sse",
     "a2ui",
-    "mysql"
+    "mysql",
+    "dafengche"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "next build",
     "start": "node .next/standalone/server.js",
     "start:ci": "next start -p 3000",
     "lint": "eslint",
@@ -31,26 +32,16 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
-    "db:seed": "prisma db seed",
-    "db:setup": "prisma db push && prisma db seed",
     "smoke": "tsx scripts/smoke-api.ts",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "mysql2": "^3.23.2",
     "next": "16.2.6",
     "openai": "^6.39.0",
-    "pg": "^8.21.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.10.1",
@@ -66,14 +57,10 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "prettier": "^3.6.2",
-    "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.22.3",
     "typescript": "^5",
     "vitest": "^3.2.4"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   },
   "packageManager": "pnpm@9.15.9+sha512.68046141893c66fad01c079231128e9afb89ef87e2691d69e4d40eee228988295fd4682181bae55b58418c3a253bde65a505ec7c5f9403ece5cc3cd37dcf2531"
 }

@@ -12,10 +12,14 @@
 - Schema catalog（车源 / 订单 / 求购 / 运营日报）。
 - `GET /api/health` 增加 `analyticsMysql` 连通性字段。
 
-### Changed
+### Removed
 
-- `/agents` 定位为问数工作台；快捷问法改为车源/订单/趋势等。
-- Agent 工具输出支持结构化 `data`；文档与 roadmap 同步更新。
+- 笔记库与 Prisma/Postgres 全栈（`search_notes`、`/api/notes/search`、pg_trgm 等）。
+- 学习型工具 `calculate` / `current_time`；Agent 仅保留问数四件套。
+
+### Changed (continued)
+
+- 健康检查与 Docker/CI 仅依赖分析 MySQL + LLM，不再要求应用 Postgres。
 
 ### Added (earlier)
 

@@ -3,9 +3,6 @@ import type { ChartSpec } from "@/lib/analytics/chart-spec";
 import type { QueryResult } from "@/lib/analytics/run-query";
 
 export type AgentToolName =
-  | "search_notes"
-  | "calculate"
-  | "current_time"
   | "list_schema"
   | "propose_sql"
   | "execute_sql"

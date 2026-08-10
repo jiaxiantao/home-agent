@@ -1,9 +1,6 @@
 import { z } from "zod";
 
 export const agentToolNameSchema = z.enum([
-  "search_notes",
-  "calculate",
-  "current_time",
   "list_schema",
   "propose_sql",
   "execute_sql",
