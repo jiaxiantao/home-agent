@@ -1,5 +1,32 @@
-const FORBIDDEN_KEYWORDS =
-  /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|REPLACE|GRANT|REVOKE|CALL|EXEC|EXECUTE|MERGE|LOAD|OUTFILE|DUMPFILE|INTO\s+OUTFILE|INTO\s+DUMPFILE|SET\s+|USE\s+|LOCK\s+|UNLOCK\s+|HANDLER|PREPARE|DEALLOCATE|SLEEP\s*\()/i;
+const FORBIDDEN_PATTERNS = [
+  /\bINSERT\b/i,
+  /\bUPDATE\b/i,
+  /\bDELETE\b/i,
+  /\bDROP\b/i,
+  /\bALTER\b/i,
+  /\bCREATE\b/i,
+  /\bTRUNCATE\b/i,
+  /\bREPLACE\b/i,
+  /\bGRANT\b/i,
+  /\bREVOKE\b/i,
+  /\bCALL\b/i,
+  /\bEXECUTE\b/i,
+  /\bEXEC\b/i,
+  /\bMERGE\b/i,
+  /\bLOAD\b/i,
+  /\bOUTFILE\b/i,
+  /\bDUMPFILE\b/i,
+  /\bINTO\s+OUTFILE\b/i,
+  /\bINTO\s+DUMPFILE\b/i,
+  /\bSET\s+/i,
+  /\bUSE\s+/i,
+  /\bLOCK\b/i,
+  /\bUNLOCK\b/i,
+  /\bHANDLER\b/i,
+  /\bPREPARE\b/i,
+  /\bDEALLOCATE\b/i,
+  /\bSLEEP\s*\(/i,
+] as const;
 
 const ALLOWED_PREFIX =
   /^(WITH\b[\s\S]+SELECT\b|SELECT\b|SHOW\b|DESCRIBE\b|DESC\b|EXPLAIN\b)/i;
@@ -16,6 +43,10 @@ function stripSqlComments(sql: string) {
     .trim();
 }
 
+function hasForbiddenKeyword(sql: string) {
+  return FORBIDDEN_PATTERNS.some((pattern) => pattern.test(sql));
+}
+
 export function assertReadOnlySql(rawSql: string): SqlGuardResult {
   const stripped = stripSqlComments(rawSql);
 
@@ -27,7 +58,6 @@ export function assertReadOnlySql(rawSql: string): SqlGuardResult {
     return { ok: false, reason: "SQL 过长" };
   }
 
-  // Reject multiple statements (allow trailing semicolon only).
   const withoutTrailingSemi = stripped.replace(/;+\s*$/, "");
   if (withoutTrailingSemi.includes(";")) {
     return { ok: false, reason: "禁止多语句执行" };
@@ -40,7 +70,7 @@ export function assertReadOnlySql(rawSql: string): SqlGuardResult {
     };
   }
 
-  if (FORBIDDEN_KEYWORDS.test(withoutTrailingSemi)) {
+  if (hasForbiddenKeyword(withoutTrailingSemi)) {
     return { ok: false, reason: "检测到危险关键字，已拒绝执行" };
   }
 

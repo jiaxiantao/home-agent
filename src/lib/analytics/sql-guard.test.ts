@@ -30,6 +30,13 @@ describe("assertReadOnlySql", () => {
     const result = assertReadOnlySql("SELECT 1;");
     expect(result.ok).toBe(true);
   });
+
+  it("allows delete_time column in where clause", () => {
+    const result = assertReadOnlySql(
+      "SELECT COUNT(*) AS total FROM main_order WHERE delete_time IS NULL",
+    );
+    expect(result.ok).toBe(true);
+  });
 });
 
 describe("ensureLimit", () => {
