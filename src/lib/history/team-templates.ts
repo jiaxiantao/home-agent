@@ -1,5 +1,6 @@
 import { agentQuickPrompts } from "@/lib/agent-quick-prompts";
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
+import { PRODUCT_SLUG } from "@/lib/product";
 
 export type TeamTemplate = {
   id: string;
@@ -12,7 +13,8 @@ export type TeamTemplate = {
 
 const MAX_CUSTOM = 80;
 const TTL_MS = 180 * 24 * 60 * 60 * 1000;
-const REDIS_KEY = "home-agent:team-templates";
+
+const REDIS_KEY = `${PRODUCT_SLUG}:team-templates`;
 
 const globalStore = globalThis as typeof globalThis & {
   __homeAgentTeamTemplates?: TeamTemplate[];

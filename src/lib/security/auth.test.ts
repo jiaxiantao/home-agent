@@ -60,8 +60,8 @@ describe("auth", () => {
   it("reads trusted headers", () => {
     process.env.AUTH_MODE = "trusted_header";
     const headers = new Headers({
-      "x-home-agent-user-id": "sso-123",
-      "x-home-agent-user-name": "Bob",
+      "x-dfc-data-agent-user-id": "sso-123",
+      "x-dfc-data-agent-user-name": "Bob",
     });
 
     expect(resolveAuthUserFromHeaders(headers)).toMatchObject({

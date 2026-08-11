@@ -1,22 +1,23 @@
 {
-  "name": "home-agent",
-  "version": "0.3.9",
+  "name": "dfc-data-agent",
+  "version": "0.4.0",
   "private": false,
-  "description": "大风车数据分析助手 (DFC Data Agent) — NL 自动规划库表 → HITL 确认 → 出数",
+  "description": "DFC Data Agent（大风车数据分析助手）— NL 自动规划库表 → HITL 确认 → 出数",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/jiaxiantao/home-agent.git"
   },
   "keywords": [
+    "dfc-data-agent",
+    "dafengche",
     "ai-agent",
     "data-analysis",
     "text-to-sql",
     "nextjs",
     "sse",
     "a2ui",
-    "mysql",
-    "dafengche"
+    "mysql"
   ],
   "engines": {
     "node": ">=22"

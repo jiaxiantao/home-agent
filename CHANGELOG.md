@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-11
+
+### Changed
+
+- 项目名称统一为 **DFC Data Agent**（npm 包名 `dfc-data-agent`）；页面标题、K8s 清单、Redis/本地存储前缀同步更名。
+- 默认 SSO 头改为 `x-dfc-data-agent-user-id` / `x-dfc-data-agent-user-name`（可用环境变量覆盖）。
+
 ## [0.3.9] - 2026-08-11
 
 ### Changed

@@ -1,8 +1,10 @@
 import type { AuditRecord } from "@/lib/security/audit-log";
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
+import { PRODUCT_SLUG } from "@/lib/product";
 
 const MAX_ENTRIES = 500;
-const REDIS_KEY = "home-agent:audit:events";
+
+const REDIS_KEY = `${PRODUCT_SLUG}:audit:events`;
 const TTL_SECONDS = 14 * 24 * 60 * 60;
 
 const globalStore = globalThis as typeof globalThis & {

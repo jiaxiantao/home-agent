@@ -15,6 +15,7 @@ import {
   type QueryHistoryEntry,
 } from "@/lib/history/query-history";
 import { parseSseBlock } from "@/lib/sse";
+import { PRODUCT_SLUG } from "@/lib/product";
 
 export type AgentTraceLine = {
   id: string;
@@ -65,7 +66,8 @@ export type ConversationTurn = {
   steps: AgentActivityStep[];
 };
 
-const THREAD_STORAGE_KEY = "home-agent-thread-id";
+
+const THREAD_STORAGE_KEY = `${PRODUCT_SLUG}-thread-id`;
 
 function getStoredThreadId() {
   if (typeof window === "undefined") {

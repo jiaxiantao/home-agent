@@ -1,6 +1,7 @@
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
 import type { AuthUser } from "@/lib/security/auth-config";
 import type { AgentToolResult } from "@/lib/agent/types";
+import { PRODUCT_SLUG } from "@/lib/product";
 
 export type PendingSqlRun = {
   runId: string;
@@ -29,7 +30,8 @@ if (!globalForPending.__homeAgentPendingSqlRuns) {
 }
 
 const TTL_MS = 30 * 60 * 1000;
-const REDIS_KEY_PREFIX = "home-agent:pending-sql:";
+
+const REDIS_KEY_PREFIX = `${PRODUCT_SLUG}:pending-sql:`;
 
 function redisKey(runId: string) {
   return `${REDIS_KEY_PREFIX}${runId}`;

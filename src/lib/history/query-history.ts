@@ -1,3 +1,5 @@
+import { PRODUCT_SLUG } from "@/lib/product";
+
 export type QueryHistoryEntry = {
   id: string;
   threadId: string;
@@ -9,7 +11,8 @@ export type QueryHistoryEntry = {
   status: "awaiting" | "done" | "error" | "cancelled";
 };
 
-const STORAGE_KEY = "home-agent-query-history-v1";
+
+const STORAGE_KEY = `${PRODUCT_SLUG}-query-history-v1`;
 const MAX_ENTRIES = 50;
 
 function readAll(): QueryHistoryEntry[] {

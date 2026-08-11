@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { PRODUCT_SLUG } from "@/lib/product";
 import {
   getAuthMode,
   isAuthEnabled,
@@ -43,13 +44,13 @@ export function middleware(request: NextRequest) {
   }
 
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-home-agent-auth-user-id", user.userId);
+  requestHeaders.set(`x-${PRODUCT_SLUG}-auth-user-id`, user.userId);
 
   if (user.userName) {
-    requestHeaders.set("x-home-agent-auth-user-name", user.userName);
+    requestHeaders.set(`x-${PRODUCT_SLUG}-auth-user-name`, user.userName);
   }
 
-  requestHeaders.set("x-home-agent-auth-mode", getAuthMode());
+  requestHeaders.set(`x-${PRODUCT_SLUG}-auth-mode`, getAuthMode());
 
   return NextResponse.next({
     request: {

@@ -13,10 +13,10 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   ),
   title: {
-    default: `${PRODUCT_NAME_ZH} · ${PRODUCT_NAME_EN}`,
-    template: `%s | ${PRODUCT_NAME_ZH}`,
+    default: PRODUCT_NAME_EN,
+    template: `%s | ${PRODUCT_NAME_EN}`,
   },
-  description: PRODUCT_MISSION,
+  description: `${PRODUCT_NAME_ZH}（${PRODUCT_NAME_EN}）。${PRODUCT_MISSION}`,
 };
 
 export default function RootLayout({

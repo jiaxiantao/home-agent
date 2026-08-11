@@ -1,15 +1,15 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: home-agent
+  name: dfc-data-agent
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: home-agent-config
-  namespace: home-agent
+  name: dfc-data-agent-config
+  namespace: dfc-data-agent
 data:
-  NEXT_PUBLIC_SITE_URL: "https://home-agent.example.internal"
+  NEXT_PUBLIC_SITE_URL: "https://dfc-data-agent.example.internal"
   AUTH_MODE: "trusted_header"
   TRUSTED_PROXY_ONLY: "1"
   PRODUCTION_STRICT: "1"
@@ -25,7 +25,7 @@ data:
   ANALYTICS_MYSQL_EXPLAIN_GUARD: "1"
   ANALYTICS_MYSQL_EXPLAIN_MAX_ROWS: "200000"
   LLM_PROVIDER: "ollama"
-  OLLAMA_BASE_URL: "http://ollama.home-agent.svc.cluster.local:11434/v1"
+  OLLAMA_BASE_URL: "http://ollama.dfc-data-agent.svc.cluster.local:11434/v1"
   OLLAMA_MODEL: "qwen3"
   OLLAMA_API_KEY: "ollama"
   RATE_LIMIT_AGENT_PER_MIN: "30"
@@ -35,43 +35,43 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: home-agent-secrets
-  namespace: home-agent
+  name: dfc-data-agent-secrets
+  namespace: dfc-data-agent
 type: Opaque
 stringData:
   ANALYTICS_MYSQL_PASSWORD: "REPLACE_ME"
-  REDIS_URL: "redis://redis.home-agent.svc.cluster.local:6379"
+  REDIS_URL: "redis://redis.dfc-data-agent.svc.cluster.local:6379"
   AUTH_ADMIN_USER_IDS: "admin001"
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: home-agent
-  namespace: home-agent
+  name: dfc-data-agent
+  namespace: dfc-data-agent
   labels:
-    app: home-agent
+    app: dfc-data-agent
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: home-agent
+      app: dfc-data-agent
   template:
     metadata:
       labels:
-        app: home-agent
+        app: dfc-data-agent
     spec:
       containers:
         - name: web
-          image: home-agent:0.3.0
+          image: dfc-data-agent:0.4.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
               name: http
           envFrom:
             - configMapRef:
-                name: home-agent-config
+                name: dfc-data-agent-config
             - secretRef:
-                name: home-agent-secrets
+                name: dfc-data-agent-secrets
           readinessProbe:
             httpGet:
               path: /api/health
@@ -96,11 +96,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: home-agent
-  namespace: home-agent
+  name: dfc-data-agent
+  namespace: dfc-data-agent
 spec:
   selector:
-    app: home-agent
+    app: dfc-data-agent
   ports:
     - name: http
       port: 80
@@ -110,7 +110,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: redis
-  namespace: home-agent
+  namespace: dfc-data-agent
 spec:
   replicas: 1
   selector:
@@ -137,7 +137,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: redis
-  namespace: home-agent
+  namespace: dfc-data-agent
 spec:
   selector:
     app: redis

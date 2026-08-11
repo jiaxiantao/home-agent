@@ -1,4 +1,4 @@
-# 大风车数据分析助手 · DFC Data Agent
+# DFC Data Agent · 大风车数据分析助手
 
 [![CI](https://github.com/jiaxiantao/home-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/jiaxiantao/home-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)

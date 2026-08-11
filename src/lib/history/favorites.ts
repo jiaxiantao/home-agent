@@ -1,4 +1,5 @@
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
+import { PRODUCT_SLUG } from "@/lib/product";
 
 export type FavoritePrompt = {
   id: string;
@@ -10,7 +11,8 @@ export type FavoritePrompt = {
 
 const MAX_PER_USER = 40;
 const TTL_MS = 90 * 24 * 60 * 60 * 1000;
-const REDIS_PREFIX = "home-agent:favorites:";
+
+const REDIS_PREFIX = `${PRODUCT_SLUG}:favorites:`;
 
 const globalStore = globalThis as typeof globalThis & {
   __homeAgentFavorites?: Map<string, FavoritePrompt[]>;

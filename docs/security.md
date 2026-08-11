@@ -41,8 +41,8 @@ RATE_LIMIT_AGENT_PER_MIN=30
 
 ```env
 AUTH_MODE=trusted_header
-AUTH_TRUSTED_USER_ID_HEADER=x-home-agent-user-id
-AUTH_TRUSTED_USER_NAME_HEADER=x-home-agent-user-name
+AUTH_TRUSTED_USER_ID_HEADER=x-dfc-data-agent-user-id
+AUTH_TRUSTED_USER_NAME_HEADER=x-dfc-data-agent-user-name
 TRUSTED_PROXY_ONLY=1
 ```
 

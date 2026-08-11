@@ -1,4 +1,5 @@
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
+import { PRODUCT_SLUG } from "@/lib/product";
 
 export type ThreadMessage = {
   role: "user" | "assistant";
@@ -27,7 +28,8 @@ if (!globalThreads.__homeAgentThreads) {
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_MESSAGES = 20;
-const REDIS_PREFIX = "home-agent:thread:";
+
+const REDIS_PREFIX = `${PRODUCT_SLUG}:thread:`;
 
 function threadKey(threadId: string, userId: string) {
   return `${REDIS_PREFIX}${userId}:${threadId}`;

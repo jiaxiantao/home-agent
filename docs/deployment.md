@@ -3,7 +3,7 @@
 ## 架构
 
 ```
-用户 → SSO 网关 → home-agent (Next.js) → matador MySQL (只读)
+用户 → SSO 网关 → DFC Data Agent (Next.js) → 大风车 MySQL（只读）
                               ↓
                          Redis / LLM
 ```
@@ -19,13 +19,13 @@ docker compose up --build
 
 ## 生产 K8s 要点
 
-仓库已提供清单：[`deploy/k8s/home-agent.yaml`](../deploy/k8s/home-agent.yaml)
+仓库已提供清单：[`deploy/k8s/dfc-data-agent.yaml`](../deploy/k8s/dfc-data-agent.yaml)
 
 ```bash
 # 先改 Secret 中的密码与 REDIS_URL，再应用
-kubectl apply -f deploy/k8s/home-agent.yaml
-kubectl -n home-agent rollout status deploy/home-agent
-curl -s "$(kubectl -n home-agent get svc home-agent -o jsonpath='{.spec.clusterIP}')/api/health"
+kubectl apply -f deploy/k8s/dfc-data-agent.yaml
+kubectl -n dfc-data-agent rollout status deploy/dfc-data-agent
+curl -s "$(kubectl -n dfc-data-agent get svc dfc-data-agent -o jsonpath='{.spec.clusterIP}')/api/health"
 ```
 
 1. **Deployment** 2+ 副本，`REDIS_REQUIRED=1`

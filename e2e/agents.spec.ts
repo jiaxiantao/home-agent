@@ -5,7 +5,7 @@ test.describe("Agents page", () => {
     await page.goto("/agents");
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      /大风车数据分析助手/,
+      /DFC Data Agent/,
     );
     await expect(page.getByRole("button", { name: "问数" })).toBeVisible();
     await expect(page.getByRole("button", { name: "查客户" })).toBeVisible();

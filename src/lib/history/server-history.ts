@@ -1,4 +1,5 @@
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
+import { PRODUCT_SLUG } from "@/lib/product";
 
 export type ServerHistoryStatus = "awaiting" | "done" | "error" | "cancelled";
 
@@ -18,7 +19,8 @@ export type ServerHistoryEntry = {
 
 const MAX_PER_USER = 100;
 const TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const REDIS_PREFIX = "home-agent:history:";
+
+const REDIS_PREFIX = `${PRODUCT_SLUG}:history:`;
 
 const globalStore = globalThis as typeof globalThis & {
   __homeAgentHistory?: Map<string, ServerHistoryEntry[]>;

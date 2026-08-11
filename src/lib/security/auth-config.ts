@@ -1,3 +1,5 @@
+import { PRODUCT_SLUG } from "@/lib/product";
+
 export type AuthMode = "disabled" | "token" | "trusted_header";
 
 export type AuthUser = {
@@ -6,7 +8,7 @@ export type AuthUser = {
   authMode: AuthMode;
 };
 
-const AUTH_COOKIE_NAME = "home_agent_session";
+const AUTH_COOKIE_NAME = "dfc_data_agent_session";
 
 export function getAuthMode(): AuthMode {
   const raw = process.env.AUTH_MODE?.trim().toLowerCase();
@@ -65,10 +67,11 @@ export function getAuthTokenUsers(): Map<string, AuthUser> {
 export function getTrustedHeaderNames() {
   return {
     userId:
-      process.env.AUTH_TRUSTED_USER_ID_HEADER?.trim() || "x-home-agent-user-id",
+      process.env.AUTH_TRUSTED_USER_ID_HEADER?.trim() ||
+      `x-${PRODUCT_SLUG}-user-id`,
     userName:
       process.env.AUTH_TRUSTED_USER_NAME_HEADER?.trim() ||
-      "x-home-agent-user-name",
+      `x-${PRODUCT_SLUG}-user-name`,
   };
 }
 
