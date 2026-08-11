@@ -10,7 +10,7 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 md:px-6">
         <Link
           href="/agents"
-          className="text-[12px] font-medium tracking-[0.12em] text-zinc-200 transition hover:text-white"
+          className="text-[12px] font-medium uppercase tracking-[0.18em] text-zinc-200 transition hover:text-white"
         >
           {PRODUCT_NAME_EN}
         </Link>
