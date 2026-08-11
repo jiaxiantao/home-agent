@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { SiteAuthBadge } from "@/components/site-auth-badge";
 import { SiteHealthBadge } from "@/components/site-health-badge";
+import { PRODUCT_NAME_EN } from "@/lib/product";
 
 export function SiteHeader() {
   return (
@@ -9,9 +10,9 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 md:px-6">
         <Link
           href="/agents"
-          className="text-[12px] font-medium tracking-[0.18em] text-zinc-200 transition hover:text-white"
+          className="text-[12px] font-medium tracking-[0.12em] text-zinc-200 transition hover:text-white"
         >
-          HOME AGENT
+          {PRODUCT_NAME_EN}
         </Link>
         <div className="flex items-center gap-3">
           <SiteHealthBadge />

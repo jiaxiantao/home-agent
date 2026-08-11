@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-11
+
+### Fixed
+
+- 站点顶栏仍显示 `HOME AGENT`，已改为 `DFC Data Agent`。
+
 ## [0.4.0] - 2026-08-11
 
 ### Changed
