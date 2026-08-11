@@ -1,0 +1,300 @@
+# DBHub multi-database config — 大风车(danube)体系全量库
+# docs: https://dbhub.ai/config/toml
+# password: env DBHUB_PASSWORD
+# lazy=true: 启动不预连，首次查询再建连
+#
+# 本文件为运维/DBHub 参考；应用内登记见 src/lib/analytics/project-databases.ts
+
+[[sources]]
+id = "anduin"
+description = "企业微信"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/anduin"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "arche_blade"
+description = "消息推送"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/arche_blade"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "cheniu"
+description = "车牛"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/cheniu"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "cheniu_user"
+description = "车牛用户"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/cheniu_user"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "crazy_kartrider"
+description = "车辆管理"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/crazy_kartrider"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "da_vinci"
+description = "数据分析"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/da_vinci"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube-activity-center"
+description = "活动中心"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube-activity-center"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_chaos"
+description = "定制对象"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_chaos"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_deal_adapter"
+description = "交易适配"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_deal_adapter"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_electronic_contract"
+description = "电子合同"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_electronic_contract"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_league"
+description = "联盟"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_league"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_mammon"
+description = "财神爷/财务"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_mammon"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_member"
+description = "会员"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_member"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_migrate"
+description = "迁移"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_migrate"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_postern"
+description = "postern"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_postern"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_report_script"
+description = "报表脚本"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_report_script"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_report_script_web"
+description = "报表脚本web"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_report_script_web"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_roam"
+description = "节点漫游"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_roam"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_service_market"
+description = "服务市场"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_service_market"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_statemachine"
+description = "状态机"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_statemachine"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_statistics"
+description = "统计"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_statistics"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_topcars"
+description = "找车源"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_topcars"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "danube_usedcar_market"
+description = "二手车市场"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube_usedcar_market"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "detect_business"
+description = "检测业务"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/detect_business"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "glorious_mission"
+description = "任务管理"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/glorious_mission"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "jiaxuan_huaguo"
+description = "微店/花果"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/jiaxuan_huaguo"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "jiaxuan_sword"
+description = "工作台入口"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/jiaxuan_sword"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "maple_story"
+description = "线索分发"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/maple_story"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "marketing_scrm"
+description = "SCRM"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/marketing_scrm"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "matador"
+description = "matador 核心"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/matador"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "rich_man"
+description = "订单管理"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/rich_man"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "souche_cannon"
+description = "营销推送"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/souche_cannon"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "souche_detect"
+description = "检测"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/souche_detect"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "souche_dfc"
+description = "大风车 souche_dfc"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/souche_dfc"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "souche_league"
+description = "联盟"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/souche_league"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "souche_lute"
+description = "配置服务"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/souche_lute"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "souche_no_word_book"
+description = "产品手册"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/souche_no_word_book"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "souche_scidea"
+description = "搜车idea"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/souche_scidea"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "souche_thriver"
+description = "数据报表"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/souche_thriver"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "souche_trade"
+description = "交易"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/souche_trade"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "suez"
+description = "B2B交易"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/suez"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
+id = "super_mario"
+description = "客户管理"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/super_mario"
+connection_timeout = 30
+lazy = true

@@ -43,20 +43,37 @@ describe("extractQuestionSearchTerms", () => {
 });
 
 describe("customer / user lookup routing", () => {
-  it("routes customer id questions to matador", () => {
+  it("routes customer id questions to cheniu_user first", () => {
     const ranked = rankDatabasesForQuestion(
       "我想知道客户 id 为 demo_user_001 的用户信息",
     );
-    expect(ranked[0]?.database).toBe("matador");
+    expect(ranked[0]?.database).toBe("cheniu_user");
   });
 
-  it("extracts lookup id and suggests cheniu_user", () => {
+  it("extracts lookup id and suggests cheniu_user tables", () => {
     expect(extractLookupId("我想知道客户 id 为 demo_user_001 的用户信息")).toBe(
       "demo_user_001",
     );
     expect(suggestedTablesForQuestion("客户 id 为 xxx 的用户信息")[0]).toMatchObject({
-      database: "matador",
-      table: "cheniu_user",
+      database: "cheniu_user",
+      table: "user",
     });
+  });
+});
+
+describe("extended DFC database routing", () => {
+  it("routes SCRM questions to marketing_scrm", () => {
+    const ranked = rankDatabasesForQuestion("SCRM 私域客户有多少？");
+    expect(ranked[0]?.database).toBe("marketing_scrm");
+  });
+
+  it("routes lead distribution to maple_story", () => {
+    const ranked = rankDatabasesForQuestion("线索分发池今日新增多少？");
+    expect(ranked[0]?.database).toBe("maple_story");
+  });
+
+  it("routes customer management to super_mario", () => {
+    const ranked = rankDatabasesForQuestion("客户管理跟进记录统计");
+    expect(ranked[0]?.database).toBe("super_mario");
   });
 });

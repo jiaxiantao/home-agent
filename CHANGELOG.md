@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-08-11
+
+### Added
+
+- 登记大风车 DBHub 全量 **42** 个业务库（`config/dbhub-dfc-sources.toml` + `project-databases.ts`），Agent 规划时可按自然语言语义路由到合适库。
+- 扩展问数路由规则：SCRM、线索分发、客户管理、企业微信、检测、车牛用户等；客户/用户 ID 类问题优先 `cheniu_user`。
+
 ## [0.4.2] - 2026-08-11
 
 ### Changed

@@ -1,5 +1,6 @@
 import {
   dfcProjectDatabaseRegistry,
+  matchRegistryKeywords,
   type ProjectDatabaseEntry,
 } from "@/lib/analytics/project-databases";
 import { getPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
@@ -19,9 +20,12 @@ export const questionRouteRules: RouteKeywordRule[] = [
   {
     pattern:
       /客户(?:信息|资料|详情)?|用户(?:信息|资料|详情)?|车牛用户|客户\s*id|用户\s*id|user_id|dfc_user_id|cheniu_user/i,
-    databases: ["matador", "danube_member"],
+    databases: ["cheniu_user", "matador", "danube_member"],
     searchTerms: ["cheniu_user", "user", "member", "customer"],
-    suggestedTables: [{ database: "matador", table: "cheniu_user" }],
+    suggestedTables: [
+      { database: "cheniu_user", table: "user" },
+      { database: "matador", table: "cheniu_user" },
+    ],
     reason: "客户/用户信息查询语义",
   },
   {
@@ -94,11 +98,107 @@ export const questionRouteRules: RouteKeywordRule[] = [
     reason: "状态机语义",
   },
   {
-    pattern: /求购|线索|buy_car|意向买车/,
+    pattern: /求购|buy_car|意向买车/,
     databases: ["matador"],
     searchTerms: ["buy", "lead", "clue"],
     suggestedTables: [{ database: "matador", table: "buy_car" }],
     reason: "求购线索语义",
+  },
+  {
+    pattern: /线索分发|线索池|maple.?story/,
+    databases: ["maple_story", "matador"],
+    searchTerms: ["lead", "clue", "distribute"],
+    reason: "线索分发语义",
+  },
+  {
+    pattern: /scrm|私域运营|营销scrm/,
+    databases: ["marketing_scrm"],
+    searchTerms: ["scrm", "customer", "wechat", "tag"],
+    reason: "SCRM 语义",
+  },
+  {
+    pattern: /客户管理|跟进记录|super.?mario|超级玛丽/,
+    databases: ["super_mario"],
+    searchTerms: ["customer", "follow", "crm", "mario"],
+    reason: "客户管理语义",
+  },
+  {
+    pattern: /企业微信|企微|anduin/,
+    databases: ["anduin"],
+    searchTerms: ["wecom", "corp", "contact", "department"],
+    reason: "企业微信语义",
+  },
+  {
+    pattern: /消息推送|arche.?blade/,
+    databases: ["arche_blade"],
+    searchTerms: ["push", "message", "template"],
+    reason: "消息推送语义",
+  },
+  {
+    pattern: /车辆管理|crazy.?kartrider/,
+    databases: ["crazy_kartrider", "matador"],
+    searchTerms: ["vehicle", "car", "manage"],
+    reason: "车辆管理语义",
+  },
+  {
+    pattern: /检测业务|车况检测|souche.?detect|detect.?business/,
+    databases: ["souche_detect", "detect_business"],
+    searchTerms: ["detect", "inspect", "report"],
+    reason: "检测语义",
+  },
+  {
+    pattern: /订单管理|rich.?man/,
+    databases: ["rich_man", "matador"],
+    searchTerms: ["order", "rich"],
+    reason: "订单管理语义",
+  },
+  {
+    pattern: /b2b|suez/,
+    databases: ["suez"],
+    searchTerms: ["b2b", "trade", "order"],
+    reason: "B2B 交易语义",
+  },
+  {
+    pattern: /任务管理|glorious.?mission/,
+    databases: ["glorious_mission"],
+    searchTerms: ["task", "mission", "job"],
+    reason: "任务管理语义",
+  },
+  {
+    pattern: /微店|花果|huaguo/,
+    databases: ["jiaxuan_huaguo"],
+    searchTerms: ["shop", "store", "goods"],
+    reason: "微店/花果语义",
+  },
+  {
+    pattern: /工作台|jiaxuan.?sword/,
+    databases: ["jiaxuan_sword"],
+    searchTerms: ["workbench", "entry", "menu"],
+    reason: "工作台入口语义",
+  },
+  {
+    pattern: /营销推送|souche.?cannon/,
+    databases: ["souche_cannon"],
+    searchTerms: ["marketing", "push", "campaign"],
+    reason: "营销推送语义",
+  },
+  {
+    pattern: /配置服务|配置中心|souche.?lute/,
+    databases: ["souche_lute"],
+    searchTerms: ["config", "setting", "lute"],
+    reason: "配置服务语义",
+  },
+  {
+    pattern: /定制对象|danube.?chaos/,
+    databases: ["danube_chaos"],
+    searchTerms: ["custom", "object", "field"],
+    reason: "定制对象语义",
+  },
+  {
+    pattern: /节点漫游|danube.?roam/,
+    databases: ["danube_roam"],
+    searchTerms: ["roam", "node", "route"],
+    reason: "节点漫游语义",
   },
   {
     pattern: /订单|成交|交易单|main_order/,
@@ -113,12 +213,6 @@ export const questionRouteRules: RouteKeywordRule[] = [
     searchTerms: ["car", "operate", "report"],
     suggestedTables: [{ database: "matador", table: "car" }],
     reason: "核心车源/运营语义",
-  },
-  {
-    pattern: /super.?mario|超级玛丽/,
-    databases: ["super_mario"],
-    searchTerms: ["mario", "task", "job"],
-    reason: "super_mario 语义",
   },
 ];
 
@@ -259,6 +353,10 @@ export function rankDatabasesForQuestion(question: string): Array<{
     if (question.includes(entry.description.slice(0, 4))) {
       bump(entry.name, 3, `描述关键词命中 ${entry.name}`);
     }
+  }
+
+  for (const match of matchRegistryKeywords(question)) {
+    bump(match.database, 6, `登记关键词「${match.keyword}」→ ${match.database}`);
   }
 
   if (preferred) {
