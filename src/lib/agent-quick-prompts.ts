@@ -12,7 +12,7 @@ export const agentQuickPrompts: AgentQuickPrompt[] = [
     id: "user-by-id",
     tool: "propose_sql",
     label: "查客户",
-    prompt: "我想知道客户 id 为 demo_user_001 的用户信息",
+    prompt: "我想知道客户 id 为 ANwbnMyLF0 的客户信息",
   },
   {
     id: "car-count",

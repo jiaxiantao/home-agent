@@ -20,7 +20,7 @@ export function AgentOrchestratorDemo({
   initialMessage?: string;
 }) {
   const [message, setMessage] = useState(
-    initialMessage ?? "我想知道客户 id 为 demo_user_001 的用户信息",
+    initialMessage ?? "我想知道客户 id 为 ANwbnMyLF0 的客户信息",
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
