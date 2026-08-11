@@ -7,7 +7,7 @@ test.describe("Agents page", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /数据分析助手/,
     );
-    await expect(page.getByRole("button", { name: "运行 Agent 循环" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "开始问数" })).toBeVisible();
     await expect(page.getByRole("button", { name: "车源总数" })).toBeVisible();
   });
 
@@ -20,7 +20,7 @@ test.describe("Agents page", () => {
   test("runs agent loop and shows sql confirmation", async ({ page }) => {
     await page.goto("/agents?q=" + encodeURIComponent("大风车正式车源一共有多少辆？"));
 
-    await page.getByRole("button", { name: "运行 Agent 循环" }).click();
+    await page.getByRole("button", { name: "开始问数" }).click();
     await expect(page.getByText("确认执行 SQL", { exact: true })).toBeVisible({
       timeout: 30_000,
     });

@@ -9,6 +9,11 @@ import type {
   AgentToolName,
   AgentTraceEvent,
 } from "@/lib/agent/types";
+import {
+  createHistoryEntry,
+  updateQueryHistory,
+  type QueryHistoryEntry,
+} from "@/lib/history/query-history";
 import { parseSseBlock } from "@/lib/sse";
 
 export type AgentTraceLine = {
@@ -39,6 +44,35 @@ export type AgentPhase =
   | "done"
   | "error";
 
+export type ConversationTurn = {
+  id: string;
+  question: string;
+  surfaces: A2UISurface[];
+  finalAnswer: string;
+  stats: AgentRunStats | null;
+  isMock: boolean;
+  status: "running" | "awaiting" | "done" | "error" | "cancelled";
+  historyId?: string;
+};
+
+const THREAD_STORAGE_KEY = "home-agent-thread-id";
+
+function getStoredThreadId() {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  return window.sessionStorage.getItem(THREAD_STORAGE_KEY) ?? undefined;
+}
+
+function storeThreadId(threadId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(THREAD_STORAGE_KEY, threadId);
+}
+
 function formatPlan(plan: AgentPlan) {
   if (plan.action === "tool") {
     return `调用 ${plan.tool} · ${plan.reasoning || "执行工具步骤"}`;
@@ -63,6 +97,12 @@ function traceLineFromEvent(payload: AgentTraceEvent): AgentTraceLine | null {
       return { id, kind: "trace", text: `[${payload.phase}] ${payload.message}` };
     case "plan":
       return { id, kind: "plan", text: formatPlan(payload.plan) };
+    case "planner_mode":
+      return {
+        id,
+        kind: "trace",
+        text: `[planner] ${payload.label ?? (payload.mock ? "规则模式" : "LLM")}`,
+      };
     case "tool_call":
       return {
         id,
@@ -162,23 +202,27 @@ async function consumeAgentStream(
   }
 }
 
-export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) => void }) {
+export function useAgentStream() {
   const [lines, setLines] = useState<AgentTraceLine[]>([]);
   const [finalAnswer, setFinalAnswer] = useState("");
   const [running, setRunning] = useState(false);
   const [phase, setPhase] = useState<AgentPhase>("idle");
   const [currentStep, setCurrentStep] = useState(0);
   const [isMock, setIsMock] = useState(false);
+  const [plannerLabel, setPlannerLabel] = useState<string | null>(null);
   const [stepMetrics, setStepMetrics] = useState<AgentStepMetric[]>([]);
   const [stats, setStats] = useState<AgentRunStats | null>(null);
   const [surfaces, setSurfaces] = useState<A2UISurface[]>([]);
   const [pendingRunId, setPendingRunId] = useState<string | null>(null);
+  const [threadId, setThreadId] = useState<string | undefined>(getStoredThreadId);
+  const [conversation, setConversation] = useState<ConversationTurn[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState("");
+
   const abortRef = useRef<AbortController | null>(null);
-  const onEventRef = useRef(options?.onEvent);
+  const turnRef = useRef<ConversationTurn | null>(null);
+  const historyRef = useRef<QueryHistoryEntry | null>(null);
 
-  onEventRef.current = options?.onEvent;
-
-  const reset = useCallback(() => {
+  const resetCurrentTurn = useCallback(() => {
     setLines([]);
     setFinalAnswer("");
     setStats(null);
@@ -186,9 +230,21 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
     setPhase("idle");
     setCurrentStep(0);
     setIsMock(false);
+    setPlannerLabel(null);
     setSurfaces([]);
     setPendingRunId(null);
+    turnRef.current = null;
+    historyRef.current = null;
   }, []);
+
+  const resetAll = useCallback(() => {
+    resetCurrentTurn();
+    setConversation([]);
+    setCurrentQuestion("");
+    const nextThread = `thread_${crypto.randomUUID().slice(0, 12)}`;
+    setThreadId(nextThread);
+    storeThreadId(nextThread);
+  }, [resetCurrentTurn]);
 
   const appendLine = useCallback((kind: string, text: string) => {
     setLines((current) => [
@@ -204,54 +260,135 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
     appendLine("trace", "[client] 已手动停止");
   }, [appendLine]);
 
-  const handlePayload = useCallback((payload: AgentTraceEvent) => {
-    onEventRef.current?.(payload);
+  const updateTurn = useCallback((patch: Partial<ConversationTurn>) => {
+    const current = turnRef.current;
 
-    const nextPhase = phaseFromEvent(payload);
-    if (nextPhase) {
-      setPhase(nextPhase);
+    if (!current) {
+      return;
     }
 
-    const line = traceLineFromEvent(payload);
-    if (line) {
-      setLines((current) => [...current, line]);
-    }
-
-    if (payload.type === "answer") {
-      setFinalAnswer(payload.text);
-      setIsMock(Boolean(payload.mock));
-    } else if (payload.type === "done") {
-      setStats({
-        steps: payload.steps,
-        toolCalls: payload.toolCalls,
-        totalMs: payload.totalMs,
-      });
-      setPhase("done");
-    } else if (payload.type === "step_metric") {
-      setCurrentStep(payload.step);
-      setStepMetrics((current) => [
-        ...current.filter((item) => item.step !== payload.step),
-        {
-          step: payload.step,
-          planMs: payload.planMs,
-          toolMs: payload.toolMs,
-          totalMs: payload.totalMs,
-        },
-      ]);
-    } else if (payload.type === "tool_call") {
-      setCurrentStep((current) => current + 1);
-    } else if (payload.type === "a2ui") {
-      setSurfaces((current) => {
-        const without = current.filter(
-          (surface) => surface.surfaceId !== payload.surface.surfaceId,
-        );
-        return [...without, payload.surface];
-      });
-    } else if (payload.type === "awaiting_input") {
-      setPendingRunId(payload.runId);
-      setPhase("awaiting");
-    }
+    const next = { ...current, ...patch };
+    turnRef.current = next;
+    setConversation((items) => {
+      const without = items.filter((item) => item.id !== next.id);
+      return [...without, next];
+    });
   }, []);
+
+  const handlePayload = useCallback(
+    (payload: AgentTraceEvent) => {
+      const nextPhase = phaseFromEvent(payload);
+      if (nextPhase) {
+        setPhase(nextPhase);
+      }
+
+      const line = traceLineFromEvent(payload);
+      if (line) {
+        setLines((current) => [...current, line]);
+      }
+
+      if (payload.type === "thread") {
+        setThreadId(payload.threadId);
+        storeThreadId(payload.threadId);
+      } else if (payload.type === "planner_mode") {
+        setIsMock(payload.mock);
+        setPlannerLabel(payload.label ?? null);
+        updateTurn({ isMock: payload.mock });
+      } else if (payload.type === "answer") {
+        setFinalAnswer(payload.text);
+        setIsMock(Boolean(payload.mock));
+        updateTurn({
+          finalAnswer: payload.text,
+          isMock: Boolean(payload.mock),
+          status: "done",
+        });
+
+        if (historyRef.current) {
+          historyRef.current = updateQueryHistory(historyRef.current.id, {
+            answer: payload.text,
+            status: "done",
+          }) ?? historyRef.current;
+        }
+      } else if (payload.type === "done") {
+        const nextStats = {
+          steps: payload.steps,
+          toolCalls: payload.toolCalls,
+          totalMs: payload.totalMs,
+        };
+        setStats(nextStats);
+        setPhase("done");
+        updateTurn({ stats: nextStats, status: "done" });
+      } else if (payload.type === "step_metric") {
+        setCurrentStep(payload.step);
+        setStepMetrics((current) => [
+          ...current.filter((item) => item.step !== payload.step),
+          {
+            step: payload.step,
+            planMs: payload.planMs,
+            toolMs: payload.toolMs,
+            totalMs: payload.totalMs,
+          },
+        ]);
+      } else if (payload.type === "tool_call") {
+        setCurrentStep((current) => current + 1);
+      } else if (payload.type === "a2ui") {
+        setSurfaces((current) => {
+          const without = current.filter(
+            (surface) => surface.surfaceId !== payload.surface.surfaceId,
+          );
+          const next = [...without, payload.surface];
+          updateTurn({ surfaces: next });
+          return next;
+        });
+      } else if (payload.type === "awaiting_input") {
+        setPendingRunId(payload.runId);
+        setPhase("awaiting");
+        updateTurn({ status: "awaiting" });
+
+        if (historyRef.current) {
+          historyRef.current = updateQueryHistory(historyRef.current.id, {
+            sql: payload.sql,
+            status: "awaiting",
+          }) ?? historyRef.current;
+        }
+      } else if (payload.type === "error") {
+        updateTurn({ status: "error" });
+
+        if (historyRef.current) {
+          historyRef.current = updateQueryHistory(historyRef.current.id, {
+            status: "error",
+          }) ?? historyRef.current;
+        }
+      }
+    },
+    [updateTurn],
+  );
+
+  const beginTurn = useCallback(
+    (question: string) => {
+      const turn: ConversationTurn = {
+        id: crypto.randomUUID(),
+        question,
+        surfaces: [],
+        finalAnswer: "",
+        stats: null,
+        isMock: false,
+        status: "running",
+      };
+
+      turnRef.current = turn;
+      setConversation((current) => [...current, turn]);
+      setCurrentQuestion(question);
+
+      historyRef.current = createHistoryEntry({
+        threadId: threadId ?? "unknown",
+        question,
+        status: "awaiting",
+      });
+      turn.historyId = historyRef.current.id;
+    },
+    [threadId],
+  );
 
   const run = useCallback(
     async (message: string) => {
@@ -259,12 +396,13 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
       const controller = new AbortController();
       abortRef.current = controller;
       setRunning(true);
-      reset();
+      resetCurrentTurn();
+      beginTurn(message.trim());
       setPhase("planning");
 
       try {
         await consumeAgentStream(
-          { message: message.trim() },
+          { message: message.trim(), threadId },
           controller.signal,
           handlePayload,
         );
@@ -279,12 +417,17 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
               text: error instanceof Error ? error.message : "请求失败",
             },
           ]);
+          updateTurn({ status: "error" });
+
+          if (historyRef.current) {
+            updateQueryHistory(historyRef.current.id, { status: "error" });
+          }
         }
       } finally {
         setRunning(false);
       }
     },
-    [handlePayload, reset],
+    [beginTurn, handlePayload, resetCurrentTurn, threadId],
   );
 
   const resume = useCallback(
@@ -296,9 +439,14 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
       setPhase("tool");
       setPendingRunId(null);
 
+      if (action.actionId === "cancel_sql" && historyRef.current) {
+        updateQueryHistory(historyRef.current.id, { status: "cancelled" });
+        updateTurn({ status: "cancelled" });
+      }
+
       try {
         await consumeAgentStream(
-          { message: "", resume: action },
+          { message: "", threadId, resume: action },
           controller.signal,
           handlePayload,
         );
@@ -318,24 +466,34 @@ export function useAgentStream(options?: { onEvent?: (event: AgentTraceEvent) =>
         setRunning(false);
       }
     },
-    [handlePayload],
+    [handlePayload, threadId, updateTurn],
   );
+
+  const loadHistoryQuestion = useCallback((question: string) => {
+    setCurrentQuestion(question);
+  }, []);
 
   return {
     run,
     resume,
     stop,
-    reset,
+    reset: resetAll,
+    resetCurrentTurn,
     appendLine,
     running,
     phase,
     currentStep,
     isMock,
+    plannerLabel,
     lines,
     finalAnswer,
     stats,
     stepMetrics,
     surfaces,
     pendingRunId,
+    threadId,
+    conversation,
+    currentQuestion,
+    loadHistoryQuestion,
   };
 }

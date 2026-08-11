@@ -61,3 +61,49 @@ export function getLlmLabel() {
   const { provider, model } = getLlmConfig();
   return provider === "ollama" ? `Ollama · ${model}` : `OpenAI · ${model}`;
 }
+
+export async function checkLlmHealth(): Promise<{
+  configured: boolean;
+  ok: boolean;
+  latencyMs: number;
+  label?: string;
+  error?: string;
+}> {
+  if (!isLlmConfigured()) {
+    return {
+      configured: false,
+      ok: false,
+      latencyMs: 0,
+      error: "disabled or misconfigured",
+    };
+  }
+
+  const started = performance.now();
+
+  try {
+    const { baseURL, apiKey } = getLlmConfig();
+    const response = await fetch(`${baseURL.replace(/\/$/, "")}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return {
+      configured: true,
+      ok: true,
+      latencyMs: Math.round(performance.now() - started),
+      label: getLlmLabel(),
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      ok: false,
+      latencyMs: Math.round(performance.now() - started),
+      label: getLlmLabel(),
+      error: error instanceof Error ? error.message : "unreachable",
+    };
+  }
+}

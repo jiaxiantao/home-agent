@@ -1,0 +1,146 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: home-agent
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: home-agent-config
+  namespace: home-agent
+data:
+  NEXT_PUBLIC_SITE_URL: "https://home-agent.example.internal"
+  AUTH_MODE: "trusted_header"
+  TRUSTED_PROXY_ONLY: "1"
+  PRODUCTION_STRICT: "1"
+  REDIS_REQUIRED: "1"
+  LLM_REQUIRE: "1"
+  ANALYTICS_MYSQL_ENV: "test"
+  ANALYTICS_MYSQL_HOST: "test.database3500.scsite.net"
+  ANALYTICS_MYSQL_PORT: "3500"
+  ANALYTICS_MYSQL_DATABASE: "matador"
+  ANALYTICS_MYSQL_USER: "souche_ro"
+  ANALYTICS_MYSQL_SSL: "false"
+  ANALYTICS_MYSQL_TABLE_ALLOWLIST: "car,car_extra,main_order,common_order,car_deal,buy_car,buy_call,operate_report"
+  ANALYTICS_MYSQL_EXPLAIN_GUARD: "1"
+  ANALYTICS_MYSQL_EXPLAIN_MAX_ROWS: "200000"
+  LLM_PROVIDER: "ollama"
+  OLLAMA_BASE_URL: "http://ollama.home-agent.svc.cluster.local:11434/v1"
+  OLLAMA_MODEL: "qwen3"
+  OLLAMA_API_KEY: "ollama"
+  RATE_LIMIT_AGENT_PER_MIN: "30"
+  AGENT_MAX_STEPS: "8"
+---
+# 敏感信息请用 Secret（示例键名，勿提交真实值）
+apiVersion: v1
+kind: Secret
+metadata:
+  name: home-agent-secrets
+  namespace: home-agent
+type: Opaque
+stringData:
+  ANALYTICS_MYSQL_PASSWORD: "REPLACE_ME"
+  REDIS_URL: "redis://redis.home-agent.svc.cluster.local:6379"
+  AUTH_ADMIN_USER_IDS: "admin001"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: home-agent
+  namespace: home-agent
+  labels:
+    app: home-agent
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: home-agent
+  template:
+    metadata:
+      labels:
+        app: home-agent
+    spec:
+      containers:
+        - name: web
+          image: home-agent:0.3.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: home-agent-config
+            - secretRef:
+                name: home-agent-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: home-agent
+  namespace: home-agent
+spec:
+  selector:
+    app: home-agent
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: home-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: home-agent
+spec:
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379

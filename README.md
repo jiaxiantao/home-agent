@@ -90,17 +90,31 @@ pnpm test:e2e
 
 | 端点 | 说明 |
 |------|------|
-| `GET /api/health` | 分析 MySQL / LLM / Agent 配置 |
+| `GET /api/health` | 分析 MySQL / LLM / Redis / 安全配置 |
 | `POST /api/agent` | Agent 循环（SSE；支持 resume 确认 SQL） |
+| `GET /api/history` | 当前用户查询历史 |
+| `GET /api/audit` | 管理员审计记录查询 |
 
 ## 环境变量
 
 见 [.env.example](./.env.example)。关键项：
 
-- `ANALYTICS_MYSQL_*` — 大风车分析库
+- `ANALYTICS_MYSQL_*` — 大风车分析库（生产请用只读账号 + `TABLE_ALLOWLIST`）
+- `AUTH_MODE` / `AUTH_TOKEN` — 企业内网鉴权（见 [docs/security.md](./docs/security.md)）
+- `REDIS_URL` — 多实例待确认 SQL 持久化
 - `OLLAMA_MODEL=qwen3` — 默认模型
 - `LLM_DISABLED=1` — 规则规划器
 - `AGENT_MAX_STEPS` — 循环最大步数
+
+## 企业内网部署
+
+上线前请阅读：
+
+- [docs/security.md](./docs/security.md) — 鉴权、白名单、审计
+- [docs/deployment.md](./docs/deployment.md) — Docker/K8s 部署
+- [docs/analyst-guide.md](./docs/analyst-guide.md) — 分析师手册
+
+**上线检查**：`GET /api/health` 返回 `ready: true`（MySQL + LLM + Redis + 安全配置均就绪）。
 
 ## Docker
 

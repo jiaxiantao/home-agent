@@ -1,26 +1,24 @@
 # 演进路线图
 
-大风车数据分析助手：自然语言 → 只读 SQL → HITL 确认 → 表格/图表。
-
 ## 已完成
 
-- [x] matador test MySQL（`ANALYTICS_MYSQL_*`）
-- [x] 只读 SQL guard + LIMIT + 超时
-- [x] schema catalog + propose/execute/build_chart
-- [x] A2UI 确认卡 / 表格 / 图表
-- [x] SSE `a2ui` / `awaiting_input` / resume
+- [x] matador MySQL + 只读 guard + HITL + A2UI
+- [x] 数据库元数据工具全集
+- [x] 企业安全：鉴权、审计、表白名单、Redis、限流
+- [x] 分析师体验：多轮、历史、CSV、SQL 编辑
+- [x] 生产加固：PII 脱敏、EXPLAIN 守卫、RBAC、pending 归属、health ready、生产配置校验
+- [x] 服务端查询历史（`/api/history`）
+- [x] 审计持久化（内存/Redis + `/api/audit` 管理员查询）
+- [x] K8s 部署清单（`deploy/k8s/`）
+- [x] NL→SQL 黄金用例回归（规则规划器）
 
-## 下一阶段
+## 可选增强
 
-- [ ] Session / Run 持久化
-- [ ] 鉴权与只读账号
-- [ ] `information_schema` 轻量刷新
-- [ ] 多轮追问上下文
-- [ ] 导出 / 收藏问法
+- [ ] 审计写入独立 DB / 日志平台 HTTP sink
+- [ ] 收藏问法（服务端）
+- [ ] 多环境配置 UI（test/preprod 切换）
+- [ ] 连 staging MySQL 的集成测试 job
 
-## 协议
+## 文档
 
-- **AG-UI**：事件流、用户动作回传
-- **A2UI**：声明式 UI 结构
-
-详见 `.cursor/rules/ag-ui-a2ui.mdc`。
+- [security.md](./security.md) · [deployment.md](./deployment.md) · [analyst-guide.md](./analyst-guide.md)

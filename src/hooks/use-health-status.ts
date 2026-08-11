@@ -13,7 +13,8 @@ export type HealthStatus = {
     database?: string;
     error?: string;
   };
-  llm: { configured: boolean; label: string };
+  llm: { configured: boolean; ok?: boolean; label?: string; required?: boolean; error?: string };
+  security?: { productionIssues?: string[] };
   agent?: { maxSteps: number };
 };
 

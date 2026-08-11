@@ -13,6 +13,7 @@ export const a2uiComponentSchema = z.discriminatedUnion("type", [
     type: z.literal("Code"),
     language: z.string().default("sql"),
     code: z.string(),
+    editable: z.boolean().optional(),
   }),
   z.object({
     id: z.string(),
@@ -53,6 +54,9 @@ export type A2UISurface = {
   components: A2UIComponent[];
 };
 
+const BUSINESS_HINTS =
+  "业务口径提示：正式车源/求购常用 test_type = 0；有效订单需 delete_time IS NULL；查询会自动加 LIMIT。";
+
 export function buildSqlConfirmSurface(input: {
   surfaceId: string;
   runId: string;
@@ -69,10 +73,16 @@ export function buildSqlConfirmSurface(input: {
         text: input.explanation || "请确认是否执行以下只读查询：",
       },
       {
+        id: `${input.surfaceId}-hints`,
+        type: "Text",
+        text: BUSINESS_HINTS,
+      },
+      {
         id: `${input.surfaceId}-code`,
         type: "Code",
         language: "sql",
         code: input.sql,
+        editable: true,
       },
       {
         id: `${input.surfaceId}-actions`,
@@ -141,4 +151,14 @@ export function buildQueryResultSurface(input: {
     title: "查询结果",
     components,
   };
+}
+
+export function extractTableFromSurface(surface: A2UISurface) {
+  const table = surface.components.find((component) => component.type === "Table");
+
+  if (!table || table.type !== "Table") {
+    return null;
+  }
+
+  return { columns: table.columns, rows: table.rows };
 }

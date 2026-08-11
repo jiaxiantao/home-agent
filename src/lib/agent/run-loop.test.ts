@@ -24,7 +24,7 @@ describe("runAgentLoop", () => {
     process.env.LLM_DISABLED = "1";
 
     const events = [];
-    for await (const event of runAgentLoop("列出分析库的表目录")) {
+    for await (const event of runAgentLoop("分析库有哪些核心表和字段说明？")) {
       events.push(event);
     }
 

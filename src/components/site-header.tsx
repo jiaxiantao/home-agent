@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SiteAuthBadge } from "@/components/site-auth-badge";
 import { SiteHealthBadge } from "@/components/site-health-badge";
 
 export function SiteHeader() {
@@ -14,9 +15,10 @@ export function SiteHeader() {
         </Link>
         <div className="flex items-center gap-4">
           <SiteHealthBadge />
-          <nav className="text-sm text-slate-300">
+          <SiteAuthBadge />
+          <nav className="text-sm text-slate-400">
             <Link href="/agents" className="transition hover:text-white">
-              Agent 编排
+              问数助手
             </Link>
           </nav>
         </div>

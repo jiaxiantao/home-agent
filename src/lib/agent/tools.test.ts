@@ -24,4 +24,9 @@ describe("runAgentTool", () => {
     const result = await runAgentTool("list_schema", {});
     expect(result.output).toContain("car");
   });
+
+  it("lists project database registry without requiring live mysql", async () => {
+    const result = await runAgentTool("list_project_databases", {});
+    expect(result.output).toContain("matador");
+  });
 });

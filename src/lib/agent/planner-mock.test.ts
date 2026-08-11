@@ -12,6 +12,25 @@ describe("buildMockPlan", () => {
     }
   });
 
+  it("lists project databases when user asks about dfc databases", () => {
+    const plan = buildMockPlan("大风车项目现在有哪些数据库？", []);
+
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("list_project_databases");
+    }
+  });
+
+  it("describes table when user asks column types for a table", () => {
+    const plan = buildMockPlan("car 表有哪些字段？每个字段是什么类型？", []);
+
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("describe_table");
+      expect(plan.args.table).toBe("car");
+    }
+  });
+
   it("proposes sql for analytics questions", () => {
     const plan = buildMockPlan("大风车正式车源一共有多少辆？", []);
 

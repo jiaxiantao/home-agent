@@ -1,6 +1,17 @@
 import { z } from "zod";
 
 export const agentToolNameSchema = z.enum([
+  "list_project_databases",
+  "list_databases",
+  "list_tables",
+  "describe_table",
+  "get_column",
+  "list_indexes",
+  "list_foreign_keys",
+  "show_create_table",
+  "get_table_stats",
+  "search_schema",
+  "sample_table_rows",
   "list_schema",
   "propose_sql",
   "execute_sql",

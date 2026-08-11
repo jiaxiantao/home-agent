@@ -1,6 +1,6 @@
 {
   "name": "home-agent",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "private": false,
   "description": "Dafengche data analysis agent — NL to SQL, HITL confirm, charts via A2UI",
   "license": "MIT",
@@ -46,6 +46,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.10.1",
+    "redis": "^6.2.0",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
   },

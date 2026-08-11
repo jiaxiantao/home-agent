@@ -14,6 +14,7 @@ jobs:
       SMOKE_BASE_URL: http://localhost:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       LLM_DISABLED: "1"
+      AUTH_MODE: disabled
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
     steps:

@@ -148,6 +148,13 @@ export async function checkAnalyticsMysqlHealth(): Promise<{
 export async function queryAnalyticsMysql<T extends RowDataPacket[]>(
   sql: string,
 ): Promise<{ rows: T; fields: string[] }> {
+  return queryAnalyticsMysqlWithParams(sql, []);
+}
+
+export async function queryAnalyticsMysqlWithParams<T extends RowDataPacket[]>(
+  sql: string,
+  params: unknown[],
+): Promise<{ rows: T; fields: string[] }> {
   const config = getAnalyticsMysqlConfig();
   const activePool = getAnalyticsMysqlPool();
 
@@ -160,6 +167,7 @@ export async function queryAnalyticsMysql<T extends RowDataPacket[]>(
   const [rows, fields] = await activePool.query<T>({
     sql,
     timeout: config.queryTimeoutMs,
+    values: params,
   });
 
   const fieldNames = Array.isArray(fields)

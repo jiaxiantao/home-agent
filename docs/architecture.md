@@ -49,5 +49,6 @@ sequenceDiagram
 
 ## 安全说明
 
-- `/api/agent` 暂无鉴权，仅适合内网/本地。
-- SQL 层强制只读 + LIMIT + 超时；执行前必须用户确认。
+- 生产必须启用鉴权（`AUTH_MODE`），详见 [docs/security.md](./docs/security.md)。
+- SQL 层强制只读 + 表白名单 + LIMIT + 超时；执行前必须用户确认。
+- 审计日志输出到 stdout，便于接入日志平台。

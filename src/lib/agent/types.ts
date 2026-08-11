@@ -3,6 +3,17 @@ import type { ChartSpec } from "@/lib/analytics/chart-spec";
 import type { QueryResult } from "@/lib/analytics/run-query";
 
 export type AgentToolName =
+  | "list_project_databases"
+  | "list_databases"
+  | "list_tables"
+  | "describe_table"
+  | "get_column"
+  | "list_indexes"
+  | "list_foreign_keys"
+  | "show_create_table"
+  | "get_table_stats"
+  | "search_schema"
+  | "sample_table_rows"
   | "list_schema"
   | "propose_sql"
   | "execute_sql"
@@ -44,6 +55,8 @@ export type AgentResumeAction = {
   actionId: "confirm_sql" | "cancel_sql";
   payload?: {
     runId?: string;
+    /** 用户在确认前编辑后的 SQL */
+    sql?: string;
   };
 };
 
@@ -73,6 +86,8 @@ export type AgentTraceEvent =
       explanation: string;
     }
   | { type: "answer"; text: string; mock?: boolean }
+  | { type: "thread"; threadId: string }
+  | { type: "planner_mode"; mock: boolean; label?: string }
   | {
       type: "done";
       steps: number;

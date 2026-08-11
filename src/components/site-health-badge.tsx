@@ -64,10 +64,19 @@ export function SiteHealthBadge() {
         }
       />
       <StatusDot
-        ok={health.llm.configured}
-        label={health.llm.configured ? health.llm.label : "规则模式"}
-        title={health.llm.label}
+        ok={health.llm.configured && (health.llm.ok ?? true)}
+        label={
+          health.llm.configured
+            ? (health.llm.label ?? "LLM")
+            : health.llm.required
+              ? "LLM 不可用"
+              : "规则模式"
+        }
+        title={health.llm.error ?? health.llm.label ?? "LLM"}
       />
+      {!health.ready ? (
+        <StatusDot ok={false} label="未就绪" title="详见 /api/health" />
+      ) : null}
     </div>
   );
 }

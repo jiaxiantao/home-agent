@@ -1,7 +1,10 @@
 import type { RowDataPacket } from "mysql2/promise";
 
+import { assertQueryCostAcceptable } from "@/lib/analytics/query-cost-guard";
 import { getAnalyticsMysqlConfig, queryAnalyticsMysql } from "@/lib/analytics/mysql";
 import { assertReadOnlySql, ensureLimit } from "@/lib/analytics/sql-guard";
+import { assertAllowedTables } from "@/lib/security/table-allowlist";
+import { maskQueryRows } from "@/lib/security/pii-mask";
 
 export type QueryResult = {
   sql: string;
@@ -40,6 +43,14 @@ export async function runAnalyticsQuery(rawSql: string): Promise<QueryResult> {
     throw new Error(guarded.reason);
   }
 
+  const allowlist = assertAllowedTables(guarded.sql);
+
+  if (!allowlist.ok) {
+    throw new Error(allowlist.reason);
+  }
+
+  await assertQueryCostAcceptable(guarded.sql);
+
   const sql = ensureLimit(guarded.sql, maxRows);
   const { rows, fields } = await queryAnalyticsMysql<RowDataPacket[]>(sql);
 
@@ -60,13 +71,14 @@ export async function runAnalyticsQuery(rawSql: string): Promise<QueryResult> {
         ? Object.keys(serialized[0])
         : [];
 
-  const truncated = serialized.length >= maxRows;
+  const masked = maskQueryRows(columns, serialized);
+  const truncated = masked.length >= maxRows;
 
   return {
     sql,
     columns,
-    rows: truncated ? serialized.slice(0, maxRows) : serialized,
-    rowCount: Math.min(serialized.length, maxRows),
+    rows: truncated ? masked.slice(0, maxRows) : masked,
+    rowCount: Math.min(masked.length, maxRows),
     truncated,
   };
 }

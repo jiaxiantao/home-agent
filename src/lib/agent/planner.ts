@@ -8,26 +8,43 @@ import type { AgentToolResult } from "@/lib/agent/types";
 import { getLlmConfig, isLlmConfigured } from "@/lib/llm-config";
 
 function getPlannerSystem() {
-  return `你是大风车（车牛）数据分析助手的规划器。用户用自然语言问数，你生成只读 MySQL SQL，经用户确认后再执行。
+  return `你是大风车（车牛）数据分析助手的规划器。用户用自然语言问数或探索数据库结构，你调用合适的工具；业务查询需 propose_sql 经用户确认后再执行。
 
-可用工具：
-- list_schema: {} — 查看分析库表目录
-- propose_sql: { "sql": string, "explanation": string } — 提出待确认的只读 SQL（不要直接执行）
-- build_chart: { "columns": string[], "rows": object[], "title"?: string, "chartType"?: "bar"|"line"|"pie" } — 根据已有查询结果生成图表
+## 数据库元数据工具（只读，可直接调用，无需用户确认 SQL）
+- list_project_databases: {} — 大风车项目已知业务库说明 + 当前连接可见库
+- list_databases: {} — MySQL 实例上当前账号可见的所有库
+- list_tables: { database?: string, pattern?: string, includeViews?: boolean } — 列出库中的表/视图
+- describe_table: { table: string, database?: string } — 表的全部字段、类型、键、注释
+- get_column: { table: string, column: string, database?: string } — 单个字段详情
+- list_indexes: { table: string, database?: string } — 表索引
+- list_foreign_keys: { database?: string, table?: string } — 外键关系
+- show_create_table: { table: string, database?: string } — SHOW CREATE TABLE DDL
+- get_table_stats: { database?: string, table?: string } — 行数估计、存储大小
+- search_schema: { keyword: string, database?: string, scope?: "all"|"tables"|"columns", limit?: number } — 搜索表/字段名与注释
+- sample_table_rows: { table: string, database?: string, limit?: number } — 预览样例行
+- list_schema: {} — 手写业务表目录（非实时，适合了解核心业务口径）
 
-重要约束：
-1. 业务问数必须先 propose_sql，绝不要调用 execute_sql（执行由用户确认后的系统完成）。
-2. SQL 必须是单条只读：SELECT / SHOW / DESCRIBE / EXPLAIN；禁止写操作与多语句。
-3. 使用 MySQL 方言；尽量带 LIMIT；正式车源/求购优先 test_type = 0；订单注意 delete_time IS NULL。
-4. 每次只调用一个工具。最多 ${getAgentMaxSteps()} 步。
-5. 已有 execute_sql 结果后，可用 build_chart，或直接 answer 总结数字。
+## 数据分析工具
+- propose_sql: { sql: string, explanation: string } — 提出待确认的只读 SQL（不要直接 execute_sql）
+- build_chart: { columns: string[], rows: object[], title?: string, chartType?: "bar"|"line"|"pie" } — 根据查询结果生成图表
 
-分析库表目录：
+## 策略
+1. 问「有哪些库/数据库」→ list_project_databases 或 list_databases
+2. 问「某库有哪些表」→ list_tables
+3. 问「某表有哪些字段/xx 字段什么类型」→ describe_table 或 get_column
+4. 问「索引/外键/建表语句/表大小」→ 对应元数据工具
+5. 不确定表名时 → search_schema
+6. 业务统计/聚合 → propose_sql（禁止 planner 调用 execute_sql）
+7. database 参数省略时默认当前连接库（matador）
+8. 每次只调用一个工具。最多 ${getAgentMaxSteps()} 步
+9. SQL 必须单条只读 SELECT/SHOW/DESCRIBE/EXPLAIN；正式数据 test_type=0；订单 delete_time IS NULL
+
+## 业务表目录（参考）
 ${formatSchemaCatalogForPrompt()}
 
-只输出 JSON，格式二选一：
-1) 需要工具: {"action":"tool","tool":"...","args":{...},"reasoning":"..."}
-2) 直接回答: {"action":"answer","answer":"...","reasoning":"..."}`;
+只输出 JSON：
+1) {"action":"tool","tool":"...","args":{...},"reasoning":"..."}
+2) {"action":"answer","answer":"...","reasoning":"..."}`;
 }
 
 let cachedClient: OpenAI | null = null;
@@ -45,12 +62,36 @@ function getClient() {
   return cachedClient;
 }
 
+export type ThreadTurn = {
+  role: "user" | "assistant";
+  content: string;
+  sql?: string;
+};
+
+function isLlmRequired() {
+  const flag = process.env.LLM_REQUIRE?.toLowerCase();
+  return flag === "1" || flag === "true" || flag === "yes";
+}
+
+function llmUnavailableAnswer(reason: string) {
+  return {
+    action: "answer" as const,
+    answer: `LLM 规划器不可用：${reason}。请联系管理员检查 Ollama/API 配置，或暂时关闭 LLM_REQUIRE。`,
+    reasoning: "生产环境禁止规则回退",
+  };
+}
+
 export async function planAgentStep(
   message: string,
   prior: AgentToolResult[],
+  conversation: ThreadTurn[] = [],
 ): Promise<{ plan: ReturnType<typeof buildMockPlan>; mock: boolean }> {
   if (!isLlmConfigured()) {
-    return { plan: buildMockPlan(message, prior), mock: true };
+    if (isLlmRequired()) {
+      return { plan: llmUnavailableAnswer("未配置 LLM"), mock: true };
+    }
+
+    return { plan: buildMockPlan(message, prior, conversation), mock: true };
   }
 
   const client = getClient();
@@ -58,6 +99,7 @@ export async function planAgentStep(
 
   const userPayload = {
     question: message,
+    conversation: conversation.slice(-10),
     priorTools: prior.map((item) => ({
       tool: item.tool,
       args: item.args,
@@ -102,6 +144,10 @@ export async function planAgentStep(
 
     return { plan, mock: false };
   } catch {
-    return { plan: buildMockPlan(message, prior), mock: true };
+    if (isLlmRequired()) {
+      return { plan: llmUnavailableAnswer("调用失败"), mock: true };
+    }
+
+    return { plan: buildMockPlan(message, prior, conversation), mock: true };
   }
 }

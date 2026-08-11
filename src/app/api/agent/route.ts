@@ -2,6 +2,10 @@ import { z } from "zod";
 
 import { runAgentLoop } from "@/lib/agent/run-loop";
 import { encodeSseEvent } from "@/lib/sse";
+import { getClientIp, resolveAuthUserFromHeaders } from "@/lib/security/auth";
+import { isAuthEnabled } from "@/lib/security/auth-config";
+import { auditFromContext, writeAudit } from "@/lib/security/audit-log";
+import { checkAgentRateLimit } from "@/lib/security/rate-limit";
 
 const agentSchema = z.object({
   message: z.string().default(""),
@@ -12,6 +16,7 @@ const agentSchema = z.object({
       payload: z
         .object({
           runId: z.string().optional(),
+          sql: z.string().optional(),
         })
         .optional(),
     })
@@ -20,6 +25,45 @@ const agentSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const user = resolveAuthUserFromHeaders(request.headers);
+
+    if (isAuthEnabled() && !user) {
+      writeAudit({
+        event: "auth.denied",
+        clientIp: getClientIp(request.headers),
+        outcome: "failure",
+        error: "missing credentials",
+      });
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const authUser = user ?? {
+      userId: "dev",
+      userName: "Development",
+      authMode: "disabled" as const,
+    };
+
+    const rate = await checkAgentRateLimit(authUser.userId);
+
+    if (!rate.allowed) {
+      auditFromContext(
+        {
+          user: authUser,
+          clientIp: getClientIp(request.headers),
+          userAgent: request.headers.get("user-agent") ?? undefined,
+        },
+        {
+          event: "rate_limit.exceeded",
+          outcome: "failure",
+          meta: { limit: rate.limit },
+        },
+      );
+      return Response.json(
+        { error: "Too many requests", limitPerMinute: rate.limit },
+        { status: 429 },
+      );
+    }
+
     const body = agentSchema.parse(await request.json());
 
     if (!body.resume && !body.message.trim()) {
@@ -28,6 +72,13 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+
+    const audit = {
+      user: authUser,
+      clientIp: getClientIp(request.headers),
+      userAgent: request.headers.get("user-agent") ?? undefined,
+      threadId: body.threadId,
+    };
 
     const encoder = new TextEncoder();
 
@@ -41,6 +92,8 @@ export async function POST(request: Request) {
           for await (const trace of runAgentLoop(body.message.trim() || "(resume)", {
             signal: request.signal,
             resume: body.resume,
+            audit,
+            threadId: body.threadId,
           })) {
             send(trace.type, trace);
           }

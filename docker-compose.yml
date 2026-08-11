@@ -1,4 +1,9 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
   web:
     build:
       context: .
@@ -14,5 +19,9 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: qwen3
       OLLAMA_API_KEY: ollama
+      REDIS_URL: redis://redis:6379
+      AUTH_MODE: token
+    depends_on:
+      - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
