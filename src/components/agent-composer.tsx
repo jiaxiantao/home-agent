@@ -33,18 +33,23 @@ export function AgentComposer({
   inputRef?: RefObject<HTMLTextAreaElement | null>;
 }) {
   const localRef = useRef<HTMLTextAreaElement>(null);
-  const textareaRef = inputRef ?? localRef;
-
 
   useEffect(() => {
-    const el = textareaRef.current;
+    const el = localRef.current;
     if (!el) {
       return;
     }
 
     el.style.height = "0px";
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [value, textareaRef]);
+  }, [value]);
+
+  function setTextareaNode(node: HTMLTextAreaElement | null) {
+    localRef.current = node;
+    if (inputRef) {
+      inputRef.current = node;
+    }
+  }
 
   return (
     <div className="sticky bottom-0 z-20 -mx-1 border-t border-white/[0.06] bg-[#0a0a0c]/92 px-1 pt-3 pb-1 backdrop-blur-md">
@@ -67,7 +72,7 @@ export function AgentComposer({
 
       <div className="rounded-xl border border-white/[0.1] bg-[#121214] shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_30px_rgba(0,0,0,0.35)] focus-within:border-white/20">
         <textarea
-          ref={textareaRef}
+          ref={setTextareaNode}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {
