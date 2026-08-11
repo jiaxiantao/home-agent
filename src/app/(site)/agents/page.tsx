@@ -19,10 +19,10 @@ export default function AgentsPage() {
       <header className="mb-4 flex items-end justify-between gap-3 border-b border-white/[0.06] pb-3">
         <div>
           <h1 className="text-[15px] font-medium tracking-tight text-zinc-100">
-            {PRODUCT_NAME_EN}
+            {PRODUCT_NAME_ZH}
           </h1>
           <p className="mt-0.5 text-[12px] text-zinc-500">
-            {PRODUCT_NAME_ZH} · {PRODUCT_TAGLINE}
+            {PRODUCT_NAME_EN} · {PRODUCT_TAGLINE}
           </p>
         </div>
       </header>
