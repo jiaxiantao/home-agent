@@ -51,3 +51,6 @@ next-env.d.ts
 !docs/architecture.md
 !docs/sse-protocol.md
 !docs/roadmap.md
+!docs/security.md
+!docs/deployment.md
+!docs/analyst-guide.md
