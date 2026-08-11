@@ -22,20 +22,21 @@ export function AgentFinalAnswer({
   }
 
   return (
-    <section className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-emerald-100">分析结论</p>
+    <section className="answer-enter group relative">
+      <div className="absolute top-0 right-0 opacity-0 transition group-hover:opacity-100">
         <button
           type="button"
           onClick={() => void copyAnswer()}
-          className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-slate-300 transition hover:border-emerald-300/30 hover:text-white"
+          className="rounded-md border border-white/[0.08] bg-[#121214] px-2 py-1 text-[10px] text-zinc-400 transition hover:text-zinc-200"
         >
           {copied ? "已复制" : "复制"}
         </button>
       </div>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-200">
+      <p className="whitespace-pre-wrap text-[13px] leading-7 text-zinc-200">
         {text}
-        {running ? <span className="streaming-cursor ml-0.5 text-emerald-200">▍</span> : null}
+        {running ? (
+          <span className="streaming-cursor ml-0.5 text-zinc-400">▍</span>
+        ) : null}
       </p>
     </section>
   );

@@ -17,6 +17,7 @@
 - [x] 团队公共问法模板（`/api/templates`）
 - [x] staging MySQL 集成测试（无凭证自动 skip）
 - [x] Agent 主流程：HITL 失败可重试、规划上下文截断、查询后答案合成、规则多轮追问、错误补 `done`
+- [x] Agent 前端交互：Cursor 风格对话流、活动步骤折叠、粘性 Composer、审批式 SQL 确认卡
 
 ## 可选增强
 

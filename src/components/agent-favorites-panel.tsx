@@ -73,8 +73,8 @@ export function AgentFavoritesPanel({
   }
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-      <p className="text-xs font-medium text-slate-400">收藏问法</p>
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-3">
+      <p className="text-[11px] font-medium text-zinc-400">收藏问法</p>
 
       <div className="mt-3 flex gap-2">
         <input

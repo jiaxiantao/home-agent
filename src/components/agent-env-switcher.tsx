@@ -22,36 +22,38 @@ export function AgentEnvSwitcher({
   const [profiles, setProfiles] = useState<EnvProfile[]>([]);
 
   useEffect(() => {
-    void fetch("/api/envs")
-      .then(async (response) => {
-        if (!response.ok) {
-          return;
-        }
-        const data = (await response.json()) as {
-          profiles?: EnvProfile[];
-          defaultEnv?: string;
-        };
-        setProfiles(data.profiles ?? []);
-        if (data.defaultEnv && !value) {
-          onChange(data.defaultEnv);
-        }
-      })
-      .catch(() => undefined);
+    const timer = window.setTimeout(() => {
+      void fetch("/api/envs")
+        .then(async (response) => {
+          if (!response.ok) {
+            return;
+          }
+          const data = (await response.json()) as {
+            profiles?: EnvProfile[];
+            defaultEnv?: string;
+          };
+          setProfiles(data.profiles ?? []);
+          if (data.defaultEnv && !value) {
+            onChange(data.defaultEnv);
+          }
+        })
+        .catch(() => undefined);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [onChange, value]);
 
   if (profiles.length <= 1) {
     const only = profiles[0];
     return (
-      <p className="text-[11px] text-slate-500">
-        分析环境：{only?.label ?? value}
+      <span className="truncate text-[11px] text-zinc-500">
+        {only?.label ?? value}
         {only?.database ? ` · ${only.database}` : ""}
-      </p>
+      </span>
     );
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-[11px] text-slate-500">分析环境</span>
+    <div className="flex items-center gap-1">
       {profiles.map((profile) => (
         <button
           key={profile.id}
@@ -63,10 +65,10 @@ export function AgentEnvSwitcher({
               : "未配置连接信息"
           }
           onClick={() => onChange(profile.id)}
-          className={`rounded-full border px-2.5 py-1 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-40 ${
+          className={`rounded-md px-2 py-1 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-40 ${
             value === profile.id
-              ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-100"
-              : "border-white/10 text-slate-400 hover:text-slate-200"
+              ? "bg-white/[0.08] text-zinc-100"
+              : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300"
           }`}
         >
           {profile.label}

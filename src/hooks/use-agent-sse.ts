@@ -44,6 +44,15 @@ export type AgentPhase =
   | "done"
   | "error";
 
+export type AgentActivityStep = {
+  id: string;
+  kind: "plan" | "tool" | "result" | "awaiting" | "error" | "trace";
+  title: string;
+  detail?: string;
+  status: "running" | "done" | "error";
+  tool?: AgentToolName;
+};
+
 export type ConversationTurn = {
   id: string;
   question: string;
@@ -53,6 +62,7 @@ export type ConversationTurn = {
   isMock: boolean;
   status: "running" | "awaiting" | "done" | "error" | "cancelled";
   historyId?: string;
+  steps: AgentActivityStep[];
 };
 
 const THREAD_STORAGE_KEY = "home-agent-thread-id";
@@ -276,6 +286,54 @@ export function useAgentStream() {
     });
   }, []);
 
+  const appendTurnStep = useCallback((step: AgentActivityStep) => {
+    const current = turnRef.current;
+
+    if (!current) {
+      return;
+    }
+
+    const next = {
+      ...current,
+      steps: [...current.steps, step],
+    };
+    turnRef.current = next;
+    setConversation((items) => {
+      const without = items.filter((item) => item.id !== next.id);
+      return [...without, next];
+    });
+  }, []);
+
+  const patchLastTurnStep = useCallback(
+    (
+      predicate: (step: AgentActivityStep) => boolean,
+      patch: Partial<AgentActivityStep>,
+    ) => {
+      const current = turnRef.current;
+
+      if (!current?.steps.length) {
+        return;
+      }
+
+      const steps = [...current.steps];
+      for (let index = steps.length - 1; index >= 0; index -= 1) {
+        const step = steps[index];
+        if (step && predicate(step)) {
+          steps[index] = { ...step, ...patch };
+          break;
+        }
+      }
+
+      const next = { ...current, steps };
+      turnRef.current = next;
+      setConversation((items) => {
+        const without = items.filter((item) => item.id !== next.id);
+        return [...without, next];
+      });
+    },
+    [],
+  );
+
   const handlePayload = useCallback(
     (payload: AgentTraceEvent) => {
       const nextPhase = phaseFromEvent(payload);
@@ -295,6 +353,40 @@ export function useAgentStream() {
         setIsMock(payload.mock);
         setPlannerLabel(payload.label ?? null);
         updateTurn({ isMock: payload.mock });
+      } else if (payload.type === "plan") {
+        appendTurnStep({
+          id: crypto.randomUUID(),
+          kind: "plan",
+          title: formatPlan(payload.plan),
+          detail: payload.plan.reasoning,
+          status: "done",
+        });
+      } else if (payload.type === "tool_call") {
+        setCurrentStep((current) => current + 1);
+        appendTurnStep({
+          id: crypto.randomUUID(),
+          kind: "tool",
+          title: `调用 ${payload.tool}`,
+          detail: JSON.stringify(payload.args, null, 2),
+          status: "running",
+          tool: payload.tool,
+        });
+      } else if (payload.type === "tool_result") {
+        patchLastTurnStep(
+          (step) => step.kind === "tool" && step.tool === payload.tool,
+          {
+            status: "done",
+            title: `已完成 ${payload.tool}`,
+          },
+        );
+        appendTurnStep({
+          id: crypto.randomUUID(),
+          kind: "result",
+          title: `${payload.tool} 结果`,
+          detail: formatToolResult(payload.tool, payload.output),
+          status: "done",
+          tool: payload.tool,
+        });
       } else if (payload.type === "answer") {
         setFinalAnswer(payload.text);
         setIsMock(Boolean(payload.mock));
@@ -337,8 +429,6 @@ export function useAgentStream() {
             totalMs: payload.totalMs,
           },
         ]);
-      } else if (payload.type === "tool_call") {
-        setCurrentStep((current) => current + 1);
       } else if (payload.type === "a2ui") {
         setSurfaces((current) => {
           const without = current.filter(
@@ -352,6 +442,13 @@ export function useAgentStream() {
         setPendingRunId(payload.runId);
         setPhase("awaiting");
         updateTurn({ status: "awaiting" });
+        appendTurnStep({
+          id: crypto.randomUUID(),
+          kind: "awaiting",
+          title: "等待确认 SQL",
+          detail: payload.explanation,
+          status: "done",
+        });
 
         if (historyRef.current) {
           historyRef.current = updateQueryHistory(historyRef.current.id, {
@@ -361,6 +458,12 @@ export function useAgentStream() {
         }
       } else if (payload.type === "error") {
         updateTurn({ status: "error" });
+        appendTurnStep({
+          id: crypto.randomUUID(),
+          kind: "error",
+          title: payload.message,
+          status: "error",
+        });
 
         if (historyRef.current) {
           historyRef.current = updateQueryHistory(historyRef.current.id, {
@@ -369,7 +472,7 @@ export function useAgentStream() {
         }
       }
     },
-    [updateTurn],
+    [appendTurnStep, patchLastTurnStep, updateTurn],
   );
 
   const beginTurn = useCallback(
@@ -382,6 +485,7 @@ export function useAgentStream() {
         stats: null,
         isMock: false,
         status: "running",
+        steps: [],
       };
 
       turnRef.current = turn;
@@ -446,6 +550,7 @@ export function useAgentStream() {
       setRunning(true);
       setPhase("tool");
       setPendingRunId(null);
+      updateTurn({ status: "running" });
 
       if (action.actionId === "cancel_sql" && historyRef.current) {
         updateQueryHistory(historyRef.current.id, { status: "cancelled" });

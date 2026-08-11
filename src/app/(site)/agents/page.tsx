@@ -10,15 +10,16 @@ export const metadata: Metadata = {
 
 export default function AgentsPage() {
   return (
-    <main className="mx-auto w-full max-w-6xl px-6 py-6 lg:px-8 lg:py-8">
-      <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/70">Data Agent</p>
-        <h1 className="mt-2 text-2xl font-semibold text-white md:text-3xl">
-          大风车数据分析助手
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-          自然语言问数，确认 SQL 后查询 matador 测试库，结果以表格和图表展示。
-        </p>
+    <main className="mx-auto w-full max-w-5xl px-4 py-5 md:px-6 lg:py-6">
+      <header className="mb-4 flex items-end justify-between gap-3 border-b border-white/[0.06] pb-3">
+        <div>
+          <h1 className="text-[15px] font-medium tracking-tight text-zinc-100">
+            数据分析助手
+          </h1>
+          <p className="mt-0.5 text-[12px] text-zinc-500">
+            自然语言问数 · 确认 SQL · 表格与图表
+          </p>
+        </div>
       </header>
 
       <AgentsOrchestratorSection />

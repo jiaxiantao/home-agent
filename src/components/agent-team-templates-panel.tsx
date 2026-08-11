@@ -80,9 +80,9 @@ export function AgentTeamTemplatesPanel({
   }
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-      <p className="text-xs font-medium text-slate-400">团队问法模板</p>
-      <p className="mt-1 text-[10px] text-slate-600">
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-3">
+      <p className="text-[11px] font-medium text-zinc-400">团队问法模板</p>
+      <p className="mt-1 text-[10px] text-zinc-600">
         全员可用；管理员可发布自定义口径
       </p>
 
