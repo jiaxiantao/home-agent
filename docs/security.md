@@ -65,6 +65,31 @@ TRUSTED_PROXY_ONLY=1
 - 服务端：`GET /api/history`（按用户隔离，Redis/内存，最多 100 条）
 - 前端侧边栏优先展示服务端历史，失败时回退本地 localStorage
 
+## 收藏问法
+
+- `GET/POST/DELETE /api/favorites`：按用户持久化常用自然语言问法
+
+## 多环境分析库
+
+```env
+ANALYTICS_MYSQL_PROFILES=test,prepub
+ANALYTICS_MYSQL_PREPUB_HOST=...
+ANALYTICS_MYSQL_PREPUB_DATABASE=matador
+ANALYTICS_MYSQL_PREPUB_USER=souche_ro
+ANALYTICS_MYSQL_PREPUB_PASSWORD=...
+```
+
+前端可切换环境；`POST /api/agent` 传 `analyticsEnv`。凭证仅存服务端。
+
+## 审计 HTTP sink
+
+```env
+AUDIT_HTTP_URL=https://logs.example.internal/ingest
+AUDIT_HTTP_TOKEN=...
+```
+
+每条审计 JSON POST 到日志平台（失败不影响主流程）。
+
 ## 角色
 
 - **analyst**（默认）：问数、元数据、提出/确认 SQL

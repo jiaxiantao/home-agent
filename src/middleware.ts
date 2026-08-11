@@ -66,6 +66,8 @@ export const config = {
     "/api/auth/me",
     "/api/history",
     "/api/audit",
+    "/api/favorites",
+    "/api/envs",
     "/",
   ],
 };

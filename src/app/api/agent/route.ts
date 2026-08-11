@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { runAgentLoop } from "@/lib/agent/run-loop";
+import {
+  resolveAnalyticsEnvId,
+  runWithAnalyticsEnv,
+} from "@/lib/analytics/mysql";
 import { encodeSseEvent } from "@/lib/sse";
 import { getClientIp, resolveAuthUserFromHeaders } from "@/lib/security/auth";
 import { isAuthEnabled } from "@/lib/security/auth-config";
@@ -10,6 +14,7 @@ import { checkAgentRateLimit } from "@/lib/security/rate-limit";
 const agentSchema = z.object({
   message: z.string().default(""),
   threadId: z.string().optional(),
+  analyticsEnv: z.string().optional(),
   resume: z
     .object({
       actionId: z.enum(["confirm_sql", "cancel_sql"]),
@@ -73,6 +78,19 @@ export async function POST(request: Request) {
       );
     }
 
+    let analyticsEnv: string;
+
+    try {
+      analyticsEnv = resolveAnalyticsEnvId(body.analyticsEnv);
+    } catch (error) {
+      return Response.json(
+        {
+          error: error instanceof Error ? error.message : "Invalid analytics env",
+        },
+        { status: 400 },
+      );
+    }
+
     const audit = {
       user: authUser,
       clientIp: getClientIp(request.headers),
@@ -89,14 +107,19 @@ export async function POST(request: Request) {
         };
 
         try {
-          for await (const trace of runAgentLoop(body.message.trim() || "(resume)", {
-            signal: request.signal,
-            resume: body.resume,
-            audit,
-            threadId: body.threadId,
-          })) {
-            send(trace.type, trace);
-          }
+          await runWithAnalyticsEnv(analyticsEnv, async () => {
+            for await (const trace of runAgentLoop(
+              body.message.trim() || "(resume)",
+              {
+                signal: request.signal,
+                resume: body.resume,
+                audit,
+                threadId: body.threadId,
+              },
+            )) {
+              send(trace.type, trace);
+            }
+          });
         } catch (error) {
           send("error", {
             message: error instanceof Error ? error.message : "Agent failed",
@@ -112,6 +135,7 @@ export async function POST(request: Request) {
         "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
+        "X-Analytics-Env": analyticsEnv,
       },
     });
   } catch (error) {

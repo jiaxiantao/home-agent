@@ -16,12 +16,46 @@ if (!globalStore.__homeAgentAuditBuffer) {
   globalStore.__homeAgentAuditBuffer = memoryBuffer;
 }
 
+async function postAuditHttpSink(record: AuditRecord) {
+  const url = process.env.AUDIT_HTTP_URL?.trim();
+
+  if (!url) {
+    return;
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const token = process.env.AUDIT_HTTP_TOKEN?.trim();
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ audit: record }),
+      signal: AbortSignal.timeout(3000),
+    });
+
+    if (!response.ok) {
+      console.error(`[audit] http sink HTTP ${response.status}`);
+    }
+  } catch (error) {
+    console.error("[audit] http sink failed:", error);
+  }
+}
+
 export async function persistAudit(record: AuditRecord) {
   memoryBuffer.unshift(record);
 
   if (memoryBuffer.length > MAX_ENTRIES) {
     memoryBuffer.length = MAX_ENTRIES;
   }
+
+  void postAuditHttpSink(record);
 
   if (!isRedisConfigured()) {
     return;

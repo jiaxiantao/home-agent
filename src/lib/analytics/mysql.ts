@@ -1,4 +1,8 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import mysql, { type Pool, type PoolOptions, type RowDataPacket } from "mysql2/promise";
+
+export type AnalyticsEnvId = string;
 
 export type AnalyticsMysqlConfig = {
   env: string;
@@ -13,37 +17,180 @@ export type AnalyticsMysqlConfig = {
   maxRows: number;
 };
 
+export type AnalyticsEnvProfile = {
+  id: string;
+  label: string;
+  configured: boolean;
+  host?: string;
+  database?: string;
+};
+
+const envStore = new AsyncLocalStorage<AnalyticsEnvId>();
+
 function parsePositiveInt(value: string | undefined, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
-export function getAnalyticsMysqlConfig(): AnalyticsMysqlConfig | null {
-  const host = process.env.ANALYTICS_MYSQL_HOST?.trim();
-  const database = process.env.ANALYTICS_MYSQL_DATABASE?.trim();
-  const user = process.env.ANALYTICS_MYSQL_USER?.trim();
-  const password = process.env.ANALYTICS_MYSQL_PASSWORD ?? "";
+function envKey(prefix: string, name: string, suffix: string) {
+  return process.env[`${prefix}_${name.toUpperCase()}_${suffix}`]?.trim();
+}
+
+function defaultEnvId() {
+  return process.env.ANALYTICS_MYSQL_ENV?.trim() || "test";
+}
+
+/** 已声明的环境列表，如 test,prepub */
+export function listDeclaredAnalyticsEnvs(): string[] {
+  const raw = process.env.ANALYTICS_MYSQL_PROFILES?.trim();
+
+  if (raw) {
+    return raw
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  return [defaultEnvId().toLowerCase()];
+}
+
+function loadProfileConfig(envId: string): AnalyticsMysqlConfig | null {
+  const id = envId.trim().toLowerCase() || defaultEnvId();
+  const upper = id.toUpperCase();
+
+  const host =
+    envKey("ANALYTICS_MYSQL", upper, "HOST") ||
+    (id === defaultEnvId().toLowerCase()
+      ? process.env.ANALYTICS_MYSQL_HOST?.trim()
+      : undefined);
+  const database =
+    envKey("ANALYTICS_MYSQL", upper, "DATABASE") ||
+    (id === defaultEnvId().toLowerCase()
+      ? process.env.ANALYTICS_MYSQL_DATABASE?.trim()
+      : undefined);
+  const user =
+    envKey("ANALYTICS_MYSQL", upper, "USER") ||
+    (id === defaultEnvId().toLowerCase()
+      ? process.env.ANALYTICS_MYSQL_USER?.trim()
+      : undefined);
+  const password =
+    envKey("ANALYTICS_MYSQL", upper, "PASSWORD") ??
+    (id === defaultEnvId().toLowerCase()
+      ? (process.env.ANALYTICS_MYSQL_PASSWORD ?? "")
+      : "");
 
   if (!host || !database || !user) {
-    return null;
+    // fall back to default ANALYTICS_MYSQL_* when profile-specific missing
+    if (id !== defaultEnvId().toLowerCase()) {
+      return null;
+    }
+
+    const fallbackHost = process.env.ANALYTICS_MYSQL_HOST?.trim();
+    const fallbackDatabase = process.env.ANALYTICS_MYSQL_DATABASE?.trim();
+    const fallbackUser = process.env.ANALYTICS_MYSQL_USER?.trim();
+
+    if (!fallbackHost || !fallbackDatabase || !fallbackUser) {
+      return null;
+    }
+
+    return {
+      env: id,
+      host: fallbackHost,
+      port: parsePositiveInt(process.env.ANALYTICS_MYSQL_PORT, 3306),
+      database: fallbackDatabase,
+      user: fallbackUser,
+      password: process.env.ANALYTICS_MYSQL_PASSWORD ?? "",
+      ssl: process.env.ANALYTICS_MYSQL_SSL === "true",
+      connectTimeoutMs: parsePositiveInt(
+        process.env.ANALYTICS_MYSQL_CONNECT_TIMEOUT_MS,
+        8000,
+      ),
+      queryTimeoutMs: parsePositiveInt(
+        process.env.ANALYTICS_MYSQL_QUERY_TIMEOUT_MS,
+        15000,
+      ),
+      maxRows: parsePositiveInt(process.env.ANALYTICS_MYSQL_MAX_ROWS, 500),
+    };
   }
 
   return {
-    env: process.env.ANALYTICS_MYSQL_ENV?.trim() || "test",
+    env: id,
     host,
-    port: parsePositiveInt(process.env.ANALYTICS_MYSQL_PORT, 3306),
+    port: parsePositiveInt(
+      envKey("ANALYTICS_MYSQL", upper, "PORT") || process.env.ANALYTICS_MYSQL_PORT,
+      3306,
+    ),
     database,
     user,
     password,
-    ssl: process.env.ANALYTICS_MYSQL_SSL === "true",
-    connectTimeoutMs: parsePositiveInt(process.env.ANALYTICS_MYSQL_CONNECT_TIMEOUT_MS, 8000),
-    queryTimeoutMs: parsePositiveInt(process.env.ANALYTICS_MYSQL_QUERY_TIMEOUT_MS, 15000),
+    ssl:
+      (envKey("ANALYTICS_MYSQL", upper, "SSL") || process.env.ANALYTICS_MYSQL_SSL) ===
+      "true",
+    connectTimeoutMs: parsePositiveInt(
+      process.env.ANALYTICS_MYSQL_CONNECT_TIMEOUT_MS,
+      8000,
+    ),
+    queryTimeoutMs: parsePositiveInt(
+      process.env.ANALYTICS_MYSQL_QUERY_TIMEOUT_MS,
+      15000,
+    ),
     maxRows: parsePositiveInt(process.env.ANALYTICS_MYSQL_MAX_ROWS, 500),
   };
 }
 
-let pool: Pool | null = null;
-let poolKey = "";
+export function resolveAnalyticsEnvId(requested?: string | null) {
+  const declared = listDeclaredAnalyticsEnvs();
+  const fallback = declared[0] ?? defaultEnvId().toLowerCase();
+
+  if (!requested?.trim()) {
+    return fallback;
+  }
+
+  const normalized = requested.trim().toLowerCase();
+
+  if (!declared.includes(normalized)) {
+    throw new Error(
+      `未知分析环境「${requested}」。可选：${declared.join(", ")}`,
+    );
+  }
+
+  if (!loadProfileConfig(normalized)) {
+    throw new Error(`分析环境「${normalized}」未配置完整连接信息`);
+  }
+
+  return normalized;
+}
+
+export function listAnalyticsEnvProfiles(): AnalyticsEnvProfile[] {
+  return listDeclaredAnalyticsEnvs().map((id) => {
+    const config = loadProfileConfig(id);
+    return {
+      id,
+      label: id === "prepub" || id === "pre" ? "预发" : id === "prod" ? "生产" : "测试",
+      configured: Boolean(config),
+      host: config?.host,
+      database: config?.database,
+    };
+  });
+}
+
+export function runWithAnalyticsEnv<T>(
+  envId: string,
+  fn: () => T,
+): T {
+  return envStore.run(envId, fn);
+}
+
+export function getActiveAnalyticsEnvId() {
+  return envStore.getStore() ?? listDeclaredAnalyticsEnvs()[0] ?? defaultEnvId();
+}
+
+export function getAnalyticsMysqlConfig(): AnalyticsMysqlConfig | null {
+  const envId = getActiveAnalyticsEnvId();
+  return loadProfileConfig(envId);
+}
+
+const pools = new Map<string, Pool>();
 
 function buildPoolKey(config: AnalyticsMysqlConfig) {
   return [
@@ -64,25 +211,27 @@ export function getAnalyticsMysqlPool(): Pool | null {
   }
 
   const key = buildPoolKey(config);
+  const existing = pools.get(key);
 
-  if (!pool || poolKey !== key) {
-    const options: PoolOptions = {
-      host: config.host,
-      port: config.port,
-      user: config.user,
-      password: config.password,
-      database: config.database,
-      waitForConnections: true,
-      connectionLimit: 5,
-      connectTimeout: config.connectTimeoutMs,
-      enableKeepAlive: true,
-      ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
-    };
-
-    pool = mysql.createPool(options);
-    poolKey = key;
+  if (existing) {
+    return existing;
   }
 
+  const options: PoolOptions = {
+    host: config.host,
+    port: config.port,
+    user: config.user,
+    password: config.password,
+    database: config.database,
+    waitForConnections: true,
+    connectionLimit: 5,
+    connectTimeout: config.connectTimeoutMs,
+    enableKeepAlive: true,
+    ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+  };
+
+  const pool = mysql.createPool(options);
+  pools.set(key, pool);
   return pool;
 }
 

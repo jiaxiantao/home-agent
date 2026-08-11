@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AgentConversation } from "@/components/agent-conversation";
+import { AgentEnvSwitcher } from "@/components/agent-env-switcher";
+import { AgentFavoritesPanel } from "@/components/agent-favorites-panel";
 import { AgentHistoryPanel } from "@/components/agent-history-panel";
 import { AgentMockBanner } from "@/components/agent-mock-banner";
 import { AgentTracePanel } from "@/components/agent-trace-panel";
@@ -37,6 +39,8 @@ export function AgentOrchestratorDemo({
     pendingRunId,
     conversation,
     loadHistoryQuestion,
+    analyticsEnv,
+    setAnalyticsEnv,
   } = useAgentStream();
 
   const handleA2UIAction = useCallback(
@@ -106,11 +110,15 @@ export function AgentOrchestratorDemo({
         <AgentMockBanner visible={isMock && (running || phase === "awaiting")} label={plannerLabel} />
 
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
-          <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <label htmlFor="agent-message" className="text-sm font-medium text-slate-200">
               问数输入
             </label>
-            <span className="text-[11px] text-slate-500">⌘/Ctrl + Enter 运行 · 支持多轮追问</span>
+            <AgentEnvSwitcher
+              value={analyticsEnv}
+              onChange={setAnalyticsEnv}
+              disabled={running}
+            />
           </div>
 
           <textarea
@@ -182,6 +190,14 @@ export function AgentOrchestratorDemo({
       </div>
 
       <aside className="space-y-3 lg:sticky lg:top-24">
+        <AgentFavoritesPanel
+          currentPrompt={message}
+          onSelect={(prompt) => {
+            setMessage(prompt);
+            textareaRef.current?.focus();
+          }}
+        />
+
         <AgentHistoryPanel
           refreshToken={conversation.length + (stats?.totalMs ?? 0)}
           onSelect={(entry) => {
@@ -195,7 +211,7 @@ export function AgentOrchestratorDemo({
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
             Agent 能力
           </p>
-          <ul className="mt-3 max-h-72 space-y-2.5 overflow-y-auto">
+          <ul className="mt-3 max-h-56 space-y-2.5 overflow-y-auto">
             {agentToolCatalog.slice(0, 8).map((tool) => (
               <li key={tool.name} className="rounded-lg border border-white/5 bg-black/20 px-3 py-2">
                 <p className="font-mono text-[11px] text-cyan-300/80">{tool.name}</p>
@@ -208,9 +224,9 @@ export function AgentOrchestratorDemo({
         <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-[11px] leading-6 text-slate-500">
           <p className="font-medium text-slate-400">使用说明</p>
           <ul className="mt-2 list-inside list-disc space-y-1">
-            <li>同一会话可连续追问，上下文会传给规划器</li>
-            <li>确认 SQL 前可直接编辑语句</li>
-            <li>查询结果支持导出 CSV</li>
+            <li>可切换测试/预发分析库（需服务端配置）</li>
+            <li>收藏常用问法，下次一键回填</li>
+            <li>确认 SQL 前可编辑；结果可导出 CSV</li>
             <li>正式数据：test_type = 0</li>
           </ul>
         </div>

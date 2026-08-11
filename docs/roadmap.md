@@ -11,13 +11,15 @@
 - [x] 审计持久化（内存/Redis + `/api/audit` 管理员查询）
 - [x] K8s 部署清单（`deploy/k8s/`）
 - [x] NL→SQL 黄金用例回归（规则规划器）
+- [x] 收藏问法（`/api/favorites`）
+- [x] 审计 HTTP sink（`AUDIT_HTTP_URL`）
+- [x] 多环境分析库切换（test/prepub profiles）
 
 ## 可选增强
 
-- [ ] 审计写入独立 DB / 日志平台 HTTP sink
-- [ ] 收藏问法（服务端）
-- [ ] 多环境配置 UI（test/preprod 切换）
+- [ ] 审计写入独立 DB
 - [ ] 连 staging MySQL 的集成测试 job
+- [ ] 收藏问法分享/团队公共模板
 
 ## 文档
 

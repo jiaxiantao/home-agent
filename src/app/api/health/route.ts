@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { checkAnalyticsMysqlHealth } from "@/lib/analytics/mysql";
+import { checkAnalyticsMysqlHealth, listAnalyticsEnvProfiles } from "@/lib/analytics/mysql";
 import { getAgentMaxSteps } from "@/lib/agent/config";
 import { checkLlmHealth, isLlmConfigured } from "@/lib/llm-config";
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
@@ -79,6 +79,7 @@ export async function GET() {
         error: analyticsMysql.error,
         tableAllowlistEnabled: Boolean(allowlist),
         tableAllowlistCount: allowlist?.size ?? 0,
+        profiles: listAnalyticsEnvProfiles(),
       },
       llm: {
         configured: llm.configured,
