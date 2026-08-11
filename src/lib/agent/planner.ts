@@ -2,6 +2,7 @@ import OpenAI from "openai";
 
 import { formatSchemaCatalogForPrompt } from "@/lib/analytics/schema-catalog";
 import { getAgentMaxSteps } from "@/lib/agent/config";
+import { truncatePriorForPlanner } from "@/lib/agent/planner-context";
 import { buildMockPlan } from "@/lib/agent/planner-mock";
 import { parsePlanFromLlm } from "@/lib/agent/planner-schema";
 import type { AgentToolResult } from "@/lib/agent/types";
@@ -100,12 +101,7 @@ export async function planAgentStep(
   const userPayload = {
     question: message,
     conversation: conversation.slice(-10),
-    priorTools: prior.map((item) => ({
-      tool: item.tool,
-      args: item.args,
-      output: item.output,
-      data: item.data,
-    })),
+    priorTools: truncatePriorForPlanner(prior),
   };
 
   try {

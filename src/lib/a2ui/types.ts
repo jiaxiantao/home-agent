@@ -62,47 +62,60 @@ export function buildSqlConfirmSurface(input: {
   runId: string;
   sql: string;
   explanation: string;
+  errorMessage?: string;
 }): A2UISurface {
+  const components: A2UIComponent[] = [];
+
+  if (input.errorMessage) {
+    components.push({
+      id: `${input.surfaceId}-error`,
+      type: "Text",
+      text: `执行失败：${input.errorMessage}。可修改 SQL 后重试。`,
+    });
+  }
+
+  components.push(
+    {
+      id: `${input.surfaceId}-text`,
+      type: "Text",
+      text: input.explanation || "请确认是否执行以下只读查询：",
+    },
+    {
+      id: `${input.surfaceId}-hints`,
+      type: "Text",
+      text: BUSINESS_HINTS,
+    },
+    {
+      id: `${input.surfaceId}-code`,
+      type: "Code",
+      language: "sql",
+      code: input.sql,
+      editable: true,
+    },
+    {
+      id: `${input.surfaceId}-actions`,
+      type: "ButtonGroup",
+      buttons: [
+        {
+          id: "confirm",
+          label: input.errorMessage ? "修改后重试" : "确认执行",
+          action: "confirm_sql",
+          payload: { runId: input.runId },
+        },
+        {
+          id: "cancel",
+          label: "取消",
+          action: "cancel_sql",
+          payload: { runId: input.runId },
+        },
+      ],
+    },
+  );
+
   return {
     surfaceId: input.surfaceId,
-    title: "确认执行 SQL",
-    components: [
-      {
-        id: `${input.surfaceId}-text`,
-        type: "Text",
-        text: input.explanation || "请确认是否执行以下只读查询：",
-      },
-      {
-        id: `${input.surfaceId}-hints`,
-        type: "Text",
-        text: BUSINESS_HINTS,
-      },
-      {
-        id: `${input.surfaceId}-code`,
-        type: "Code",
-        language: "sql",
-        code: input.sql,
-        editable: true,
-      },
-      {
-        id: `${input.surfaceId}-actions`,
-        type: "ButtonGroup",
-        buttons: [
-          {
-            id: "confirm",
-            label: "确认执行",
-            action: "confirm_sql",
-            payload: { runId: input.runId },
-          },
-          {
-            id: "cancel",
-            label: "取消",
-            action: "cancel_sql",
-            payload: { runId: input.runId },
-          },
-        ],
-      },
-    ],
+    title: input.errorMessage ? "SQL 执行失败 — 可重试" : "确认执行 SQL",
+    components,
   };
 }
 

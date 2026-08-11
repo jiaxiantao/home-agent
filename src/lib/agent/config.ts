@@ -1,4 +1,4 @@
-export const AGENT_MAX_STEPS_DEFAULT = 4;
+export const AGENT_MAX_STEPS_DEFAULT = 6;
 export const AGENT_MAX_STEPS_CAP = 12;
 
 export function getAgentMaxSteps() {

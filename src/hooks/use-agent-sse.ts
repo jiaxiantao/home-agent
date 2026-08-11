@@ -317,8 +317,15 @@ export function useAgentStream() {
           totalMs: payload.totalMs,
         };
         setStats(nextStats);
-        setPhase("done");
-        updateTurn({ stats: nextStats, status: "done" });
+        const turnStatus = turnRef.current?.status;
+        const nextStatus =
+          turnStatus === "error" || turnStatus === "awaiting"
+            ? turnStatus
+            : "done";
+        if (nextStatus === "done" || turnStatus === "error") {
+          setPhase(nextStatus === "error" ? "error" : "done");
+        }
+        updateTurn({ stats: nextStats, status: nextStatus });
       } else if (payload.type === "step_metric") {
         setCurrentStep(payload.step);
         setStepMetrics((current) => [

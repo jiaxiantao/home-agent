@@ -1,5 +1,7 @@
 import type { AgentPlan, AgentToolResult } from "@/lib/agent/types";
 
+type ConversationTurn = { role: string; content: string; sql?: string };
+
 function hasTool(prior: AgentToolResult[], tool: AgentToolResult["tool"]) {
   return prior.some((item) => item.tool === tool);
 }
@@ -29,12 +31,116 @@ function extractColumnName(message: string) {
   return match?.[1];
 }
 
+function lastAssistantWithSql(conversation: ConversationTurn[]) {
+  for (let index = conversation.length - 1; index >= 0; index -= 1) {
+    const turn = conversation[index];
+    if (turn?.role === "assistant" && turn.sql?.trim()) {
+      return turn;
+    }
+  }
+
+  return undefined;
+}
+
+function looksLikeFollowUp(message: string) {
+  const normalized = message.trim();
+  return (
+    /^(那|再|换|继续|同样|也|还有)/.test(normalized) ||
+    /按(城市|状态|天|月|周|类型|渠道)/.test(normalized) ||
+    /分组|分布一下|呢？?\s*$/.test(normalized)
+  );
+}
+
+/** 基于上一轮 SQL 做规则级追问改写（无 LLM 时） */
+function buildFollowUpSqlPlan(
+  message: string,
+  conversation: ConversationTurn[],
+): AgentPlan | null {
+  if (!looksLikeFollowUp(message)) {
+    return null;
+  }
+
+  const previous = lastAssistantWithSql(conversation);
+  if (!previous?.sql) {
+    return null;
+  }
+
+  const normalized = message.trim();
+  const baseSql = previous.sql.replace(/;+\s*$/, "").trim();
+
+  if (/城市/.test(normalized) && /car|车源/i.test(`${previous.content} ${baseSql}`)) {
+    return {
+      action: "tool",
+      tool: "propose_sql",
+      args: {
+        sql: "SELECT city_code, COUNT(*) AS cnt FROM car WHERE test_type = 0 GROUP BY city_code ORDER BY cnt DESC LIMIT 50",
+        explanation: "基于上一轮车源问题，按城市统计正式车源分布",
+      },
+      reasoning: "多轮追问：按城市改写车源统计",
+    };
+  }
+
+  if (/状态/.test(normalized) && /car|车源/i.test(`${previous.content} ${baseSql}`)) {
+    return {
+      action: "tool",
+      tool: "propose_sql",
+      args: {
+        sql: "SELECT car_status, COUNT(*) AS cnt FROM car WHERE test_type = 0 GROUP BY car_status ORDER BY cnt DESC LIMIT 50",
+        explanation: "基于上一轮车源问题，按状态统计正式车源分布",
+      },
+      reasoning: "多轮追问：按状态改写车源统计",
+    };
+  }
+
+  if (/订单/.test(normalized)) {
+    return {
+      action: "tool",
+      tool: "propose_sql",
+      args: {
+        sql: "SELECT COUNT(*) AS order_count FROM main_order WHERE delete_time IS NULL",
+        explanation: "切换到订单口径：统计未删除主订单总量",
+      },
+      reasoning: "多轮追问：切换到订单总量",
+    };
+  }
+
+  if (/求购|线索/.test(normalized)) {
+    return {
+      action: "tool",
+      tool: "propose_sql",
+      args: {
+        sql: "SELECT COUNT(*) AS buy_count FROM buy_car WHERE test_type = 0",
+        explanation: "切换到求购口径：统计正式求购线索总量",
+      },
+      reasoning: "多轮追问：切换到求购总量",
+    };
+  }
+
+  // 通用：保留上一轮 SQL 供用户确认（提示为追问）
+  return {
+    action: "tool",
+    tool: "propose_sql",
+    args: {
+      sql: baseSql,
+      explanation: `基于上一轮查询继续追问「${normalized}」。规则模式无法精确改写，请核对或编辑 SQL。`,
+    },
+    reasoning: "多轮追问：回放上一轮 SQL 供人工改写",
+  };
+}
+
 export function buildMockPlan(
   message: string,
   prior: AgentToolResult[],
-  _conversation: Array<{ role: string; content: string; sql?: string }> = [],
+  conversation: ConversationTurn[] = [],
 ): AgentPlan {
   const normalized = message.trim();
+
+  if (!hasTool(prior, "propose_sql") && !hasTool(prior, "execute_sql")) {
+    const followUp = buildFollowUpSqlPlan(normalized, conversation);
+    if (followUp) {
+      return followUp;
+    }
+  }
 
   const wantsBusinessCatalog =
     /核心表|业务表|表目录|业务说明|手写目录/.test(normalized);
@@ -292,6 +398,30 @@ export function buildMockPlan(
   }
 
   if (prior.length > 0) {
+    const execute = lastToolData<{
+      columns: string[];
+      rows: Record<string, unknown>[];
+      rowCount?: number;
+    }>(prior, "execute_sql");
+
+    if (execute) {
+      const rowCount = execute.rowCount ?? execute.rows.length;
+      if (rowCount === 1 && execute.columns.length === 1) {
+        const key = execute.columns[0]!;
+        return {
+          action: "answer",
+          answer: `针对「${message}」：${key} = ${String(execute.rows[0]?.[key])}。`,
+          reasoning: "演示模式：单值结果直接回答",
+        };
+      }
+
+      return {
+        action: "answer",
+        answer: `针对「${message}」已完成查询，返回 ${rowCount} 行。请结合结果表核对业务口径。`,
+        reasoning: "演示模式：基于查询结果合成回答",
+      };
+    }
+
     const context = prior.map((item) => `${item.tool}: ${item.output}`).join("\n");
     return {
       action: "answer",

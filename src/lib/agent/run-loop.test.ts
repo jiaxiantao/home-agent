@@ -81,6 +81,61 @@ describe("runAgentLoop", () => {
     if (answer?.type === "answer") {
       expect(answer.text).toContain("取消");
     }
+    expect(resumeEvents.some((event) => event.type === "done")).toBe(true);
+  });
+
+  it("keeps pending and requeues when edited sql fails validation", async () => {
+    process.env.LLM_DISABLED = "1";
+
+    const events = [];
+    for await (const event of runAgentLoop("大风车正式车源一共有多少辆？")) {
+      events.push(event);
+    }
+
+    const awaiting = events.find((event) => event.type === "awaiting_input");
+    expect(awaiting?.type).toBe("awaiting_input");
+    if (awaiting?.type !== "awaiting_input") {
+      return;
+    }
+
+    const resumeEvents = [];
+    for await (const event of runAgentLoop("", {
+      resume: {
+        actionId: "confirm_sql",
+        payload: {
+          runId: awaiting.runId,
+          sql: "DROP TABLE car",
+        },
+      },
+    })) {
+      resumeEvents.push(event);
+    }
+
+    expect(resumeEvents.some((event) => event.type === "error")).toBe(true);
+    expect(resumeEvents.some((event) => event.type === "awaiting_input")).toBe(
+      true,
+    );
+    expect(resumeEvents.some((event) => event.type === "done")).toBe(false);
+
+    const { peekPendingSqlRunForTest } = await import("@/lib/agent/run-loop");
+    expect(await peekPendingSqlRunForTest(awaiting.runId)).not.toBeNull();
+  });
+
+  it("emits done after terminal errors", async () => {
+    process.env.LLM_DISABLED = "1";
+
+    const resumeEvents = [];
+    for await (const event of runAgentLoop("", {
+      resume: {
+        actionId: "confirm_sql",
+        payload: { runId: "run_missing" },
+      },
+    })) {
+      resumeEvents.push(event);
+    }
+
+    expect(resumeEvents.some((event) => event.type === "error")).toBe(true);
+    expect(resumeEvents.some((event) => event.type === "done")).toBe(true);
   });
 
   it("synthesizes an answer when max steps are exhausted", async () => {

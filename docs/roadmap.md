@@ -16,10 +16,13 @@
 - [x] 多环境分析库切换（test/prepub profiles）
 - [x] 团队公共问法模板（`/api/templates`）
 - [x] staging MySQL 集成测试（无凭证自动 skip）
+- [x] Agent 主流程：HITL 失败可重试、规划上下文截断、查询后答案合成、规则多轮追问、错误补 `done`
 
 ## 可选增强
 
 - [ ] 审计写入独立 DB
+- [ ] 元数据结果 A2UI 化（list_tables / describe_table）
+- [ ] 确认卡增加「重新生成 SQL / 先 EXPLAIN」
 
 ## 文档
 

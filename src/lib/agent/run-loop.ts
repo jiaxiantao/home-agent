@@ -8,6 +8,7 @@ import {
   getPendingSqlRun,
   savePendingSqlRun,
   takePendingSqlRun,
+  type PendingSqlRun,
 } from "@/lib/agent/pending-runs";
 import { planAgentStep } from "@/lib/agent/planner";
 import {
@@ -81,6 +82,98 @@ function validateExecutableSql(rawSql: string) {
   return guarded.sql;
 }
 
+function doneEvent(
+  startedAt: number,
+  steps: number,
+  toolCalls: number,
+): AgentTraceEvent {
+  return {
+    type: "done",
+    steps,
+    toolCalls,
+    totalMs: Math.round(performance.now() - startedAt),
+  };
+}
+
+async function* emitTerminalError(
+  message: string,
+  startedAt: number,
+  steps = 0,
+  toolCalls = 0,
+): AsyncGenerator<AgentTraceEvent> {
+  yield { type: "error", message };
+  yield doneEvent(startedAt, steps, toolCalls);
+}
+
+async function* requeueSqlConfirm(
+  pending: PendingSqlRun,
+  sql: string,
+  errorMessage: string,
+): AsyncGenerator<AgentTraceEvent> {
+  const nextPending: PendingSqlRun = {
+    ...pending,
+    sql,
+    createdAt: Date.now(),
+  };
+  await savePendingSqlRun(nextPending);
+
+  yield { type: "error", message: errorMessage };
+  yield {
+    type: "a2ui",
+    surface: buildSqlConfirmSurface({
+      surfaceId: `retry_${pending.runId}_${Date.now().toString(36)}`,
+      runId: pending.runId,
+      sql,
+      explanation: pending.explanation,
+      errorMessage,
+    }),
+  };
+  yield {
+    type: "awaiting_input",
+    runId: pending.runId,
+    reason: "confirm_sql",
+    sql,
+    explanation: pending.explanation,
+  };
+}
+
+async function synthesizeAnswerAfterQuery(input: {
+  message: string;
+  prior: AgentToolResult[];
+  threadId?: string;
+  userId?: string;
+  summary: string;
+  mock?: boolean;
+}) {
+  let conversation: Array<{ role: "user" | "assistant"; content: string; sql?: string }> =
+    [];
+
+  if (input.threadId && input.userId) {
+    conversation = formatThreadForPlanner(
+      await getThreadMessages(input.threadId, input.userId),
+    );
+  }
+
+  try {
+    const { plan, mock } = await planAgentStep(
+      `请仅根据已有工具结果，用简洁中文直接回答用户问题，不要再调用工具。用户问题：${input.message}`,
+      input.prior,
+      conversation,
+    );
+
+    if (plan.action === "answer" && plan.answer.trim()) {
+      return { text: plan.answer.trim(), mock };
+    }
+  } catch {
+    // fall through to template summary
+  }
+
+  return {
+    text: `${input.summary}\n\n针对「${input.message}」已完成查询。`,
+    mock: input.mock,
+  };
+}
+
 export type RunAgentLoopOptions = {
   signal?: AbortSignal;
   resume?: AgentResumeAction;
@@ -106,6 +199,19 @@ async function appendAssistantThreadMessage(
   });
 }
 
+function assertPendingOwnership(
+  pending: PendingSqlRun,
+  currentUserId: string | undefined,
+) {
+  if (
+    pending.userId &&
+    currentUserId &&
+    pending.userId !== currentUserId
+  ) {
+    throw new Error("无权确认或取消他人的 SQL 请求");
+  }
+}
+
 async function* resumeConfirmedSql(
   resume: AgentResumeAction,
   options: { signal?: AbortSignal; audit?: AuditContext },
@@ -116,7 +222,29 @@ async function* resumeConfirmedSql(
   yield { type: "trace", phase: "resume", message: `恢复运行 ${runId || "(missing)"}` };
 
   if (!runId) {
-    yield { type: "error", message: "缺少 runId，无法确认执行" };
+    yield* emitTerminalError("缺少 runId，无法确认执行", startedAt);
+    return;
+  }
+
+  const peeked = await getPendingSqlRun(runId);
+
+  if (!peeked) {
+    yield* emitTerminalError(
+      "待确认的 SQL 已过期或不存在，请重新提问。",
+      startedAt,
+    );
+    return;
+  }
+
+  const currentUserId = options.audit?.user.userId;
+
+  try {
+    assertPendingOwnership(peeked, currentUserId);
+  } catch (error) {
+    yield* emitTerminalError(
+      error instanceof Error ? error.message : "无权操作",
+      startedAt,
+    );
     return;
   }
 
@@ -134,54 +262,48 @@ async function* resumeConfirmedSql(
       });
     }
 
+    await appendAssistantThreadMessage(
+      cancelled?.threadId ?? peeked.threadId,
+      cancelled?.userId ?? peeked.userId,
+      "已取消 SQL 执行。",
+    );
+
     yield { type: "answer", text: "已取消 SQL 执行。" };
-    yield {
-      type: "done",
-      steps: 0,
-      toolCalls: 0,
-      totalMs: Math.round(performance.now() - startedAt),
-    };
+    yield doneEvent(startedAt, 0, 0);
+    return;
+  }
+
+  if (peeked.threadId) {
+    yield { type: "thread", threadId: peeked.threadId };
+  }
+
+  assertNotAborted(options.signal);
+
+  let sqlToRun = peeked.sql;
+  const editedSql = resume.payload?.sql?.trim();
+
+  try {
+    if (editedSql) {
+      sqlToRun = validateExecutableSql(editedSql);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "SQL 校验失败";
+    // 未 take：pending 仍在，重新展示可编辑确认卡
+    yield* requeueSqlConfirm(
+      peeked,
+      editedSql || peeked.sql,
+      message,
+    );
     return;
   }
 
   const pending = await takePendingSqlRun(runId);
 
   if (!pending) {
-    yield {
-      type: "error",
-      message: "待确认的 SQL 已过期或不存在，请重新提问。",
-    };
-    return;
-  }
-
-  const currentUserId = options.audit?.user.userId;
-
-  if (
-    pending.userId &&
-    currentUserId &&
-    pending.userId !== currentUserId
-  ) {
-    yield { type: "error", message: "无权确认或取消他人的 SQL 请求" };
-    return;
-  }
-
-  if (pending.threadId) {
-    yield { type: "thread", threadId: pending.threadId };
-  }
-
-  assertNotAborted(options.signal);
-
-  let sqlToRun = pending.sql;
-
-  try {
-    if (resume.payload?.sql?.trim()) {
-      sqlToRun = validateExecutableSql(resume.payload.sql.trim());
-    }
-  } catch (error) {
-    yield {
-      type: "error",
-      message: error instanceof Error ? error.message : "SQL 校验失败",
-    };
+    yield* emitTerminalError(
+      "待确认的 SQL 已过期或不存在，请重新提问。",
+      startedAt,
+    );
     return;
   }
 
@@ -283,7 +405,22 @@ async function* resumeConfirmedSql(
       }),
     };
 
-    const answerText = `${summary}\n\n针对「${pending.message}」已完成查询。`;
+    yield {
+      type: "trace",
+      phase: "answer",
+      message: "基于查询结果合成最终回答",
+    };
+
+    const synthesized = await synthesizeAnswerAfterQuery({
+      message: pending.message,
+      prior,
+      threadId: pending.threadId,
+      userId: pending.userId,
+      summary,
+      mock: pending.mock,
+    });
+
+    const answerText = synthesized.text;
 
     await appendAssistantThreadMessage(
       pending.threadId,
@@ -304,14 +441,9 @@ async function* resumeConfirmedSql(
     yield {
       type: "answer",
       text: answerText,
-      mock: pending.mock,
+      mock: synthesized.mock ?? pending.mock,
     };
-    yield {
-      type: "done",
-      steps,
-      toolCalls,
-      totalMs: Math.round(performance.now() - startedAt),
-    };
+    yield doneEvent(startedAt, steps, toolCalls);
   } catch (error) {
     const message = error instanceof Error ? error.message : "SQL 执行失败";
     auditFromContext(options.audit, {
@@ -324,13 +456,14 @@ async function* resumeConfirmedSql(
 
     if (pending.userId) {
       await updateServerHistoryByRunId(pending.userId, runId, {
-        status: "error",
+        status: "awaiting",
         sql: sqlToRun,
         answer: message,
       });
     }
 
-    yield { type: "error", message };
+    // 归还 pending，允许用户改 SQL 后重试
+    yield* requeueSqlConfirm(pending, sqlToRun, message);
   }
 }
 
@@ -414,12 +547,7 @@ export async function* runAgentLoop(
       });
 
       yield { type: "answer", text: plan.answer, mock };
-      yield {
-        type: "done",
-        steps,
-        toolCalls,
-        totalMs: Math.round(performance.now() - startedAt),
-      };
+      yield doneEvent(startedAt, steps, toolCalls);
       return;
     }
 
@@ -437,7 +565,12 @@ export async function* runAgentLoop(
     if (
       !isToolAllowedForUser(toolName, options.audit?.user.userId)
     ) {
-      yield { type: "error", message: toolAccessDeniedMessage(toolName) };
+      yield* emitTerminalError(
+        toolAccessDeniedMessage(toolName),
+        startedAt,
+        steps,
+        toolCalls,
+      );
       return;
     }
 
@@ -521,10 +654,12 @@ export async function* runAgentLoop(
         return;
       }
     } catch (error) {
-      yield {
-        type: "error",
-        message: error instanceof Error ? error.message : "工具执行失败",
-      };
+      yield* emitTerminalError(
+        error instanceof Error ? error.message : "工具执行失败",
+        startedAt,
+        steps,
+        toolCalls,
+      );
       return;
     }
 
@@ -543,12 +678,7 @@ export async function* runAgentLoop(
   await appendAssistantThreadMessage(thread.threadId, userId, exhausted);
 
   yield { type: "answer", text: exhausted, mock: lastMock };
-  yield {
-    type: "done",
-    steps,
-    toolCalls,
-    totalMs: Math.round(performance.now() - startedAt),
-  };
+  yield doneEvent(startedAt, steps, toolCalls);
 }
 
 /** 供测试：查看 pending 是否存在 */

@@ -52,4 +52,28 @@ describe("buildMockPlan", () => {
 
     expect(plan.action).toBe("answer");
   });
+
+  it("rewrites follow-up questions using prior assistant sql", () => {
+    const plan = buildMockPlan(
+      "那按城市分布呢？",
+      [],
+      [
+        {
+          role: "user",
+          content: "大风车正式车源一共有多少辆？",
+        },
+        {
+          role: "assistant",
+          content: "查询成功",
+          sql: "SELECT COUNT(*) AS car_count FROM car WHERE test_type = 0",
+        },
+      ],
+    );
+
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("propose_sql");
+      expect(String(plan.args.sql)).toMatch(/city_code/i);
+    }
+  });
 });
