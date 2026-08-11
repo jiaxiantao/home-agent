@@ -108,6 +108,25 @@ export const nlSqlGoldenCases: GoldenCase[] = [
     },
   },
   {
+    id: "customer-by-id-route",
+    question: "我想知道客户 id 为 demo_user_001 的用户信息",
+    expect: {
+      action: "tool",
+      tool: "route_question",
+    },
+  },
+  {
+    id: "customer-by-id-sql",
+    question: "我想知道客户 id 为 demo_user_001 的用户信息",
+    prior: routedPrior("我想知道客户 id 为 demo_user_001 的用户信息"),
+    expect: {
+      action: "tool",
+      tool: "propose_sql",
+      sqlIncludes: ["cheniu_user", "demo_user_001", "user_id"],
+      sqlExcludes: ["DELETE", "UPDATE", "INSERT"],
+    },
+  },
+  {
     id: "schema-catalog",
     question: "分析库有哪些核心表和字段？",
     expect: {

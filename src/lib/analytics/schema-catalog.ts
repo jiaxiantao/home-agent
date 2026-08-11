@@ -6,7 +6,7 @@ export type SchemaColumn = {
 
 export type SchemaTable = {
   name: string;
-  domain: "car" | "trade" | "lead" | "ops";
+  domain: "car" | "trade" | "lead" | "ops" | "user";
   description: string;
   columns: SchemaColumn[];
   notes?: string[];
@@ -108,6 +108,28 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
       { name: "id", type: "bigint", description: "主键" },
       { name: "buy_id", type: "varchar", description: "求购 ID" },
       { name: "date_create", type: "datetime", description: "创建时间" },
+    ],
+  },
+  {
+    name: "cheniu_user",
+    domain: "user",
+    description: "车牛/大风车用户主表（客户信息）",
+    columns: [
+      { name: "id", type: "int", description: "自增主键" },
+      { name: "user_id", type: "varchar", description: "用户业务 ID" },
+      { name: "dfc_user_id", type: "varchar", description: "大风车用户 ID" },
+      { name: "phone", type: "varchar", description: "手机号" },
+      { name: "name", type: "varchar", description: "昵称" },
+      { name: "area", type: "varchar", description: "省市区" },
+      { name: "address", type: "varchar", description: "详细地址" },
+      { name: "is_auth", type: "tinyint", description: "是否实名 1/0" },
+      { name: "app_source", type: "int", description: "注册来源" },
+      { name: "date_create", type: "datetime", description: "创建时间" },
+      { name: "date_delete", type: "datetime", description: "软删时间" },
+    ],
+    notes: [
+      "按客户/用户 ID 查询优先：user_id 或 dfc_user_id",
+      "正式记录通常 date_delete IS NULL",
     ],
   },
   {

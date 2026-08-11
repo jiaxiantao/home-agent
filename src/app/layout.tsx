@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
 
+import {
+  PRODUCT_MISSION,
+  PRODUCT_NAME_EN,
+  PRODUCT_NAME_ZH,
+} from "@/lib/product";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,11 +13,10 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   ),
   title: {
-    default: "Home Agent",
-    template: "%s | Home Agent",
+    default: `${PRODUCT_NAME_ZH} · ${PRODUCT_NAME_EN}`,
+    template: `%s | ${PRODUCT_NAME_ZH}`,
   },
-  description:
-    "Dafengche data analysis agent: natural language to read-only SQL, HITL confirm, tables and charts via A2UI.",
+  description: PRODUCT_MISSION,
 };
 
 export default function RootLayout({

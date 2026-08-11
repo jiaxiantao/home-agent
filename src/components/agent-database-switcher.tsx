@@ -43,21 +43,19 @@ export function AgentDatabaseSwitcher({
     return () => window.clearTimeout(timer);
   }, []);
 
-  const current = value || defaultDatabase;
+  const current = value;
 
   return (
     <label className="inline-flex min-w-0 items-center gap-1.5 text-[11px] text-zinc-500">
-      <span className="shrink-0">业务库</span>
+      <span className="shrink-0">偏好库</span>
       <select
         value={current}
         disabled={disabled || !databases.length}
         onChange={(event) => onChange(event.target.value)}
-        title={
-          databases.find((item) => item.name === current)?.description ??
-          "选择偏好分析库"
-        }
-        className="max-w-[140px] truncate rounded-md border border-white/[0.08] bg-transparent px-1.5 py-1 text-[11px] text-zinc-300 outline-none hover:border-white/15 disabled:opacity-40"
+        title="默认「自动」：由 Agent 根据问题规划数据库，无需手动选择"
+        className="max-w-[148px] truncate rounded-md border border-white/[0.08] bg-transparent px-1.5 py-1 text-[11px] text-zinc-300 outline-none hover:border-white/15 disabled:opacity-40"
       >
+        <option value="">自动（推荐）</option>
         {databases.length ? (
           databases.map((item) => (
             <option key={item.name} value={item.name}>

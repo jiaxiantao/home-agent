@@ -1,11 +1,11 @@
-# Home Agent · 大风车数据分析助手
+# 大风车数据分析助手 · DFC Data Agent
 
 [![CI](https://github.com/jiaxiantao/home-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/jiaxiantao/home-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-垂直领域 Agent：**自然语言问数 → 只读 MySQL → 人在回路确认 → A2UI 表格/图表**。
+**大风车（DFC）数据分析助手**：用户用自然语言描述要查的数据，Agent **自动规划**数据库、表与查询条件，生成只读 SQL，用户确认后出数（表格/图表）。无需手动选库选表。
 
-对接大风车分析库（默认 matador，可切换 danube_* 等业务库），保留 Plan → Tool → SSE 编排骨架，便于观察与扩展。
+示例：「我想知道客户 id 为 xxx 的用户信息」→ Agent 路由到 `matador.cheniu_user` → 提出 SQL 供确认 → 返回用户信息。
 
 ## 能力
 

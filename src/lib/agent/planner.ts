@@ -10,6 +10,7 @@ import { buildMockPlan } from "@/lib/agent/planner-mock";
 import { parsePlanFromLlm } from "@/lib/agent/planner-schema";
 import type { AgentToolResult } from "@/lib/agent/types";
 import { getLlmConfig, isLlmConfigured } from "@/lib/llm-config";
+import { PRODUCT_NAME_EN, PRODUCT_NAME_ZH } from "@/lib/product";
 
 function getPlannerSystem() {
   const preferred = getPreferredAnalyticsDatabase();
@@ -17,17 +18,21 @@ function getPlannerSystem() {
     ? `当前会话偏好分析库：${preferred}（仅作加权提示，仍需根据问题自动验证）。`
     : "未指定会话偏好库：必须根据问题语义自动选择数据库，不要默认假设只有 matador。";
 
-  return `你是大风车（车牛）数据分析助手的规划器。用户用自然语言问数时，你必须自动规划：查哪个库 → 哪张表 → 哪些字段/条件 → 再 propose_sql。业务 SQL 必须经用户确认后才能执行。
+  return `你是「${PRODUCT_NAME_ZH}」（${PRODUCT_NAME_EN}）的规划器。
+产品目标：用户只需自然语言描述要查的数据；你必须主动规划「查哪个库 → 哪张表 → 哪些字段/条件」，生成只读 SQL 供用户确认执行。用户不应手动选择数据库或表。
+
+示例：「我想知道客户 id 为 xxx 的用户信息」→ 路由到 matador.cheniu_user → propose_sql（按 user_id / dfc_user_id 过滤）→ 等待确认。
 
 ## 自动规划铁律（业务问数）
 1. 不要一上来就 propose_sql（除非 prior 里已有足够的库/表/字段信息）。
 2. 标准路径：
    a) route_question({ question }) — 自动推断候选库与候选表
    b) 若表不确定：search_schema({ keyword, acrossDatabases: true }) 或 list_tables({ database })
-   c) describe_table({ database, table }) — 确认字段与口径
+   c) describe_table({ database, table }) — 确认字段与口径（已知核心表可跳过）
    d) propose_sql — SQL 必须使用 \`database\`.\`table\` 限定名
 3. 用户已明确库名/表名时，可跳过对应步骤，但仍建议 describe_table 后再写 SQL。
-4. 每次只调用一个工具；最多 ${getAgentMaxSteps()} 步。
+4. 按 ID 查详情时：从问题提取 ID，写入 WHERE；客户/用户优先 matador.cheniu_user。
+5. 每次只调用一个工具；最多 ${getAgentMaxSteps()} 步。
 
 ${preferredHint}
 
@@ -51,7 +56,7 @@ ${formatProjectDatabasesForPrompt()}
 ## SQL 规则
 - 单条只读 SELECT/SHOW/DESCRIBE/EXPLAIN；禁止 USE / 多语句
 - 非默认库或跨库必须 \`db\`.\`table\`
-- 正式车源/求购常用 test_type=0；订单 delete_time IS NULL
+- 正式车源/求购常用 test_type=0；订单 delete_time IS NULL；用户表 date_delete IS NULL
 
 ## matador 核心表（仅参考，其他库请 introspect）
 ${formatSchemaCatalogForPrompt()}

@@ -63,6 +63,29 @@ describe("buildMockPlan", () => {
     }
   });
 
+  it("proposes cheniu_user lookup sql for customer id questions", () => {
+    const plan = buildMockPlan("我想知道客户 id 为 demo_user_001 的用户信息", [
+      {
+        tool: "route_question",
+        args: { question: "我想知道客户 id 为 demo_user_001 的用户信息" },
+        output: "routed",
+        data: {
+          suggestedDatabase: "matador",
+          suggestedTable: "cheniu_user",
+          topTables: [{ database: "matador", table: "cheniu_user" }],
+        },
+      },
+    ]);
+
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("propose_sql");
+      expect(String(plan.args.sql)).toMatch(/cheniu_user/i);
+      expect(String(plan.args.sql)).toContain("demo_user_001");
+      expect(String(plan.args.sql)).toMatch(/user_id|dfc_user_id/i);
+    }
+  });
+
   it("answers after prior tool results", () => {
     const plan = buildMockPlan("总结一下", [
       {

@@ -10,6 +10,7 @@ import { resolvePreferredOrDefaultDatabase } from "@/lib/analytics/preferred-dat
 import {
   extractQuestionSearchTerms,
   rankDatabasesForQuestion,
+  suggestedTablesForQuestion,
 } from "@/lib/analytics/question-router";
 import {
   assertSqlIdentifier,
@@ -684,6 +685,17 @@ export async function introspectRouteQuestion(options: {
       table: hit.table,
       comment: hit.comment,
     }));
+
+  // 元数据未命中时，用规则层建议表保证仍能规划（如 cheniu_user）
+  if (!topTables.length) {
+    for (const item of suggestedTablesForQuestion(question)) {
+      topTables.push({
+        database: item.database,
+        table: item.table,
+        comment: item.reason,
+      });
+    }
+  }
 
   const suggestedDatabase = topTables[0]?.database ?? candidates[0]?.database ?? "matador";
   const suggestedTable = topTables[0]?.table;

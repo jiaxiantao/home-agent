@@ -10,14 +10,27 @@ export type RouteKeywordRule = {
   databases: string[];
   searchTerms: string[];
   reason: string;
+  /** 规则层默认候选表（元数据搜索失败时仍可规划） */
+  suggestedTables?: Array<{ database: string; table: string }>;
 };
 
 /** 自然语言问题 → 候选库 / 搜索词（规则层，供工具与 mock 共用） */
 export const questionRouteRules: RouteKeywordRule[] = [
   {
+    pattern:
+      /客户(?:信息|资料|详情)?|用户(?:信息|资料|详情)?|车牛用户|客户\s*id|用户\s*id|user_id|dfc_user_id|cheniu_user/i,
+    databases: ["matador", "danube_member"],
+    searchTerms: ["cheniu_user", "user", "member", "customer"],
+    suggestedTables: [{ database: "matador", table: "cheniu_user" }],
+    reason: "客户/用户信息查询语义",
+  },
+  {
     pattern: /会员|会员中心|member/,
     databases: ["danube_member"],
-    searchTerms: ["member", "user", "vip"],
+    searchTerms: ["member", "user", "vip", "membership"],
+    suggestedTables: [
+      { database: "danube_member", table: "membership_personal_information" },
+    ],
     reason: "会员相关语义",
   },
   {
@@ -84,18 +97,21 @@ export const questionRouteRules: RouteKeywordRule[] = [
     pattern: /求购|线索|buy_car|意向买车/,
     databases: ["matador"],
     searchTerms: ["buy", "lead", "clue"],
+    suggestedTables: [{ database: "matador", table: "buy_car" }],
     reason: "求购线索语义",
   },
   {
     pattern: /订单|成交|交易单|main_order/,
     databases: ["matador", "danube_deal_adapter"],
     searchTerms: ["order", "deal", "trade"],
+    suggestedTables: [{ database: "matador", table: "main_order" }],
     reason: "订单成交语义",
   },
   {
     pattern: /车源|在售|库存车辆|正式车|car_status|operate_report|运营日报|pv|uv/,
     databases: ["matador"],
     searchTerms: ["car", "operate", "report"],
+    suggestedTables: [{ database: "matador", table: "car" }],
     reason: "核心车源/运营语义",
   },
   {
@@ -105,6 +121,44 @@ export const questionRouteRules: RouteKeywordRule[] = [
     reason: "super_mario 语义",
   },
 ];
+
+/** 从自然语言中提取「按 ID 查详情」的业务 ID */
+export function extractLookupId(question: string): string | undefined {
+  const normalized = question.trim();
+  const match =
+    normalized.match(
+      /(?:客户|用户|会员)(?:\s*(?:id|ID|Id))?\s*(?:为|是|=|：|:)\s*['"`]?([a-zA-Z0-9_-]{2,64})/,
+    ) ??
+    normalized.match(
+      /(?:user_id|dfc_user_id|member_id|customer_id)\s*(?:为|是|=|：|:)?\s*['"`]?([a-zA-Z0-9_-]{2,64})/i,
+    ) ??
+    normalized.match(
+      /id\s*(?:为|是|=|：|:)\s*['"`]?([a-zA-Z0-9_-]{2,64})/i,
+    );
+
+  return match?.[1];
+}
+
+export function suggestedTablesForQuestion(question: string) {
+  const tables: Array<{ database: string; table: string; reason: string }> = [];
+  const seen = new Set<string>();
+
+  for (const rule of questionRouteRules) {
+    if (!rule.pattern.test(question) || !rule.suggestedTables?.length) {
+      continue;
+    }
+    for (const item of rule.suggestedTables) {
+      const key = `${item.database}.${item.table}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      tables.push({ ...item, reason: rule.reason });
+    }
+  }
+
+  return tables;
+}
 
 const STOP_WORDS = new Set([
   "的",
@@ -234,9 +288,13 @@ export function rankDatabasesForQuestion(question: string): Array<{
 
 export function formatRouteHintForPrompt() {
   return questionRouteRules
-    .map(
-      (rule) =>
-        `- /${rule.pattern.source}/ → ${rule.databases.join(", ")}（搜索词：${rule.searchTerms.join(", ")}）`,
-    )
+    .map((rule) => {
+      const tables = rule.suggestedTables
+        ?.map((item) => `${item.database}.${item.table}`)
+        .join(", ");
+      return `- /${rule.pattern.source}/ → ${rule.databases.join(", ")}${
+        tables ? `｜建议表 ${tables}` : ""
+      }（搜索词：${rule.searchTerms.join(", ")}）`;
+    })
     .join("\n");
 }

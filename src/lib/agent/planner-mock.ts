@@ -1,6 +1,11 @@
 import type { AgentPlan, AgentToolResult } from "@/lib/agent/types";
 import { getRegistryDatabaseNames } from "@/lib/analytics/project-databases";
 import { getPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
+import {
+  extractLookupId,
+  suggestedTablesForQuestion,
+} from "@/lib/analytics/question-router";
+import { PRODUCT_NAME_ZH } from "@/lib/product";
 
 type ConversationTurn = { role: string; content: string; sql?: string };
 
@@ -216,7 +221,7 @@ export function buildMockPlan(
 
   const wantsAnalytics =
     !isSchemaQuestion &&
-    /车源|订单|求购|线索|成交|分布|趋势|统计|多少|总量|operate_report|分析|sql|查询|会员|金融|贷款|合同|联盟|服务市场|找车源|二手车/.test(
+    /车源|订单|求购|线索|成交|分布|趋势|统计|多少|总量|operate_report|分析|sql|查询|会员|金融|贷款|合同|联盟|服务市场|找车源|二手车|客户|用户信息|用户id|客户id|user_id/i.test(
       normalized,
     );
 
@@ -395,31 +400,61 @@ export function buildMockPlan(
       topTables?: Array<{ database: string; table: string }>;
     }>(prior, "route_question");
 
+    const ruleTables = suggestedTablesForQuestion(normalized);
     const targetDatabase =
       databaseName ||
       routed?.suggestedDatabase ||
       routed?.topTables?.[0]?.database ||
+      ruleTables[0]?.database ||
       "matador";
     const targetTable =
       (tableName && tableName !== databaseName ? tableName : undefined) ||
       routed?.suggestedTable ||
-      routed?.topTables?.[0]?.table;
-
-    // 2) 有候选表则描述字段，确认口径（无 MySQL 命中时跳过，直接用规则模板）
-    if (targetTable && !hasTool(prior, "describe_table")) {
-      return {
-        action: "tool",
-        tool: "describe_table",
-        args: { database: targetDatabase, table: targetTable },
-        reasoning: `已路由到 ${targetDatabase}.${targetTable}，先查看字段再写 SQL`,
-      };
-    }
+      routed?.topTables?.[0]?.table ||
+      ruleTables[0]?.table;
 
     const qualify = (table: string, sqlBody: string) =>
       sqlBody.replace(
         new RegExp(`\\bFROM\\s+${table}\\b`, "i"),
         `FROM \`${targetDatabase}\`.\`${table}\``,
       );
+
+    const lookupId = extractLookupId(normalized);
+    if (
+      lookupId &&
+      (/客户|用户|会员|cheniu_user|user_id|dfc_user_id/i.test(normalized) ||
+        targetTable === "cheniu_user")
+    ) {
+      const userTable =
+        targetTable === "membership_personal_information"
+          ? targetTable
+          : "cheniu_user";
+      const userDb =
+        userTable === "cheniu_user" ? "matador" : targetDatabase;
+      const escaped = lookupId.replace(/'/g, "''");
+
+      if (userTable === "cheniu_user") {
+        return {
+          action: "tool",
+          tool: "propose_sql",
+          args: {
+            sql: `SELECT user_id, dfc_user_id, name, phone, area, address, is_auth, app_source, date_create FROM \`${userDb}\`.\`cheniu_user\` WHERE (user_id = '${escaped}' OR dfc_user_id = '${escaped}') AND date_delete IS NULL LIMIT 20`,
+            explanation: `按客户/用户 ID「${lookupId}」查询车牛用户信息（表 ${userDb}.cheniu_user）`,
+          },
+          reasoning: "自动规划完成：客户 ID → cheniu_user 详情查询",
+        };
+      }
+
+      return {
+        action: "tool",
+        tool: "propose_sql",
+        args: {
+          sql: `SELECT * FROM \`${userDb}\`.\`${userTable}\` WHERE CAST(id AS CHAR) = '${escaped}' OR user_id = '${escaped}' LIMIT 20`,
+          explanation: `按 ID「${lookupId}」查询 ${userDb}.${userTable}`,
+        },
+        reasoning: "自动规划完成：按 ID 查询用户/会员详情",
+      };
+    }
 
     if (/分布|状态/.test(normalized) && /车源/.test(normalized)) {
       return {
@@ -478,6 +513,31 @@ export function buildMockPlan(
           explanation: `统计正式求购线索总量（库 ${targetDatabase}）`,
         },
         reasoning: "自动规划完成：提出求购总量 SQL",
+      };
+    }
+
+    if (/车源/.test(normalized) && /多少|总量|一共|有多少/.test(normalized)) {
+      return {
+        action: "tool",
+        tool: "propose_sql",
+        args: {
+          sql: qualify(
+            "car",
+            "SELECT COUNT(*) AS car_count FROM car WHERE test_type = 0",
+          ),
+          explanation: `统计正式车源总量（库 ${targetDatabase}）`,
+        },
+        reasoning: "自动规划完成：提出车源总量 SQL",
+      };
+    }
+
+    // 未知表：先 describe 再写 SQL；已知模板已在上方直接 propose
+    if (targetTable && !hasTool(prior, "describe_table")) {
+      return {
+        action: "tool",
+        tool: "describe_table",
+        args: { database: targetDatabase, table: targetTable },
+        reasoning: `已路由到 ${targetDatabase}.${targetTable}，先查看字段再写 SQL`,
       };
     }
 
@@ -555,14 +615,14 @@ export function buildMockPlan(
     const context = prior.map((item) => `${item.tool}: ${item.output}`).join("\n");
     return {
       action: "answer",
-      answer: `（数据分析助手）已结合工具结果：\n${context}\n\n针对「${message}」的结论已基于上述查询；请核对 SQL 与业务口径。`,
+      answer: `（${PRODUCT_NAME_ZH}）已结合工具结果：\n${context}\n\n针对「${message}」的结论已基于上述查询；请核对 SQL 与业务口径。`,
       reasoning: "演示模式：已有工具输出，合成最终回答",
     };
   }
 
   return {
     action: "answer",
-    answer: `（数据分析助手）已理解你的问题：「${message}」。可尝试问「大风车有哪些数据库」「danube_member 库有哪些表」「车源总数」。本地未启用 LLM 时使用规则规划器。`,
+    answer: `（${PRODUCT_NAME_ZH}）已理解你的问题：「${message}」。可直接问「客户 id 为 xxx 的用户信息」「正式车源一共有多少辆」——无需手动选库选表。本地未启用 LLM 时使用规则规划器。`,
     reasoning: "无匹配工具，直接回答",
   };
 }

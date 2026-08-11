@@ -57,7 +57,7 @@ export function AgentConversation({
   if (!turns.length) {
     return (
       <section className="flex min-h-[280px] flex-col items-center justify-center px-4 py-16 text-center">
-        <p className="text-[13px] font-medium text-zinc-300">开始问数</p>
+        <p className="text-[13px] font-medium text-zinc-300">用自然语言问数</p>
         <p className="mt-2 max-w-md text-[12px] leading-6 text-zinc-500">
           用自然语言描述分析需求。Agent 会规划工具、提出 SQL，确认后查询并展示结果——交互类似 Cursor Agent。
         </p>

@@ -35,7 +35,11 @@ describe("NL→SQL golden cases (mock planner)", () => {
           }
 
           for (const fragment of testCase.expect.sqlExcludes ?? []) {
-            expect(sql.toUpperCase()).not.toContain(fragment.toUpperCase());
+            const upper = sql.toUpperCase();
+            const needle = fragment.toUpperCase();
+            // 避免 DATE_DELETE 误伤 DELETE 关键字检测
+            const asWord = new RegExp(`\\b${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+            expect(asWord.test(upper)).toBe(false);
           }
         }
       }

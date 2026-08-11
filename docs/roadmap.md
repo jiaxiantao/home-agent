@@ -20,6 +20,7 @@
 - [x] Agent 前端交互：Cursor 风格对话流、活动步骤折叠、粘性 Composer、审批式 SQL 确认卡
 - [x] 多业务库分析：登记 danube_* / matador 等，会话可选偏好库，SQL 支持 \`db\`.\`table\`
 - [x] 问题自动路由：`route_question` 按语义规划候选库/表；业务问数先探索再 `propose_sql`；跨库 `search_schema`
+- [x] 产品定位对齐：大风车数据分析助手（DFC Data Agent）；客户 ID 等明细问数自动落到业务表（如 `cheniu_user`）；偏好库默认「自动」
 
 ## 可选增强
 

@@ -9,6 +9,12 @@ export type AgentQuickPrompt = {
 
 export const agentQuickPrompts: AgentQuickPrompt[] = [
   {
+    id: "user-by-id",
+    tool: "propose_sql",
+    label: "查客户",
+    prompt: "我想知道客户 id 为 demo_user_001 的用户信息",
+  },
+  {
     id: "car-count",
     tool: "propose_sql",
     label: "车源总数",
@@ -37,35 +43,5 @@ export const agentQuickPrompts: AgentQuickPrompt[] = [
     tool: "propose_sql",
     label: "求购线索",
     prompt: "正式求购线索总量是多少？",
-  },
-  {
-    id: "schema",
-    tool: "list_schema",
-    label: "表目录",
-    prompt: "列出分析库有哪些核心表和字段？",
-  },
-  {
-    id: "db-list",
-    tool: "list_databases",
-    label: "大风车库",
-    prompt: "大风车项目现在有哪些数据库？",
-  },
-  {
-    id: "table-list",
-    tool: "list_tables",
-    label: "matador 表",
-    prompt: "matador 库里有哪些表？",
-  },
-  {
-    id: "member-tables",
-    tool: "list_tables",
-    label: "会员库表",
-    prompt: "danube_member 库里有哪些表？",
-  },
-  {
-    id: "car-columns",
-    tool: "describe_table",
-    label: "car 字段",
-    prompt: "car 表有哪些字段？每个字段是什么类型？",
   },
 ];

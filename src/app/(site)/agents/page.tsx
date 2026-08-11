@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
 
 import { AgentsOrchestratorSection } from "@/components/agents-orchestrator-section";
+import {
+  PRODUCT_MISSION,
+  PRODUCT_NAME_EN,
+  PRODUCT_NAME_ZH,
+  PRODUCT_TAGLINE,
+} from "@/lib/product";
 
 export const metadata: Metadata = {
-  title: "数据分析助手",
-  description:
-    "大风车自然语言问数：生成只读 SQL，确认后查询并渲染表格/图表。",
+  title: PRODUCT_NAME_ZH,
+  description: `${PRODUCT_NAME_ZH}（${PRODUCT_NAME_EN}）。${PRODUCT_MISSION}`,
 };
 
 export default function AgentsPage() {
@@ -14,10 +19,10 @@ export default function AgentsPage() {
       <header className="mb-4 flex items-end justify-between gap-3 border-b border-white/[0.06] pb-3">
         <div>
           <h1 className="text-[15px] font-medium tracking-tight text-zinc-100">
-            数据分析助手
+            {PRODUCT_NAME_ZH}
           </h1>
           <p className="mt-0.5 text-[12px] text-zinc-500">
-            自然语言问数 · 确认 SQL · 表格与图表
+            {PRODUCT_NAME_EN} · {PRODUCT_TAGLINE}
           </p>
         </div>
       </header>

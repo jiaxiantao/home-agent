@@ -92,7 +92,7 @@ export function AgentComposer({
           placeholder={
             hasConversation
               ? "继续追问，例如：那按城市分布呢？"
-              : "用自然语言提问，例如：正式车源一共有多少辆？"
+              : "用自然语言提问，例如：客户 id 为 xxx 的用户信息"
           }
           className="max-h-40 w-full resize-none bg-transparent px-3.5 pt-3 pb-2 text-[13px] leading-6 text-zinc-100 outline-none placeholder:text-zinc-600"
         />

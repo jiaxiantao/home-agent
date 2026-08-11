@@ -20,7 +20,7 @@ export function AgentOrchestratorDemo({
   initialMessage?: string;
 }) {
   const [message, setMessage] = useState(
-    initialMessage ?? "大风车正式车源一共有多少辆？",
+    initialMessage ?? "我想知道客户 id 为 demo_user_001 的用户信息",
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

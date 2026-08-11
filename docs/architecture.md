@@ -1,6 +1,6 @@
 # 架构说明
 
-大风车数据分析助手：自然语言问数 → 只读 SQL（HITL 确认）→ MySQL 查询 → A2UI 表格/图表。
+大风车数据分析助手（DFC Data Agent）：自然语言问数 → Agent 自动规划库/表 → 只读 SQL（HITL 确认）→ MySQL 查询 → A2UI 表格/图表。
 
 ## 模块职责
 

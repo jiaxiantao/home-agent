@@ -1,8 +1,8 @@
 {
   "name": "home-agent",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": false,
-  "description": "Dafengche data analysis agent — NL to SQL, HITL confirm, charts via A2UI",
+  "description": "大风车数据分析助手 (DFC Data Agent) — NL 自动规划库表 → HITL 确认 → 出数",
   "license": "MIT",
   "repository": {
     "type": "git",
