@@ -6,6 +6,9 @@ describe("assertSqlIdentifier", () => {
   it("accepts valid identifiers", () => {
     expect(assertSqlIdentifier("car")).toBe("car");
     expect(assertSqlIdentifier("main_order")).toBe("main_order");
+    expect(assertSqlIdentifier("danube-activity-center")).toBe(
+      "danube-activity-center",
+    );
   });
 
   it("rejects injection-like names", () => {

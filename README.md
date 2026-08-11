@@ -5,7 +5,7 @@
 
 垂直领域 Agent：**自然语言问数 → 只读 MySQL → 人在回路确认 → A2UI 表格/图表**。
 
-对接大风车 matador 测试库，保留 Plan → Tool → SSE 编排骨架，便于观察与扩展。
+对接大风车分析库（默认 matador，可切换 danube_* 等业务库），保留 Plan → Tool → SSE 编排骨架，便于观察与扩展。
 
 ## 能力
 
@@ -28,7 +28,7 @@ flowchart LR
   API --> Loop["runAgentLoop"]
   Loop --> Plan["planAgentStep"]
   Plan -->|propose_sql| HITL["awaiting_input"]
-  HITL -->|confirm| MySQL["matador MySQL"]
+  HITL -->|confirm| MySQL["大风车 MySQL 多库"]
   MySQL --> A2UI["table/chart"]
   A2UI --> UI
 ```
@@ -96,6 +96,7 @@ pnpm test:e2e
 | `GET /api/favorites` | 收藏问法 |
 | `GET /api/templates` | 团队问法模板（管理员可 POST/DELETE） |
 | `GET /api/envs` | 可用分析环境列表 |
+| `GET /api/databases` | 大风车业务库登记与可见性 |
 | `GET /api/audit` | 管理员审计记录查询 |
 
 ## 环境变量

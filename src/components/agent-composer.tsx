@@ -3,6 +3,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 import { AgentEnvSwitcher } from "@/components/agent-env-switcher";
+import { AgentDatabaseSwitcher } from "@/components/agent-database-switcher";
 import { cn } from "@/lib/utils";
 
 export function AgentComposer({
@@ -15,6 +16,8 @@ export function AgentComposer({
   hasConversation,
   analyticsEnv,
   onAnalyticsEnvChange,
+  analyticsDatabase,
+  onAnalyticsDatabaseChange,
   quickPrompts,
   onQuickPrompt,
   inputRef,
@@ -28,6 +31,8 @@ export function AgentComposer({
   hasConversation: boolean;
   analyticsEnv: string;
   onAnalyticsEnvChange: (env: string) => void;
+  analyticsDatabase: string;
+  onAnalyticsDatabaseChange: (database: string) => void;
   quickPrompts: Array<{ id: string; label: string; prompt: string }>;
   onQuickPrompt: (prompt: string, runImmediately?: boolean) => void;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
@@ -93,7 +98,12 @@ export function AgentComposer({
         />
 
         <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <AgentDatabaseSwitcher
+              value={analyticsDatabase}
+              onChange={onAnalyticsDatabaseChange}
+              disabled={running}
+            />
             <AgentEnvSwitcher
               value={analyticsEnv}
               onChange={onAnalyticsEnvChange}

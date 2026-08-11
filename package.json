@@ -1,6 +1,6 @@
 {
   "name": "home-agent",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "private": false,
   "description": "Dafengche data analysis agent — NL to SQL, HITL confirm, charts via A2UI",
   "license": "MIT",

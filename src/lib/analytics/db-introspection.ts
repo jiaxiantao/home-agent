@@ -6,10 +6,12 @@ import {
   queryAnalyticsMysqlWithParams,
 } from "@/lib/analytics/mysql";
 import { listProjectDatabaseRegistry } from "@/lib/analytics/project-databases";
+import { resolvePreferredOrDefaultDatabase } from "@/lib/analytics/preferred-database";
 import {
   assertSqlIdentifier,
   quoteSqlIdentifier,
 } from "@/lib/analytics/sql-identifier";
+import { filterAllowedDatabaseNames } from "@/lib/security/database-allowlist";
 import { assertTableNameAllowed, filterAllowedTableNames } from "@/lib/security/table-allowlist";
 import { maskQueryRows } from "@/lib/security/pii-mask";
 
@@ -78,13 +80,7 @@ export type SchemaSearchHit = {
 };
 
 function resolveDatabase(database?: string) {
-  const config = getAnalyticsMysqlConfig();
-
-  if (!config) {
-    throw new Error("分析库未配置");
-  }
-
-  return assertSqlIdentifier(database?.trim() || config.database, "数据库");
+  return resolvePreferredOrDefaultDatabase(database);
 }
 
 function resolveTable(table: string) {
@@ -132,15 +128,24 @@ export async function introspectListDatabases(): Promise<DatabaseInfo[]> {
 
   const config = getAnalyticsMysqlConfig();
   const defaultDb = config?.database;
+  const all = rows
+    .map((row) => {
+      const name = String(row.Database ?? row.SCHEMA_NAME ?? "");
+      return {
+        name,
+        accessible: Boolean(name),
+        defaultCollation: defaultDb === name ? "（当前默认库）" : undefined,
+      };
+    })
+    .filter((item) => item.name);
 
-  return rows.map((row) => {
-    const name = String(row.Database ?? row.SCHEMA_NAME ?? "");
-    return {
-      name,
-      accessible: Boolean(name),
-      defaultCollation: defaultDb === name ? "（当前默认库）" : undefined,
-    };
-  });
+  const allowedNames = new Set(
+    filterAllowedDatabaseNames(all.map((item) => item.name)).map((name) =>
+      name.toLowerCase(),
+    ),
+  );
+
+  return all.filter((item) => allowedNames.has(item.name.toLowerCase()));
 }
 
 export async function introspectListProjectDatabases() {

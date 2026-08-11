@@ -12,7 +12,7 @@ export type SchemaTable = {
   notes?: string[];
 };
 
-/** 大风车 matador 测试库核心表目录（手写，供 NL→SQL 规划） */
+/** 大风车业务表目录（手写，默认 matador；其他库请用元数据工具实时探索） */
 export const analyticsSchemaCatalog: SchemaTable[] = [
   {
     name: "car",
@@ -137,7 +137,7 @@ export function formatSchemaCatalogForPrompt(tables = analyticsSchemaCatalog) {
       const notes = table.notes?.length
         ? `\n注意: ${table.notes.join("；")}`
         : "";
-      return `表 ${table.name} [${table.domain}] — ${table.description}\n${cols}${notes}`;
+      return `库 matador · 表 ${table.name} [${table.domain}] — ${table.description}\n${cols}${notes}`;
     })
     .join("\n\n");
 }

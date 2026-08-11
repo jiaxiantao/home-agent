@@ -5,6 +5,7 @@ import {
   resolveAnalyticsEnvId,
   runWithAnalyticsEnv,
 } from "@/lib/analytics/mysql";
+import { runWithPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
 import { encodeSseEvent } from "@/lib/sse";
 import { getClientIp, resolveAuthUserFromHeaders } from "@/lib/security/auth";
 import { isAuthEnabled } from "@/lib/security/auth-config";
@@ -15,6 +16,7 @@ const agentSchema = z.object({
   message: z.string().default(""),
   threadId: z.string().optional(),
   analyticsEnv: z.string().optional(),
+  analyticsDatabase: z.string().optional(),
   resume: z
     .object({
       actionId: z.enum(["confirm_sql", "cancel_sql"]),
@@ -108,17 +110,22 @@ export async function POST(request: Request) {
 
         try {
           await runWithAnalyticsEnv(analyticsEnv, async () => {
-            for await (const trace of runAgentLoop(
-              body.message.trim() || "(resume)",
-              {
-                signal: request.signal,
-                resume: body.resume,
-                audit,
-                threadId: body.threadId,
+            await runWithPreferredAnalyticsDatabase(
+              body.analyticsDatabase,
+              async () => {
+                for await (const trace of runAgentLoop(
+                  body.message.trim() || "(resume)",
+                  {
+                    signal: request.signal,
+                    resume: body.resume,
+                    audit,
+                    threadId: body.threadId,
+                  },
+                )) {
+                  send(trace.type, trace);
+                }
               },
-            )) {
-              send(trace.type, trace);
-            }
+            );
           });
         } catch (error) {
           send("error", {

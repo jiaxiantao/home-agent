@@ -228,6 +228,7 @@ export function useAgentStream() {
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [analyticsEnv, setAnalyticsEnv] = useState<string>("test");
+  const [analyticsDatabase, setAnalyticsDatabase] = useState<string>("");
 
   const abortRef = useRef<AbortController | null>(null);
   const turnRef = useRef<ConversationTurn | null>(null);
@@ -514,7 +515,7 @@ export function useAgentStream() {
 
       try {
         await consumeAgentStream(
-          { message: message.trim(), threadId, analyticsEnv },
+          { message: message.trim(), threadId, analyticsEnv, analyticsDatabase: analyticsDatabase || undefined },
           controller.signal,
           handlePayload,
         );
@@ -539,7 +540,7 @@ export function useAgentStream() {
         setRunning(false);
       }
     },
-    [beginTurn, handlePayload, resetCurrentTurn, threadId, analyticsEnv],
+    [beginTurn, handlePayload, resetCurrentTurn, threadId, analyticsEnv, analyticsDatabase],
   );
 
   const resume = useCallback(
@@ -559,7 +560,7 @@ export function useAgentStream() {
 
       try {
         await consumeAgentStream(
-          { message: "", threadId, analyticsEnv, resume: action },
+          { message: "", threadId, analyticsEnv, analyticsDatabase: analyticsDatabase || undefined, resume: action },
           controller.signal,
           handlePayload,
         );
@@ -579,7 +580,7 @@ export function useAgentStream() {
         setRunning(false);
       }
     },
-    [handlePayload, threadId, updateTurn, analyticsEnv],
+    [handlePayload, threadId, updateTurn, analyticsEnv, analyticsDatabase],
   );
 
   const loadHistoryQuestion = useCallback((question: string) => {
@@ -610,5 +611,7 @@ export function useAgentStream() {
     loadHistoryQuestion,
     analyticsEnv,
     setAnalyticsEnv,
+    analyticsDatabase,
+    setAnalyticsDatabase,
   };
 }

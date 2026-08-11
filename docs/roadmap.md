@@ -18,12 +18,14 @@
 - [x] staging MySQL 集成测试（无凭证自动 skip）
 - [x] Agent 主流程：HITL 失败可重试、规划上下文截断、查询后答案合成、规则多轮追问、错误补 `done`
 - [x] Agent 前端交互：Cursor 风格对话流、活动步骤折叠、粘性 Composer、审批式 SQL 确认卡
+- [x] 多业务库分析：登记 danube_* / matador 等，会话可选偏好库，SQL 支持 \`db\`.\`table\`
 
 ## 可选增强
 
 - [ ] 审计写入独立 DB
 - [ ] 元数据结果 A2UI 化（list_tables / describe_table）
 - [ ] 确认卡增加「重新生成 SQL / 先 EXPLAIN」
+- [ ] 非 matador 库的手写业务口径目录
 
 ## 文档
 

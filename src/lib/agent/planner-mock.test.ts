@@ -53,6 +53,16 @@ describe("buildMockPlan", () => {
     expect(plan.action).toBe("answer");
   });
 
+  it("lists tables for a named database", () => {
+    const plan = buildMockPlan("danube_member 库里有哪些表？", []);
+
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("list_tables");
+      expect(plan.args.database).toBe("danube_member");
+    }
+  });
+
   it("rewrites follow-up questions using prior assistant sql", () => {
     const plan = buildMockPlan(
       "那按城市分布呢？",

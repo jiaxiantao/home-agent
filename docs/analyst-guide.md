@@ -16,7 +16,13 @@
 | 有效订单 | `delete_time IS NULL` |
 | 大表查询 | 带时间范围 + LIMIT |
 
-## 快捷问题
+## 多业务库
+
+同一 MySQL 实例上可分析多个大风车库（matador、danube_member、danube_topcars 等）。
+
+- 输入区「业务库」下拉可设置偏好库
+- 也可直接问：「danube_member 库里有哪些表？」
+- 跨库 SQL 使用 `` `库名`.`表名` ``（系统禁止 `USE`）
 
 页面提供「车源总数」「状态分布」「运营趋势」等一键模板。
 

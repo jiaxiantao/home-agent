@@ -47,14 +47,20 @@ export const agentQuickPrompts: AgentQuickPrompt[] = [
   {
     id: "db-list",
     tool: "list_databases",
-    label: "有哪些库",
-    prompt: "大风车项目现在有哪些数据库？当前连接能看到哪些库？",
+    label: "大风车库",
+    prompt: "大风车项目现在有哪些数据库？",
   },
   {
     id: "table-list",
     tool: "list_tables",
     label: "matador 表",
     prompt: "matador 库里有哪些表？",
+  },
+  {
+    id: "member-tables",
+    tool: "list_tables",
+    label: "会员库表",
+    prompt: "danube_member 库里有哪些表？",
   },
   {
     id: "car-columns",

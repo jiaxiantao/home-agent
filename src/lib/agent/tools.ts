@@ -24,6 +24,7 @@ import {
   listSchemaSummary,
 } from "@/lib/analytics/schema-catalog";
 import { assertReadOnlySql } from "@/lib/analytics/sql-guard";
+import { assertAllowedDatabases } from "@/lib/security/database-allowlist";
 import { assertAllowedTables } from "@/lib/security/table-allowlist";
 
 import type {
@@ -305,6 +306,12 @@ export async function runAgentTool(
 
       if (!allowlist.ok) {
         throw new Error(allowlist.reason);
+      }
+
+      const databases = assertAllowedDatabases(guarded.sql);
+
+      if (!databases.ok) {
+        throw new Error(databases.reason);
       }
 
       const data: ProposeSqlData = {

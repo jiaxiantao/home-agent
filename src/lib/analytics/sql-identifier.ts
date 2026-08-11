@@ -1,4 +1,4 @@
-const IDENTIFIER_PATTERN = /^[a-zA-Z0-9_]+$/;
+const IDENTIFIER_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export function assertSqlIdentifier(name: string, label = "标识符"): string {
   const trimmed = name.trim();
@@ -8,7 +8,7 @@ export function assertSqlIdentifier(name: string, label = "标识符"): string {
   }
 
   if (!IDENTIFIER_PATTERN.test(trimmed)) {
-    throw new Error(`${label}「${trimmed}」无效，仅允许字母、数字与下划线`);
+    throw new Error(`${label}「${trimmed}」无效，仅允许字母、数字、下划线与连字符`);
   }
 
   if (trimmed.length > 64) {

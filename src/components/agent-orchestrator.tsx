@@ -42,6 +42,8 @@ export function AgentOrchestratorDemo({
     loadHistoryQuestion,
     analyticsEnv,
     setAnalyticsEnv,
+    analyticsDatabase,
+    setAnalyticsDatabase,
   } = useAgentStream();
 
   const handleA2UIAction = useCallback(
@@ -149,6 +151,8 @@ export function AgentOrchestratorDemo({
           hasConversation={hasConversation}
           analyticsEnv={analyticsEnv}
           onAnalyticsEnvChange={setAnalyticsEnv}
+          analyticsDatabase={analyticsDatabase}
+          onAnalyticsDatabaseChange={setAnalyticsDatabase}
           quickPrompts={agentQuickPrompts}
           onQuickPrompt={handleQuickPrompt}
           inputRef={textareaRef}

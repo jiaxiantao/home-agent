@@ -68,6 +68,7 @@ export const config = {
     "/api/favorites",
     "/api/templates",
     "/api/envs",
+    "/api/databases",
     "/",
   ],
 };

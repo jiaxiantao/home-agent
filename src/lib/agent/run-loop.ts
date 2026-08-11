@@ -30,6 +30,7 @@ import {
   updateServerHistoryByRunId,
 } from "@/lib/history/server-history";
 import { auditFromContext, type AuditContext } from "@/lib/security/audit-log";
+import { assertAllowedDatabases } from "@/lib/security/database-allowlist";
 import { assertAllowedTables } from "@/lib/security/table-allowlist";
 import {
   isToolAllowedForUser,
@@ -77,6 +78,12 @@ function validateExecutableSql(rawSql: string) {
 
   if (!allowlist.ok) {
     throw new Error(allowlist.reason);
+  }
+
+  const databases = assertAllowedDatabases(guarded.sql);
+
+  if (!databases.ok) {
+    throw new Error(databases.reason);
   }
 
   return guarded.sql;

@@ -1,4 +1,6 @@
 import type { AgentPlan, AgentToolResult } from "@/lib/agent/types";
+import { getRegistryDatabaseNames } from "@/lib/analytics/project-databases";
+import { getPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
 
 type ConversationTurn = { role: string; content: string; sql?: string };
 
@@ -29,6 +31,35 @@ function extractColumnName(message: string) {
     message.match(/字段\s*[`'"]?([a-zA-Z0-9_]+)[`'"]?/i) ??
     message.match(/列\s*[`'"]?([a-zA-Z0-9_]+)[`'"]?/i);
   return match?.[1];
+}
+
+function extractDatabaseName(message: string) {
+  const registry = getRegistryDatabaseNames();
+  const lower = message.toLowerCase();
+
+  for (const name of registry) {
+    if (lower.includes(name.toLowerCase())) {
+      return name;
+    }
+  }
+
+  const match =
+    message.match(/库\s*[`'"]?([a-zA-Z][a-zA-Z0-9_-]{1,62})[`'"]?/i) ??
+    message.match(/[`'"]([a-zA-Z][a-zA-Z0-9_-]{1,62})[`'"]\s*库/i) ??
+    message.match(/\b([a-zA-Z][a-zA-Z0-9_-]{1,62})\s*库里/i);
+
+  return match?.[1];
+}
+
+function withDatabaseArgs(
+  args: Record<string, unknown>,
+  database?: string,
+): Record<string, unknown> {
+  const resolved = database || getPreferredAnalyticsDatabase();
+  if (!resolved) {
+    return args;
+  }
+  return { ...args, database: resolved };
 }
 
 function lastAssistantWithSql(conversation: ConversationTurn[]) {
@@ -146,7 +177,9 @@ export function buildMockPlan(
     /核心表|业务表|表目录|业务说明|手写目录/.test(normalized);
 
   const wantsProjectDatabases =
-    /大风车.*(哪些|有什么|有哪些).*数据库|项目.*数据库|业务库/.test(normalized);
+    /大风车.*(哪些|有什么|有哪些).*数据库|项目.*数据库|业务库|有哪些库|登记.*库/.test(
+      normalized,
+    );
 
   const wantsDatabases =
     /有哪些库|列出.*数据库|show databases|数据库列表|实例.*库/.test(normalized);
@@ -189,6 +222,21 @@ export function buildMockPlan(
 
   const tableName = extractTableName(normalized);
   const columnName = extractColumnName(normalized);
+  const databaseName = extractDatabaseName(normalized);
+
+  // 「X 库有哪些表」优先于把库名误识别为表名
+  if (
+    wantsTables &&
+    databaseName &&
+    !hasTool(prior, "list_tables")
+  ) {
+    return {
+      action: "tool",
+      tool: "list_tables",
+      args: withDatabaseArgs({}, databaseName),
+      reasoning: `用户想查看 ${databaseName} 库中有哪些表`,
+    };
+  }
 
   if (wantsBusinessCatalog && !hasTool(prior, "list_schema")) {
     return {
@@ -221,7 +269,10 @@ export function buildMockPlan(
     return {
       action: "tool",
       tool: "list_tables",
-      args: { pattern: tableName },
+      args: withDatabaseArgs(
+        tableName && tableName !== databaseName ? { pattern: tableName } : {},
+        databaseName,
+      ),
       reasoning: "用户想查看库中有哪些表",
     };
   }
@@ -235,7 +286,10 @@ export function buildMockPlan(
     return {
       action: "tool",
       tool: "get_column",
-      args: { table: tableName, column: columnName },
+      args: withDatabaseArgs(
+        { table: tableName, column: columnName },
+        databaseName,
+      ),
       reasoning: "用户询问具体字段类型",
     };
   }
@@ -244,7 +298,7 @@ export function buildMockPlan(
     return {
       action: "tool",
       tool: "list_indexes",
-      args: { table: tableName },
+      args: withDatabaseArgs({ table: tableName }, databaseName),
       reasoning: "用户想查看表索引",
     };
   }
@@ -253,7 +307,10 @@ export function buildMockPlan(
     return {
       action: "tool",
       tool: "list_foreign_keys",
-      args: tableName ? { table: tableName } : {},
+      args: withDatabaseArgs(
+        tableName ? { table: tableName } : {},
+        databaseName,
+      ),
       reasoning: "用户想查看外键关系",
     };
   }
@@ -262,7 +319,7 @@ export function buildMockPlan(
     return {
       action: "tool",
       tool: "show_create_table",
-      args: { table: tableName },
+      args: withDatabaseArgs({ table: tableName }, databaseName),
       reasoning: "用户想查看建表 DDL",
     };
   }
@@ -271,7 +328,10 @@ export function buildMockPlan(
     return {
       action: "tool",
       tool: "get_table_stats",
-      args: tableName ? { table: tableName } : {},
+      args: withDatabaseArgs(
+        tableName ? { table: tableName } : {},
+        databaseName,
+      ),
       reasoning: "用户想查看表统计信息",
     };
   }
@@ -281,7 +341,7 @@ export function buildMockPlan(
     return {
       action: "tool",
       tool: "search_schema",
-      args: { keyword, scope: "all" },
+      args: withDatabaseArgs({ keyword, scope: "all" }, databaseName),
       reasoning: "用户想搜索表或字段元数据",
     };
   }
@@ -290,7 +350,7 @@ export function buildMockPlan(
     return {
       action: "tool",
       tool: "sample_table_rows",
-      args: { table: tableName, limit: 5 },
+      args: withDatabaseArgs({ table: tableName, limit: 5 }, databaseName),
       reasoning: "用户想预览表数据样例",
     };
   }
@@ -298,12 +358,13 @@ export function buildMockPlan(
   if (
     (wantsDescribe || (tableName && /字段|列|结构/.test(normalized))) &&
     tableName &&
+    tableName !== databaseName &&
     !hasTool(prior, "describe_table")
   ) {
     return {
       action: "tool",
       tool: "describe_table",
-      args: { table: tableName },
+      args: withDatabaseArgs({ table: tableName }, databaseName),
       reasoning: "用户需要查看表字段结构",
     };
   }
@@ -432,7 +493,7 @@ export function buildMockPlan(
 
   return {
     action: "answer",
-    answer: `（数据分析助手）已理解你的问题：「${message}」。可尝试问「有哪些数据库」「matador 有哪些表」「car 表有哪些字段」「车源总数」。本地未启用 LLM 时使用规则规划器。`,
+    answer: `（数据分析助手）已理解你的问题：「${message}」。可尝试问「大风车有哪些数据库」「danube_member 库有哪些表」「车源总数」。本地未启用 LLM 时使用规则规划器。`,
     reasoning: "无匹配工具，直接回答",
   };
 }

@@ -3,6 +3,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { assertQueryCostAcceptable } from "@/lib/analytics/query-cost-guard";
 import { getAnalyticsMysqlConfig, queryAnalyticsMysql } from "@/lib/analytics/mysql";
 import { assertReadOnlySql, ensureLimit } from "@/lib/analytics/sql-guard";
+import { assertAllowedDatabases } from "@/lib/security/database-allowlist";
 import { assertAllowedTables } from "@/lib/security/table-allowlist";
 import { maskQueryRows } from "@/lib/security/pii-mask";
 
@@ -47,6 +48,12 @@ export async function runAnalyticsQuery(rawSql: string): Promise<QueryResult> {
 
   if (!allowlist.ok) {
     throw new Error(allowlist.reason);
+  }
+
+  const databases = assertAllowedDatabases(guarded.sql);
+
+  if (!databases.ok) {
+    throw new Error(databases.reason);
   }
 
   await assertQueryCostAcceptable(guarded.sql);

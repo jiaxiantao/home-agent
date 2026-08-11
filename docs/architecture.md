@@ -39,7 +39,7 @@ sequenceDiagram
 
 ## 数据源
 
-仅 **MySQL**（`ANALYTICS_MYSQL_*`）：大风车 matador 分析库（默认 test）。
+仅 **MySQL**（`ANALYTICS_MYSQL_*`）：大风车分析库（同实例多 schema；默认连接 `matador`，可切换偏好库）。
 
 ## LLM 与回退
 
