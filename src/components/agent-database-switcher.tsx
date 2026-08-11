@@ -144,13 +144,7 @@ export function AgentDatabaseSwitcher({
                 selected={value === item.name}
                 title={item.name}
                 subtitle={item.description}
-                badge={
-                  !item.accessible
-                    ? "不可见"
-                    : item.isDefault
-                      ? "连接默认"
-                      : undefined
-                }
+                badge={!item.accessible ? "不可见" : undefined}
                 muted={!item.accessible}
                 onSelect={() => {
                   onChange(item.name);

@@ -26,8 +26,8 @@
 
 同一 MySQL 实例上可分析多个大风车库（matador、danube_member、danube_topcars 等）。
 
-- Agent 会先 `route_question` 自动推断「查哪个库 / 哪张表」，再写 SQL；**默认无需手动选库**
-- 输入区「偏好库」默认为「自动」；仅在你想加权某个库时再切换
+- Agent 会先 `route_question` 自动推断「查哪个库 / 哪张表」，再写 SQL；**默认无需手动选库，也不会默认偏好 matador**
+- 输入区「偏好库」默认为「自动规划」；仅在你想加权某个库时再切换
 - 也可直接问：「danube_member 库里有哪些表？」
 - 跨库 SQL 使用 `` `库名`.`表名` ``（系统禁止 `USE`）
 

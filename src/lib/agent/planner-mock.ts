@@ -3,6 +3,7 @@ import { getRegistryDatabaseNames } from "@/lib/analytics/project-databases";
 import { getPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
 import {
   extractLookupId,
+  extractQuestionSearchTerms,
   suggestedTablesForQuestion,
 } from "@/lib/analytics/question-router";
 import { PRODUCT_NAME_ZH } from "@/lib/product";
@@ -405,19 +406,35 @@ export function buildMockPlan(
       databaseName ||
       routed?.suggestedDatabase ||
       routed?.topTables?.[0]?.database ||
-      ruleTables[0]?.database ||
-      "matador";
+      ruleTables[0]?.database;
     const targetTable =
       (tableName && tableName !== databaseName ? tableName : undefined) ||
       routed?.suggestedTable ||
       routed?.topTables?.[0]?.table ||
       ruleTables[0]?.table;
 
-    const qualify = (table: string, sqlBody: string) =>
-      sqlBody.replace(
+    if (!targetDatabase && !targetTable && !hasTool(prior, "search_schema")) {
+      const terms = extractQuestionSearchTerms(normalized);
+      return {
+        action: "tool",
+        tool: "search_schema",
+        args: {
+          keyword: terms[0] ?? normalized.slice(0, 24),
+          acrossDatabases: true,
+        },
+        reasoning: "问题未明确命中单一业务库，先跨库搜索元数据",
+      };
+    }
+
+    const qualify = (table: string, sqlBody: string, database = targetDatabase) => {
+      if (!database) {
+        return sqlBody;
+      }
+      return sqlBody.replace(
         new RegExp(`\\bFROM\\s+${table}\\b`, "i"),
-        `FROM \`${targetDatabase}\`.\`${table}\``,
+        `FROM \`${database}\`.\`${table}\``,
       );
+    };
 
     const lookupId = extractLookupId(normalized);
     if (
@@ -430,7 +447,18 @@ export function buildMockPlan(
           ? targetTable
           : "cheniu_user";
       const userDb =
-        userTable === "cheniu_user" ? "matador" : targetDatabase;
+        targetTable === "membership_personal_information"
+          ? targetDatabase
+          : targetDatabase || ruleTables.find((item) => item.table === "cheniu_user")?.database;
+      if (!userDb) {
+        return {
+          action: "tool",
+          tool: "search_schema",
+          args: { keyword: "cheniu_user", acrossDatabases: true },
+          reasoning: "客户信息问数：先跨库定位用户表",
+        };
+      }
+
       const escaped = lookupId.replace(/'/g, "''");
 
       if (userTable === "cheniu_user") {

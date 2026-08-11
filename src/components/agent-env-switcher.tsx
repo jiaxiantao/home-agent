@@ -47,7 +47,6 @@ export function AgentEnvSwitcher({
     return (
       <span className="truncate text-[11px] text-zinc-500">
         {only?.label ?? value}
-        {only?.database ? ` · ${only.database}` : ""}
       </span>
     );
   }

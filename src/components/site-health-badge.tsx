@@ -47,7 +47,7 @@ export function SiteHealthBadge() {
   const mysqlLabel = !mysql?.configured
     ? "分析库未配置"
     : mysqlOk
-      ? `分析库 · ${mysql.database ?? "mysql"}`
+      ? "分析库 · 在线"
       : "分析库异常";
 
   return (
@@ -59,8 +59,8 @@ export function SiteHealthBadge() {
           mysql?.error
             ? `analyticsMysql: ${mysql.error}`
             : mysqlOk
-              ? `env=${mysql?.env} latency=${mysql?.latencyMs}ms`
-              : "大风车 matador MySQL"
+              ? `env=${mysql?.env} default=${mysql?.database ?? "?"} latency=${mysql?.latencyMs}ms`
+            : "大风车分析 MySQL"
         }
       />
       <StatusDot

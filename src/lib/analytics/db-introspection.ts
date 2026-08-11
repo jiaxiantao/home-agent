@@ -697,7 +697,7 @@ export async function introspectRouteQuestion(options: {
     }
   }
 
-  const suggestedDatabase = topTables[0]?.database ?? candidates[0]?.database ?? "matador";
+  const suggestedDatabase = topTables[0]?.database ?? candidates[0]?.database;
   const suggestedTable = topTables[0]?.table;
 
   return {
@@ -712,7 +712,9 @@ export async function introspectRouteQuestion(options: {
     nextSteps: [
       suggestedTable
         ? `建议下一步 describe_table：database=${suggestedDatabase}, table=${suggestedTable}`
-        : `建议下一步 list_tables：database=${suggestedDatabase}`,
+        : suggestedDatabase
+          ? `建议下一步 list_tables：database=${suggestedDatabase}`
+          : "问题未明确命中单一库：建议 search_schema({ keyword, acrossDatabases: true }) 跨库搜索",
       "确认字段与口径后，再 propose_sql，SQL 使用 `database`.`table` 限定名",
       ...(schemaSearchError
         ? [`元数据搜索暂不可用（${schemaSearchError}），已仅返回规则层库路由`]

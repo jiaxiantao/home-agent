@@ -262,12 +262,7 @@ export function rankDatabasesForQuestion(question: string): Array<{
   }
 
   if (preferred) {
-    bump(preferred, 4, "会话偏好库加权");
-  }
-
-  // 无命中时兜底核心库，保证总能给出探索起点
-  if (![...scores.values()].some((item) => item.score >= 8)) {
-    bump("matador", 5, "未明确命中时默认探索核心库 matador");
+    bump(preferred, 4, "用户指定偏好库加权");
   }
 
   const allowed = new Set(

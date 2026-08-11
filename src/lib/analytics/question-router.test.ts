@@ -23,6 +23,11 @@ describe("rankDatabasesForQuestion", () => {
     expect(ranked[0]?.database).toBe("danube_mammon");
   });
 
+  it("does not default ambiguous questions to matador", () => {
+    const ranked = rankDatabasesForQuestion("帮我看一下整体情况");
+    expect(ranked.length).toBe(0);
+  });
+
   it("boosts explicit database names in the question", () => {
     const ranked = rankDatabasesForQuestion("danube_topcars 里车源表结构怎样？");
     expect(ranked[0]?.database).toBe("danube_topcars");
