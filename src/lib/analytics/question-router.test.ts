@@ -43,21 +43,32 @@ describe("extractQuestionSearchTerms", () => {
 });
 
 describe("customer / user lookup routing", () => {
-  it("routes customer id questions to cheniu_user first", () => {
+  it("routes user id questions to matador cheniu_user", () => {
     const ranked = rankDatabasesForQuestion(
-      "我想知道客户 id 为 demo_user_001 的用户信息",
+      "我想知道用户 id 为 demo_user_001 的用户信息",
     );
-    expect(ranked[0]?.database).toBe("cheniu_user");
+    expect(ranked[0]?.database).toBe("matador");
   });
 
-  it("extracts lookup id and suggests cheniu_user tables", () => {
-    expect(extractLookupId("我想知道客户 id 为 demo_user_001 的用户信息")).toBe(
+  it("routes CRM customer management to super_mario", () => {
+    const ranked = rankDatabasesForQuestion("客户管理跟进记录有多少？");
+    expect(ranked[0]?.database).toBe("super_mario");
+  });
+
+  it("extracts lookup id and suggests matador cheniu_user for user info", () => {
+    expect(extractLookupId("我想知道用户 id 为 demo_user_001 的用户信息")).toBe(
       "demo_user_001",
     );
-    expect(suggestedTablesForQuestion("客户 id 为 xxx 的用户信息")[0]).toMatchObject({
-      database: "cheniu_user",
-      table: "user",
+    expect(suggestedTablesForQuestion("用户 id 为 xxx 的用户信息")[0]).toMatchObject({
+      database: "matador",
+      table: "cheniu_user",
     });
+  });
+
+  it("suggests both CRM and user tables for ambiguous 客户 id", () => {
+    const tables = suggestedTablesForQuestion("客户 id 为 xxx 的信息");
+    expect(tables.some((t) => t.database === "super_mario")).toBe(true);
+    expect(tables.some((t) => t.database === "matador")).toBe(true);
   });
 });
 

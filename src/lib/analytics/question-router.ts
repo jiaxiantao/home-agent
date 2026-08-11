@@ -3,6 +3,7 @@ import {
   matchRegistryKeywords,
   type ProjectDatabaseEntry,
 } from "@/lib/analytics/project-databases";
+import { matchBusinessEntities } from "@/lib/analytics/business-glossary";
 import { getPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
 import { filterAllowedDatabaseNames } from "@/lib/security/database-allowlist";
 
@@ -19,14 +20,28 @@ export type RouteKeywordRule = {
 export const questionRouteRules: RouteKeywordRule[] = [
   {
     pattern:
-      /客户(?:信息|资料|详情)?|用户(?:信息|资料|详情)?|车牛用户|客户\s*id|用户\s*id|user_id|dfc_user_id|cheniu_user/i,
-    databases: ["cheniu_user", "matador", "danube_member"],
-    searchTerms: ["cheniu_user", "user", "member", "customer"],
+      /用户(?:信息|资料|详情)?|车牛用户|用户\s*id|user_id|dfc_user_id|cheniu_user/i,
+    databases: ["matador", "cheniu_user"],
+    searchTerms: ["cheniu_user", "user", "member"],
+    suggestedTables: [{ database: "matador", table: "cheniu_user" }],
+    reason: "车牛/大风车用户信息语义",
+  },
+  {
+    pattern: /crm|客户档案|客户管理|跟进记录|客户关怀|门店客户|super.?mario/i,
+    databases: ["super_mario"],
+    searchTerms: ["customer", "follow", "care", "crm"],
+    suggestedTables: [{ database: "super_mario", table: "customer" }],
+    reason: "CRM 客户管理语义",
+  },
+  {
+    pattern: /客户(?:信息|资料|详情)?|客户\s*id/i,
+    databases: ["super_mario", "matador"],
+    searchTerms: ["customer", "cheniu_user", "user"],
     suggestedTables: [
-      { database: "cheniu_user", table: "user" },
+      { database: "super_mario", table: "customer" },
       { database: "matador", table: "cheniu_user" },
     ],
-    reason: "客户/用户信息查询语义",
+    reason: "客户查询语义（CRM 客户 vs 车牛用户，需结合上下文）",
   },
   {
     pattern: /会员|会员中心|member/,
@@ -359,6 +374,10 @@ export function rankDatabasesForQuestion(question: string): Array<{
     bump(match.database, 6, `登记关键词「${match.keyword}」→ ${match.database}`);
   }
 
+  for (const entity of matchBusinessEntities(question)) {
+    bump(entity.database, 12, `业务实体「${entity.table}」→ ${entity.database}`);
+  }
+
   if (preferred) {
     bump(preferred, 4, "用户指定偏好库加权");
   }
@@ -379,8 +398,14 @@ export function rankDatabasesForQuestion(question: string): Array<{
     .slice(0, 6);
 }
 
-export function formatRouteHintForPrompt() {
-  return questionRouteRules
+export function formatRouteHintForPrompt(question?: string) {
+  const rules = question
+    ? questionRouteRules.filter((rule) => rule.pattern.test(question))
+    : questionRouteRules;
+
+  const selected = rules.length > 0 ? rules : questionRouteRules.slice(0, 10);
+
+  return selected
     .map((rule) => {
       const tables = rule.suggestedTables
         ?.map((item) => `${item.database}.${item.table}`)

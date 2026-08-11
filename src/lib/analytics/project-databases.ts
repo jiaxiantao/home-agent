@@ -349,8 +349,38 @@ export function listProjectDatabaseRegistry() {
   }));
 }
 
-export function formatProjectDatabasesForPrompt() {
-  return dfcProjectDatabaseRegistry
+export function formatProjectDatabasesForPrompt(question?: string) {
+  let entries = dfcProjectDatabaseRegistry;
+
+  if (question) {
+    const ranked = new Map<string, number>();
+    for (const entry of entries) {
+      let score = 0;
+      if (question.toLowerCase().includes(entry.name.toLowerCase())) {
+        score += 20;
+      }
+      for (const kw of entry.keywords ?? []) {
+        if (question.includes(kw) || question.toLowerCase().includes(kw.toLowerCase())) {
+          score += 6;
+        }
+      }
+      if (score > 0) {
+        ranked.set(entry.name, score);
+      }
+    }
+
+    if (ranked.size > 0) {
+      entries = [...ranked.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([name]) => dfcProjectDatabaseRegistry.find((e) => e.name === name)!)
+        .filter(Boolean);
+    } else {
+      entries = entries.slice(0, 12);
+    }
+  }
+
+  return entries
     .map(
       (entry) =>
         `- ${entry.name} [${entry.domain}] — ${entry.description}${

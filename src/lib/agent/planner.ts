@@ -1,6 +1,10 @@
 import OpenAI from "openai";
 
 import { formatSchemaCatalogForPrompt } from "@/lib/analytics/schema-catalog";
+import {
+  formatBusinessGlossaryForPrompt,
+  formatServiceRepoMapForPrompt,
+} from "@/lib/analytics/business-glossary";
 import { formatProjectDatabasesForPrompt } from "@/lib/analytics/project-databases";
 import { getPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
 import { formatRouteHintForPrompt } from "@/lib/analytics/question-router";
@@ -12,7 +16,7 @@ import type { AgentToolResult } from "@/lib/agent/types";
 import { getLlmConfig, isLlmConfigured } from "@/lib/llm-config";
 import { PRODUCT_NAME_EN, PRODUCT_NAME_ZH } from "@/lib/product";
 
-function getPlannerSystem() {
+function getPlannerSystem(question?: string) {
   const preferred = getPreferredAnalyticsDatabase();
   const preferredHint = preferred
     ? `当前会话用户指定偏好库：${preferred}（仅作加权，仍需根据问题语义验证）。`
@@ -21,7 +25,14 @@ function getPlannerSystem() {
   return `你是「${PRODUCT_NAME_ZH}」（${PRODUCT_NAME_EN}）的规划器。
 产品目标：用户只需自然语言描述要查的数据；你必须主动规划「查哪个库 → 哪张表 → 哪些字段/条件」，生成只读 SQL 供用户确认执行。用户不应手动选择数据库或表。
 
-示例：「我想知道客户 id 为 xxx 的用户信息」→ route_question 推断库/表 → describe_table（可选）→ propose_sql → 等待确认。
+## 业务实体口径（消歧义，优先遵守）
+${formatBusinessGlossaryForPrompt(question)}
+
+示例：
+- 「用户 id 为 xxx 的用户信息」→ matador.cheniu_user（user_id / dfc_user_id）
+- 「客户管理跟进记录」→ super_mario.customer（CRM 客户档案）
+- 「会员有多少」→ danube_member.membership_personal_information
+
 禁止在无问题语义支撑时默认使用 matador；语义不明确时先 route_question / search_schema(acrossDatabases)。
 
 ## 自动规划铁律（业务问数）
@@ -32,16 +43,19 @@ function getPlannerSystem() {
    c) describe_table({ database, table }) — 确认字段与口径（已知核心表可跳过）
    d) propose_sql — SQL 必须使用 \`database\`.\`table\` 限定名
 3. 用户已明确库名/表名时，可跳过对应步骤，但仍建议 describe_table 后再写 SQL。
-4. 按 ID 查详情时：从问题提取 ID，写入 WHERE；客户/用户优先 matador.cheniu_user。
+4. 按 ID 查详情时：从问题提取 ID，写入 WHERE；区分 CRM 客户（super_mario.customer.id）与车牛用户（matador.cheniu_user.user_id/dfc_user_id）。
 5. 每次只调用一个工具；最多 ${getAgentMaxSteps()} 步。
 
 ${preferredHint}
 
-## 问题→库路由提示
-${formatRouteHintForPrompt()}
+## 问题→库路由提示${question ? "（与当前问题相关）" : ""}
+${formatRouteHintForPrompt(question)}
 
-## 大风车业务库登记
-${formatProjectDatabasesForPrompt()}
+## 大风车业务库登记${question ? "（与当前问题相关）" : ""}
+${formatProjectDatabasesForPrompt(question)}
+
+## 服务→库映射（GitLab 仓库）
+${formatServiceRepoMapForPrompt()}
 
 ## 工具
 - route_question: { question: string } — 【优先】根据问题自动规划候选库/表，并跨库搜索元数据
@@ -50,7 +64,7 @@ ${formatProjectDatabasesForPrompt()}
 - describe_table / get_column / list_indexes / list_foreign_keys / show_create_table / get_table_stats
 - search_schema: { keyword, database?, acrossDatabases?: true, scope?, limit? } — acrossDatabases=true 时跨授权业务库搜索
 - sample_table_rows: { table, database?, limit? }
-- list_schema: {} — 仅 matador 手写口径，不能替代跨库探索
+- list_schema: {} — 仅核心表手写口径，不能替代跨库探索
 - propose_sql: { sql, explanation } — 待确认只读 SQL（禁止直接 execute_sql）
 - build_chart: { columns, rows, title?, chartType? }
 
@@ -59,8 +73,8 @@ ${formatProjectDatabasesForPrompt()}
 - 非默认库或跨库必须 \`db\`.\`table\`
 - 正式车源/求购常用 test_type=0；订单 delete_time IS NULL；用户表 date_delete IS NULL
 
-## matador 核心表（仅参考，其他库请 introspect）
-${formatSchemaCatalogForPrompt()}
+## 核心表字段参考${question ? "（与当前问题相关）" : ""}
+${formatSchemaCatalogForPrompt(undefined, question)}
 
 只输出 JSON：
 1) {"action":"tool","tool":"...","args":{...},"reasoning":"..."}
@@ -129,7 +143,7 @@ export async function planAgentStep(
       temperature: 0.1,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: getPlannerSystem() },
+        { role: "system", content: getPlannerSystem(message) },
         { role: "user", content: JSON.stringify(userPayload) },
       ],
     });

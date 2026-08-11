@@ -6,7 +6,9 @@ export type SchemaColumn = {
 
 export type SchemaTable = {
   name: string;
-  domain: "car" | "trade" | "lead" | "ops" | "user";
+  /** 所属库，默认 matador */
+  database?: string;
+  domain: "car" | "trade" | "lead" | "ops" | "user" | "crm" | "member";
   description: string;
   columns: SchemaColumn[];
   notes?: string[];
@@ -148,18 +150,75 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
       { name: "date_create", type: "datetime", description: "写入时间" },
     ],
   },
+  {
+    name: "customer",
+    database: "super_mario",
+    domain: "crm",
+    description: "CRM 客户档案（门店销售跟进）",
+    columns: [
+      { name: "id", type: "varchar(80)", description: "CRM 客户主键" },
+      { name: "owner", type: "varchar(20)", description: "负责人" },
+      { name: "shop_code", type: "varchar(50)", description: "门店 lookup" },
+      { name: "phone", type: "varchar(100)", description: "手机号" },
+      { name: "name", type: "varchar(255)", description: "客户姓名" },
+      { name: "source", type: "varchar(80)", description: "来源" },
+      { name: "org_id", type: "varchar(20)", description: "组织 ID" },
+      { name: "department_id", type: "varchar(50)", description: "部门 ID" },
+    ],
+    notes: [
+      "与 matador.cheniu_user 不同：这是 CRM 客户档案，id 为 varchar",
+      "问「客户管理 / 跟进 / 客户档案」优先此表",
+    ],
+  },
+  {
+    name: "membership_personal_information",
+    database: "danube_member",
+    domain: "member",
+    description: "个人会员身份信息",
+    columns: [
+      { name: "id", type: "bigint", description: "主键" },
+      { name: "user_id", type: "varchar", description: "用户 ID" },
+      { name: "member_type_id", type: "bigint", description: "会员类型" },
+      { name: "status", type: "int", description: "会员状态" },
+      { name: "expire_time", type: "datetime", description: "到期时间" },
+    ],
+    notes: ["问「会员 / VIP」优先 danube_member 库"],
+  },
 ];
 
-export function formatSchemaCatalogForPrompt(tables = analyticsSchemaCatalog) {
-  return tables
+export function formatSchemaCatalogForPrompt(
+  tables = analyticsSchemaCatalog,
+  question?: string,
+) {
+  const filtered = question
+    ? tables.filter((table) => {
+        const db = table.database ?? "matador";
+        const haystack = `${question} ${db} ${table.name} ${table.description}`.toLowerCase();
+        return (
+          haystack.includes(table.name.toLowerCase()) ||
+          question.includes(table.description.slice(0, 4)) ||
+          question.toLowerCase().includes(db.toLowerCase()) ||
+          (table.domain === "car" && /车源|在售|库存/.test(question)) ||
+          (table.domain === "crm" && /客户管理|crm|跟进|客户档案/.test(question)) ||
+          (table.domain === "member" && /会员/.test(question)) ||
+          (table.domain === "user" && /用户|车牛/.test(question))
+        );
+      })
+    : tables;
+
+  const selected =
+    filtered.length > 0 ? filtered : tables.filter((t) => !(t.database && t.database !== "matador")).slice(0, 8);
+
+  return selected
     .map((table) => {
+      const db = table.database ?? "matador";
       const cols = table.columns
         .map((col) => `  - ${col.name} (${col.type}): ${col.description}`)
         .join("\n");
       const notes = table.notes?.length
         ? `\n注意: ${table.notes.join("；")}`
         : "";
-      return `库 matador · 表 ${table.name} [${table.domain}] — ${table.description}\n${cols}${notes}`;
+      return `库 ${db} · 表 ${table.name} [${table.domain}] — ${table.description}\n${cols}${notes}`;
     })
     .join("\n\n");
 }
