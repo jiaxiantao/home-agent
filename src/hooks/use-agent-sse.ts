@@ -14,6 +14,10 @@ import {
   updateQueryHistory,
   type QueryHistoryEntry,
 } from "@/lib/history/query-history";
+import {
+  getStoredAnalyticsEnv,
+  storeAnalyticsEnv,
+} from "@/lib/analytics/analytics-env-preference";
 import { parseSseBlock } from "@/lib/sse";
 import { PRODUCT_SLUG } from "@/lib/product";
 
@@ -229,7 +233,14 @@ export function useAgentStream() {
   const [threadId, setThreadId] = useState<string | undefined>(getStoredThreadId);
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
-  const [analyticsEnv, setAnalyticsEnv] = useState<string>("test");
+  const [analyticsEnv, setAnalyticsEnvState] = useState<string>(
+    () => getStoredAnalyticsEnv() ?? "test",
+  );
+  const setAnalyticsEnv = useCallback((envId: string) => {
+    const normalized = envId.trim().toLowerCase();
+    setAnalyticsEnvState(normalized);
+    storeAnalyticsEnv(normalized);
+  }, []);
   const [analyticsDatabase, setAnalyticsDatabase] = useState<string>("");
 
   const abortRef = useRef<AbortController | null>(null);

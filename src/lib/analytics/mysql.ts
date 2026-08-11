@@ -25,6 +25,9 @@ export type AnalyticsEnvProfile = {
   database?: string;
 };
 
+/** 大风车默认三套数据环境（未配置 ANALYTICS_MYSQL_PROFILES 时使用） */
+export const DEFAULT_ANALYTICS_ENVS = ["test", "prepub", "prod"] as const;
+
 const envStore = new AsyncLocalStorage<AnalyticsEnvId>();
 
 function parsePositiveInt(value: string | undefined, fallback: number) {
@@ -40,7 +43,7 @@ function defaultEnvId() {
   return process.env.ANALYTICS_MYSQL_ENV?.trim() || "test";
 }
 
-/** 已声明的环境列表，如 test,prepub */
+/** 已声明的环境列表，如 test,prepub,prod */
 export function listDeclaredAnalyticsEnvs(): string[] {
   const raw = process.env.ANALYTICS_MYSQL_PROFILES?.trim();
 
@@ -51,7 +54,25 @@ export function listDeclaredAnalyticsEnvs(): string[] {
       .filter(Boolean);
   }
 
-  return [defaultEnvId().toLowerCase()];
+  return [...DEFAULT_ANALYTICS_ENVS];
+}
+
+export function getAnalyticsEnvLabel(id: string): string {
+  const normalized = id.trim().toLowerCase();
+
+  if (normalized === "test") {
+    return "测试";
+  }
+
+  if (normalized === "prepub" || normalized === "pre") {
+    return "预发";
+  }
+
+  if (normalized === "prod" || normalized === "online" || normalized === "production") {
+    return "线上";
+  }
+
+  return id;
 }
 
 function loadProfileConfig(envId: string): AnalyticsMysqlConfig | null {
@@ -140,10 +161,14 @@ function loadProfileConfig(envId: string): AnalyticsMysqlConfig | null {
 
 export function resolveAnalyticsEnvId(requested?: string | null) {
   const declared = listDeclaredAnalyticsEnvs();
-  const fallback = declared[0] ?? defaultEnvId().toLowerCase();
+  const configuredFallback =
+    declared.find((id) => loadProfileConfig(id)) ??
+    declared.find((id) => id === defaultEnvId().toLowerCase()) ??
+    declared[0] ??
+    defaultEnvId().toLowerCase();
 
   if (!requested?.trim()) {
-    return fallback;
+    return configuredFallback;
   }
 
   const normalized = requested.trim().toLowerCase();
@@ -166,7 +191,7 @@ export function listAnalyticsEnvProfiles(): AnalyticsEnvProfile[] {
     const config = loadProfileConfig(id);
     return {
       id,
-      label: id === "prepub" || id === "pre" ? "预发" : id === "prod" ? "生产" : "测试",
+      label: getAnalyticsEnvLabel(id),
       configured: Boolean(config),
       host: config?.host,
       database: config?.database,

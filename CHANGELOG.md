@@ -4,6 +4,29 @@
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-08-11
+
+### Added
+
+- 问数页支持 **测试 / 预发 / 线上** 三套数据环境切换（深色下拉，选择持久化到 localStorage）。
+- 默认声明 `test,prepub,prod` 三个 profile；未配置的环境显示「未配置」且不可选。
+
+### Changed
+
+- `.env.example` 补充三套 MySQL 连接模板；环境标签「线上」替代「生产」。
+
+## [0.4.4] - 2026-08-11
+
+### Added
+
+- 业务实体口径层 `business-glossary.ts`：区分车牛用户（matador.cheniu_user）、CRM 客户（super_mario.customer）、会员（danube_member）等易混概念。
+- 扩展 schema-catalog：super_mario.customer、danube_member.membership_personal_information。
+- Planner 动态上下文：按当前问题注入相关库/路由/表结构，减少 42 库全量 prompt。
+
+### Changed
+
+- 问数路由精确化：「用户 id」→ matador；「客户管理/跟进」→ super_mario；「客户 id」歧义时双候选。
+
 ## [0.4.3] - 2026-08-11
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "dfc-data-agent",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "private": false,
   "description": "DFC Data Agent（大风车数据分析助手）— NL 自动规划库表 → HITL 确认 → 出数",
   "license": "MIT",
