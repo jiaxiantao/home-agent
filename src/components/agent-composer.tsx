@@ -57,9 +57,9 @@ export function AgentComposer({
   }
 
   return (
-    <div className="sticky bottom-0 z-20 -mx-1 border-t border-white/[0.06] bg-[#0a0a0c]/92 px-1 pt-3 pb-1 backdrop-blur-md">
+    <div className="sticky bottom-0 z-20 -mx-1 border-t border-white/[0.05] bg-[#0a0a0c]/90 px-1 pt-3 pb-1 backdrop-blur-md">
       {!hasConversation ? (
-        <div className="mb-2 flex flex-wrap gap-1.5">
+        <div className="mb-2.5 flex flex-wrap gap-1">
           {quickPrompts.slice(0, 6).map((item) => (
             <button
               key={item.id}
@@ -67,7 +67,7 @@ export function AgentComposer({
               onClick={() => onQuickPrompt(item.prompt)}
               onDoubleClick={() => onQuickPrompt(item.prompt, true)}
               title="双击立即运行"
-              className="rounded-md border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-[11px] text-zinc-400 transition hover:border-white/15 hover:bg-white/[0.04] hover:text-zinc-200"
+              className="rounded-full px-2.5 py-1 text-[11px] text-zinc-500 transition hover:bg-white/[0.05] hover:text-zinc-200"
             >
               {item.label}
             </button>
@@ -75,7 +75,13 @@ export function AgentComposer({
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-white/[0.1] bg-[#121214] shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_30px_rgba(0,0,0,0.35)] focus-within:border-white/20">
+      <div
+        className={cn(
+          "rounded-2xl border border-white/[0.08] bg-[#111113]",
+          "shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_36px_rgba(0,0,0,0.35)]",
+          "transition focus-within:border-white/18",
+        )}
+      >
         <textarea
           ref={setTextareaNode}
           value={value}
@@ -94,11 +100,11 @@ export function AgentComposer({
               ? "继续追问，例如：那按城市分布呢？"
               : "用自然语言提问，例如：客户 id 为 xxx 的用户信息"
           }
-          className="max-h-40 w-full resize-none bg-transparent px-3.5 pt-3 pb-2 text-[13px] leading-6 text-zinc-100 outline-none placeholder:text-zinc-600"
+          className="max-h-40 w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-[13px] leading-6 text-zinc-100 outline-none placeholder:text-zinc-600"
         />
 
         <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-0.5">
             <AgentDatabaseSwitcher
               value={analyticsDatabase}
               onChange={onAnalyticsDatabaseChange}
@@ -113,7 +119,7 @@ export function AgentComposer({
               type="button"
               onClick={onReset}
               disabled={running}
-              className="rounded-md px-2 py-1 text-[11px] text-zinc-500 transition hover:bg-white/[0.04] hover:text-zinc-300 disabled:opacity-40"
+              className="rounded-md px-2 py-1 text-[11px] text-zinc-600 transition hover:bg-white/[0.04] hover:text-zinc-300 disabled:opacity-40"
             >
               新对话
             </button>
@@ -121,13 +127,13 @@ export function AgentComposer({
 
           <div className="flex items-center gap-2">
             <span className="hidden text-[10px] text-zinc-600 sm:inline">
-              ⌘↵ 发送
+              ⌘↵
             </span>
             {running ? (
               <button
                 type="button"
                 onClick={onStop}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:bg-white/[0.08]"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:bg-white/[0.08]"
                 title="停止 (Esc)"
               >
                 <span className="h-2.5 w-2.5 rounded-[2px] bg-zinc-200" />
@@ -138,7 +144,7 @@ export function AgentComposer({
                 onClick={onSubmit}
                 disabled={!value.trim()}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40",
+                  "inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-35",
                   "bg-zinc-100 text-zinc-950 hover:bg-white",
                 )}
               >
