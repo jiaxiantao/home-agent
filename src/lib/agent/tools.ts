@@ -12,6 +12,7 @@ import {
   introspectListIndexes,
   introspectListProjectDatabases,
   introspectListTables,
+  introspectRouteQuestion,
   introspectSampleTableRows,
   introspectSearchSchema,
   introspectShowCreateTable,
@@ -227,6 +228,13 @@ export async function runAgentTool(
     case "search_schema": {
       const keyword = requireString(args, "keyword", "search_schema");
       const database = readOptionalString(args, "database");
+      const acrossRaw = readOptionalString(args, "acrossDatabases");
+      const acrossDatabases =
+        acrossRaw === "true" ||
+        acrossRaw === "1" ||
+        acrossRaw === "*" ||
+        database === "*" ||
+        readOptionalBoolean(args, "acrossDatabases") === true;
       const scopeRaw = readOptionalString(args, "scope");
       const scope =
         scopeRaw === "tables" || scopeRaw === "columns" || scopeRaw === "all"
@@ -234,30 +242,78 @@ export async function runAgentTool(
           : "all";
       const limit = readOptionalNumber(args, "limit");
       const result = await introspectSearchSchema({
-        database,
+        database: acrossDatabases ? undefined : database,
         keyword,
         scope,
         limit,
+        acrossDatabases,
       });
 
       if (!result.hits.length) {
         return {
-          output: `库 ${result.database} 中未找到与「${result.keyword}」匹配的元数据。`,
+          output: acrossDatabases
+            ? `跨库未找到与「${result.keyword}」匹配的元数据。`
+            : `库 ${result.database} 中未找到与「${result.keyword}」匹配的元数据。`,
           data: result,
         };
       }
 
       const lines = result.hits.map((hit) => {
         if (hit.kind === "table") {
-          return `- [表] ${hit.table}${hit.comment ? ` — ${hit.comment}` : ""}`;
+          return `- [表] ${hit.database}.${hit.table}${hit.comment ? ` — ${hit.comment}` : ""}`;
         }
-        return `- [字段] ${hit.table}.${hit.column} (${hit.columnType})${hit.comment ? ` — ${hit.comment}` : ""}`;
+        return `- [字段] ${hit.database}.${hit.table}.${hit.column} (${hit.columnType})${hit.comment ? ` — ${hit.comment}` : ""}`;
       });
 
       return {
         output: [
-          `在 ${result.database} 中找到 ${result.hits.length} 条匹配：`,
+          acrossDatabases
+            ? `跨 ${result.databases.length} 个业务库找到 ${result.hits.length} 条匹配：`
+            : `在 ${result.database} 中找到 ${result.hits.length} 条匹配：`,
           ...lines,
+        ].join("\n"),
+        data: result,
+      };
+    }
+    case "route_question": {
+      const question =
+        readOptionalString(args, "question") ||
+        readOptionalString(args, "message") ||
+        "";
+      if (!question) {
+        throw new Error("route_question 需要 question 参数");
+      }
+      const result = await introspectRouteQuestion({
+        question,
+        limitPerTerm: readOptionalNumber(args, "limitPerTerm"),
+      });
+
+      const candidateLines = result.candidates.map(
+        (item) =>
+          `- ${item.database} (score=${item.score}) — ${item.reasons.join("；")}${
+            item.entry ? `｜${item.entry.description}` : ""
+          }`,
+      );
+      const tableLines = result.topTables.map(
+        (item) =>
+          `- ${item.database}.${item.table}${item.comment ? ` — ${item.comment}` : ""}`,
+      );
+
+      return {
+        output: [
+          `问题路由「${result.question}」`,
+          `搜索词：${result.searchTerms.join(", ") || "（无）"}`,
+          "候选数据库：",
+          candidateLines.join("\n") || "- （无）",
+          "候选表：",
+          tableLines.join("\n") || "- （暂无表名命中，请 list_tables / describe 已知表）",
+          `建议库：${result.suggestedDatabase}${
+            result.suggestedTable ? `，建议表：${result.suggestedTable}` : ""
+          }`,
+          ...(result.schemaSearchError
+            ? [`元数据搜索降级：${result.schemaSearchError}`]
+            : []),
+          ...result.nextSteps.map((step) => `下一步：${step}`),
         ].join("\n"),
         data: result,
       };

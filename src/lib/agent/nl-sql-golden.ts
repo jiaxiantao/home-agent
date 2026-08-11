@@ -1,9 +1,13 @@
 // NL → SQL / 工具规划黄金用例（规则规划器回归）
 // 用于无 LLM / CI 场景，保证核心问法路由稳定
 
+import type { AgentToolResult } from "@/lib/agent/types";
+
 export type GoldenCase = {
   id: string;
   question: string;
+  /** 模拟 prior 工具结果（如已完成 route_question） */
+  prior?: AgentToolResult[];
   expect: {
     action: "tool" | "answer";
     tool?: string;
@@ -13,20 +17,52 @@ export type GoldenCase = {
   };
 };
 
+function routedPrior(
+  question: string,
+  suggestedDatabase = "matador",
+): AgentToolResult[] {
+  return [
+    {
+      tool: "route_question",
+      args: { question },
+      output: `问题路由「${question}」→ ${suggestedDatabase}`,
+      data: {
+        question,
+        suggestedDatabase,
+        suggestedTable: undefined,
+        candidates: [{ database: suggestedDatabase, score: 10, reasons: ["golden"] }],
+        searchTerms: [],
+        hits: [],
+        topTables: [],
+      },
+    },
+  ];
+}
+
 export const nlSqlGoldenCases: GoldenCase[] = [
   {
-    id: "car-count",
+    id: "car-count-route",
     question: "大风车正式车源一共有多少辆？",
     expect: {
       action: "tool",
+      tool: "route_question",
+    },
+  },
+  {
+    id: "car-count",
+    question: "大风车正式车源一共有多少辆？",
+    prior: routedPrior("大风车正式车源一共有多少辆？"),
+    expect: {
+      action: "tool",
       tool: "propose_sql",
-      sqlIncludes: ["FROM car", "test_type = 0", "COUNT"],
+      sqlIncludes: ["matador", "car", "test_type = 0", "COUNT"],
       sqlExcludes: ["DELETE", "UPDATE", "INSERT"],
     },
   },
   {
     id: "car-status-dist",
     question: "统计各状态的正式车源数量分布",
+    prior: routedPrior("统计各状态的正式车源数量分布"),
     expect: {
       action: "tool",
       tool: "propose_sql",
@@ -36,6 +72,7 @@ export const nlSqlGoldenCases: GoldenCase[] = [
   {
     id: "ops-trend",
     question: "看一下最近运营日报里新增车源和求购的趋势",
+    prior: routedPrior("看一下最近运营日报里新增车源和求购的趋势"),
     expect: {
       action: "tool",
       tool: "propose_sql",
@@ -45,6 +82,7 @@ export const nlSqlGoldenCases: GoldenCase[] = [
   {
     id: "order-count",
     question: "主订单一共有多少（排除已删除）？",
+    prior: routedPrior("主订单一共有多少（排除已删除）？"),
     expect: {
       action: "tool",
       tool: "propose_sql",
@@ -54,10 +92,19 @@ export const nlSqlGoldenCases: GoldenCase[] = [
   {
     id: "buy-count",
     question: "正式求购线索总量是多少？",
+    prior: routedPrior("正式求购线索总量是多少？"),
     expect: {
       action: "tool",
       tool: "propose_sql",
       sqlIncludes: ["buy_car", "test_type = 0"],
+    },
+  },
+  {
+    id: "member-route",
+    question: "会员中心有多少注册用户？",
+    expect: {
+      action: "tool",
+      tool: "route_question",
     },
   },
   {

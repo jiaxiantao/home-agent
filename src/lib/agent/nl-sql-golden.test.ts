@@ -7,7 +7,7 @@ import { assertReadOnlySql } from "@/lib/analytics/sql-guard";
 describe("NL→SQL golden cases (mock planner)", () => {
   for (const testCase of nlSqlGoldenCases) {
     it(testCase.id, () => {
-      const plan = buildMockPlan(testCase.question, []);
+      const plan = buildMockPlan(testCase.question, testCase.prior ?? []);
 
       expect(plan.action).toBe(testCase.expect.action);
 

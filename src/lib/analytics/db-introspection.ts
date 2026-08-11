@@ -8,6 +8,10 @@ import {
 import { listProjectDatabaseRegistry } from "@/lib/analytics/project-databases";
 import { resolvePreferredOrDefaultDatabase } from "@/lib/analytics/preferred-database";
 import {
+  extractQuestionSearchTerms,
+  rankDatabasesForQuestion,
+} from "@/lib/analytics/question-router";
+import {
   assertSqlIdentifier,
   quoteSqlIdentifier,
 } from "@/lib/analytics/sql-identifier";
@@ -504,30 +508,54 @@ export async function introspectSearchSchema(options: {
   keyword: string;
   scope?: "all" | "tables" | "columns";
   limit?: number;
+  /** 跨多个授权业务库搜索；为 true 时忽略单库默认 */
+  acrossDatabases?: boolean;
 }) {
-  const database = resolveDatabase(options.database);
   const scope = options.scope ?? "all";
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
   const pattern = normalizeLikePattern(options.keyword);
+  const keyword = options.keyword.trim();
+
+  const databases = options.acrossDatabases
+    ? filterAllowedDatabaseNames(
+        listProjectDatabaseRegistry().map((entry) => entry.name),
+      )
+    : [resolveDatabase(options.database)];
+
+  if (!databases.length) {
+    return {
+      database: options.database ?? "*",
+      databases: [] as string[],
+      keyword,
+      scope,
+      acrossDatabases: Boolean(options.acrossDatabases),
+      hits: [] as SchemaSearchHit[],
+    };
+  }
+
   const hits: SchemaSearchHit[] = [];
+  const placeholders = databases.map(() => "?").join(", ");
 
   if (scope === "all" || scope === "tables") {
     const { rows } = await queryAnalyticsMysqlWithParams<RowDataPacket[]>(
       `
-        SELECT TABLE_NAME AS tableName, TABLE_COMMENT AS comment
+        SELECT
+          TABLE_SCHEMA AS databaseName,
+          TABLE_NAME AS tableName,
+          TABLE_COMMENT AS comment
         FROM information_schema.TABLES
-        WHERE TABLE_SCHEMA = ?
+        WHERE TABLE_SCHEMA IN (${placeholders})
           AND (TABLE_NAME LIKE ? ESCAPE '\\\\' OR TABLE_COMMENT LIKE ? ESCAPE '\\\\')
-        ORDER BY TABLE_NAME ASC
+        ORDER BY TABLE_SCHEMA ASC, TABLE_NAME ASC
         LIMIT ?
       `,
-      [database, pattern, pattern, limit],
+      [...databases, pattern, pattern, limit],
     );
 
     for (const row of rows) {
       hits.push({
         kind: "table",
-        database,
+        database: String(row.databaseName),
         table: String(row.tableName),
         comment: row.comment ? String(row.comment) : undefined,
       });
@@ -541,27 +569,28 @@ export async function introspectSearchSchema(options: {
       const { rows } = await queryAnalyticsMysqlWithParams<RowDataPacket[]>(
         `
           SELECT
+            TABLE_SCHEMA AS databaseName,
             TABLE_NAME AS tableName,
             COLUMN_NAME AS columnName,
             COLUMN_TYPE AS columnType,
             COLUMN_COMMENT AS comment
           FROM information_schema.COLUMNS
-          WHERE TABLE_SCHEMA = ?
+          WHERE TABLE_SCHEMA IN (${placeholders})
             AND (
               COLUMN_NAME LIKE ? ESCAPE '\\\\'
               OR COLUMN_TYPE LIKE ? ESCAPE '\\\\'
               OR COLUMN_COMMENT LIKE ? ESCAPE '\\\\'
             )
-          ORDER BY TABLE_NAME ASC, ORDINAL_POSITION ASC
+          ORDER BY TABLE_SCHEMA ASC, TABLE_NAME ASC, ORDINAL_POSITION ASC
           LIMIT ?
         `,
-        [database, pattern, pattern, pattern, remaining],
+        [...databases, pattern, pattern, pattern, remaining],
       );
 
       for (const row of rows) {
         hits.push({
           kind: "column",
-          database,
+          database: String(row.databaseName),
           table: String(row.tableName),
           column: String(row.columnName),
           columnType: String(row.columnType),
@@ -572,10 +601,111 @@ export async function introspectSearchSchema(options: {
   }
 
   return {
-    database,
-    keyword: options.keyword.trim(),
+    database: options.acrossDatabases ? "*" : databases[0]!,
+    databases,
+    keyword,
     scope,
+    acrossDatabases: Boolean(options.acrossDatabases),
     hits,
+  };
+}
+
+export async function introspectRouteQuestion(options: {
+  question: string;
+  limitPerTerm?: number;
+}) {
+  const question = options.question.trim();
+
+  if (!question) {
+    throw new Error("route_question 需要 question");
+  }
+
+  const candidates = rankDatabasesForQuestion(question);
+  const searchTerms = extractQuestionSearchTerms(question);
+  const limitPerTerm = Math.min(Math.max(options.limitPerTerm ?? 12, 1), 40);
+  const databases = candidates.map((item) => item.database);
+  const hits: SchemaSearchHit[] = [];
+  const seen = new Set<string>();
+  let schemaSearchError: string | undefined;
+
+  const absorbHits = (incoming: SchemaSearchHit[], preferCandidates: boolean) => {
+    for (const hit of incoming) {
+      if (
+        preferCandidates &&
+        databases.length &&
+        !databases.some(
+          (database) => database.toLowerCase() === hit.database.toLowerCase(),
+        )
+      ) {
+        continue;
+      }
+
+      const key = `${hit.kind}:${hit.database}.${hit.table}.${hit.column ?? ""}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      hits.push(hit);
+    }
+  };
+
+  try {
+    for (const term of searchTerms.slice(0, 4)) {
+      const result = await introspectSearchSchema({
+        keyword: term,
+        acrossDatabases: true,
+        scope: "all",
+        limit: limitPerTerm,
+      });
+      absorbHits(result.hits, true);
+    }
+
+    // 候选库过滤过严时，回退为全量搜索命中
+    if (!hits.length && searchTerms[0]) {
+      const fallback = await introspectSearchSchema({
+        keyword: searchTerms[0],
+        acrossDatabases: true,
+        scope: "all",
+        limit: limitPerTerm,
+      });
+      absorbHits(fallback.hits, false);
+    }
+  } catch (error) {
+    // 无 MySQL / 网络不可达时仍返回规则层路由，保证 CI 与离线规则规划可用
+    schemaSearchError =
+      error instanceof Error ? error.message : "schema search unavailable";
+  }
+
+  const topTables = hits
+    .filter((hit) => hit.kind === "table")
+    .slice(0, 8)
+    .map((hit) => ({
+      database: hit.database,
+      table: hit.table,
+      comment: hit.comment,
+    }));
+
+  const suggestedDatabase = topTables[0]?.database ?? candidates[0]?.database ?? "matador";
+  const suggestedTable = topTables[0]?.table;
+
+  return {
+    question,
+    candidates,
+    searchTerms,
+    hits: hits.slice(0, 40),
+    topTables,
+    suggestedDatabase,
+    suggestedTable,
+    schemaSearchError,
+    nextSteps: [
+      suggestedTable
+        ? `建议下一步 describe_table：database=${suggestedDatabase}, table=${suggestedTable}`
+        : `建议下一步 list_tables：database=${suggestedDatabase}`,
+      "确认字段与口径后，再 propose_sql，SQL 使用 `database`.`table` 限定名",
+      ...(schemaSearchError
+        ? [`元数据搜索暂不可用（${schemaSearchError}），已仅返回规则层库路由`]
+        : []),
+    ],
   };
 }
 

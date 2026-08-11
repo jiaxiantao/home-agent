@@ -31,12 +31,34 @@ describe("buildMockPlan", () => {
     }
   });
 
-  it("proposes sql for analytics questions", () => {
+  it("routes analytics questions before proposing sql", () => {
     const plan = buildMockPlan("大风车正式车源一共有多少辆？", []);
 
     expect(plan.action).toBe("tool");
     if (plan.action === "tool") {
+      expect(plan.tool).toBe("route_question");
+      expect(String(plan.args.question)).toMatch(/车源/);
+    }
+  });
+
+  it("proposes qualified sql after route_question", () => {
+    const plan = buildMockPlan("大风车正式车源一共有多少辆？", [
+      {
+        tool: "route_question",
+        args: { question: "大风车正式车源一共有多少辆？" },
+        output: "routed",
+        data: {
+          suggestedDatabase: "matador",
+          suggestedTable: undefined,
+          topTables: [],
+        },
+      },
+    ]);
+
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
       expect(plan.tool).toBe("propose_sql");
+      expect(String(plan.args.sql)).toMatch(/`matador`\.`car`/i);
       expect(String(plan.args.sql)).toMatch(/select/i);
     }
   });

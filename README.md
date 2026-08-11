@@ -11,8 +11,10 @@
 
 | 工具 | 说明 |
 |------|------|
-| `list_schema` | 分析库表目录（车源/订单/求购/运营） |
-| `propose_sql` | 提出待确认的只读 SQL |
+| `route_question` | 按问题语义自动规划候选库/表（可跨库搜元数据） |
+| `list_schema` | matador 手写业务口径目录 |
+| `search_schema` | 按关键词搜表/字段（支持跨业务库） |
+| `propose_sql` | 提出待确认的只读 SQL（建议 \`db\`.\`table\`） |
 | `execute_sql` | 用户确认后执行（不可由规划器直接触发） |
 | `build_chart` | 根据结果生成 bar/line/pie |
 

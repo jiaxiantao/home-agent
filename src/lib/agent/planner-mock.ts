@@ -216,7 +216,7 @@ export function buildMockPlan(
 
   const wantsAnalytics =
     !isSchemaQuestion &&
-    /车源|订单|求购|线索|成交|分布|趋势|统计|多少|总量|operate_report|分析|sql|查询/.test(
+    /车源|订单|求购|线索|成交|分布|趋势|统计|多少|总量|operate_report|分析|sql|查询|会员|金融|贷款|合同|联盟|服务市场|找车源|二手车/.test(
       normalized,
     );
 
@@ -379,15 +379,60 @@ export function buildMockPlan(
   }
 
   if (wantsAnalytics && !hasTool(prior, "propose_sql") && !hasTool(prior, "execute_sql")) {
+    // 1) 先自动路由库/表
+    if (!hasTool(prior, "route_question")) {
+      return {
+        action: "tool",
+        tool: "route_question",
+        args: { question: normalized },
+        reasoning: "业务问数：先自动规划候选数据库与表",
+      };
+    }
+
+    const routed = lastToolData<{
+      suggestedDatabase?: string;
+      suggestedTable?: string;
+      topTables?: Array<{ database: string; table: string }>;
+    }>(prior, "route_question");
+
+    const targetDatabase =
+      databaseName ||
+      routed?.suggestedDatabase ||
+      routed?.topTables?.[0]?.database ||
+      "matador";
+    const targetTable =
+      (tableName && tableName !== databaseName ? tableName : undefined) ||
+      routed?.suggestedTable ||
+      routed?.topTables?.[0]?.table;
+
+    // 2) 有候选表则描述字段，确认口径（无 MySQL 命中时跳过，直接用规则模板）
+    if (targetTable && !hasTool(prior, "describe_table")) {
+      return {
+        action: "tool",
+        tool: "describe_table",
+        args: { database: targetDatabase, table: targetTable },
+        reasoning: `已路由到 ${targetDatabase}.${targetTable}，先查看字段再写 SQL`,
+      };
+    }
+
+    const qualify = (table: string, sqlBody: string) =>
+      sqlBody.replace(
+        new RegExp(`\\bFROM\\s+${table}\\b`, "i"),
+        `FROM \`${targetDatabase}\`.\`${table}\``,
+      );
+
     if (/分布|状态/.test(normalized) && /车源/.test(normalized)) {
       return {
         action: "tool",
         tool: "propose_sql",
         args: {
-          sql: "SELECT car_status, COUNT(*) AS cnt FROM car WHERE test_type = 0 GROUP BY car_status ORDER BY cnt DESC LIMIT 50",
-          explanation: "按车源状态统计正式车源数量分布",
+          sql: qualify(
+            "car",
+            "SELECT car_status, COUNT(*) AS cnt FROM car WHERE test_type = 0 GROUP BY car_status ORDER BY cnt DESC LIMIT 50",
+          ),
+          explanation: `按车源状态统计正式车源数量分布（库 ${targetDatabase}）`,
         },
-        reasoning: "演示模式：提出车源状态分布 SQL",
+        reasoning: "自动规划完成：提出车源状态分布 SQL",
       };
     }
 
@@ -396,10 +441,13 @@ export function buildMockPlan(
         action: "tool",
         tool: "propose_sql",
         args: {
-          sql: "SELECT report_date, car_new, buy_new, pv, uv FROM operate_report ORDER BY report_date DESC LIMIT 14",
-          explanation: "查看最近运营日报中的新增车源/求购与流量",
+          sql: qualify(
+            "operate_report",
+            "SELECT report_date, car_new, buy_new, pv, uv FROM operate_report ORDER BY report_date DESC LIMIT 14",
+          ),
+          explanation: `查看最近运营日报（库 ${targetDatabase}）`,
         },
-        reasoning: "演示模式：提出运营趋势 SQL",
+        reasoning: "自动规划完成：提出运营趋势 SQL",
       };
     }
 
@@ -408,10 +456,13 @@ export function buildMockPlan(
         action: "tool",
         tool: "propose_sql",
         args: {
-          sql: "SELECT COUNT(*) AS order_count FROM main_order WHERE delete_time IS NULL",
-          explanation: "统计未删除的主订单总量",
+          sql: qualify(
+            "main_order",
+            "SELECT COUNT(*) AS order_count FROM main_order WHERE delete_time IS NULL",
+          ),
+          explanation: `统计未删除主订单总量（库 ${targetDatabase}）`,
         },
-        reasoning: "演示模式：提出订单总量 SQL",
+        reasoning: "自动规划完成：提出订单总量 SQL",
       };
     }
 
@@ -420,10 +471,25 @@ export function buildMockPlan(
         action: "tool",
         tool: "propose_sql",
         args: {
-          sql: "SELECT COUNT(*) AS buy_count FROM buy_car WHERE test_type = 0",
-          explanation: "统计正式求购线索总量",
+          sql: qualify(
+            "buy_car",
+            "SELECT COUNT(*) AS buy_count FROM buy_car WHERE test_type = 0",
+          ),
+          explanation: `统计正式求购线索总量（库 ${targetDatabase}）`,
         },
-        reasoning: "演示模式：提出求购总量 SQL",
+        reasoning: "自动规划完成：提出求购总量 SQL",
+      };
+    }
+
+    if (targetTable) {
+      return {
+        action: "tool",
+        tool: "propose_sql",
+        args: {
+          sql: `SELECT COUNT(*) AS row_count FROM \`${targetDatabase}\`.\`${targetTable}\` LIMIT 1`,
+          explanation: `基于自动路由，统计 ${targetDatabase}.${targetTable} 行数（请核对业务口径）`,
+        },
+        reasoning: "自动规划完成：对路由到的表提出计数 SQL",
       };
     }
 
@@ -431,10 +497,13 @@ export function buildMockPlan(
       action: "tool",
       tool: "propose_sql",
       args: {
-        sql: "SELECT COUNT(*) AS car_count FROM car WHERE test_type = 0",
-        explanation: "统计正式车源总量",
+        sql: qualify(
+          "car",
+          "SELECT COUNT(*) AS car_count FROM car WHERE test_type = 0",
+        ),
+        explanation: `统计正式车源总量（库 ${targetDatabase}）`,
       },
-      reasoning: "演示模式：提出车源总量 SQL",
+      reasoning: "自动规划完成：提出车源总量 SQL",
     };
   }
 

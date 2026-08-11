@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-08-11
+
+### Added
+
+- `route_question`：按自然语言自动规划候选数据库与表；跨库 `search_schema(acrossDatabases)`。
+- 规则/LLM 规划器业务问数标准路径：route → describe/search → `propose_sql`（\`db\`.\`table\`）。
+
+### Changed
+
+- 默认 `AGENT_MAX_STEPS` 6 → 8，覆盖多步路由。
+- MySQL 不可达时路由仍返回规则层候选库（CI / 离线可用）。
+
 ### Added
 
 - 大风车数据分析助手：对接 matador test MySQL（`ANALYTICS_MYSQL_*`）。

@@ -19,6 +19,7 @@
 - [x] Agent 主流程：HITL 失败可重试、规划上下文截断、查询后答案合成、规则多轮追问、错误补 `done`
 - [x] Agent 前端交互：Cursor 风格对话流、活动步骤折叠、粘性 Composer、审批式 SQL 确认卡
 - [x] 多业务库分析：登记 danube_* / matador 等，会话可选偏好库，SQL 支持 \`db\`.\`table\`
+- [x] 问题自动路由：`route_question` 按语义规划候选库/表；业务问数先探索再 `propose_sql`；跨库 `search_schema`
 
 ## 可选增强
 
@@ -26,6 +27,7 @@
 - [ ] 元数据结果 A2UI 化（list_tables / describe_table）
 - [ ] 确认卡增加「重新生成 SQL / 先 EXPLAIN」
 - [ ] 非 matador 库的手写业务口径目录
+- [ ] 路由规则从业务知识库/表注释持续扩充
 
 ## 文档
 

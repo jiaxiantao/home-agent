@@ -11,6 +11,7 @@ export const agentToolNameSchema = z.enum([
   "show_create_table",
   "get_table_stats",
   "search_schema",
+  "route_question",
   "sample_table_rows",
   "list_schema",
   "propose_sql",
