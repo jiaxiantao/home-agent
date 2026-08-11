@@ -1,6 +1,6 @@
 {
   "name": "home-agent",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": false,
   "description": "Dafengche data analysis agent — NL to SQL, HITL confirm, charts via A2UI",
   "license": "MIT",
@@ -31,6 +31,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:integration": "vitest run src/lib/analytics/mysql.integration.test.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "smoke": "tsx scripts/smoke-api.ts",

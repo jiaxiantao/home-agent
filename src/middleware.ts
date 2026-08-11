@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import {
-  getAuthCookieName,
   getAuthMode,
   isAuthEnabled,
 } from "@/lib/security/auth-config";
@@ -67,6 +66,7 @@ export const config = {
     "/api/history",
     "/api/audit",
     "/api/favorites",
+    "/api/templates",
     "/api/envs",
     "/",
   ],

@@ -27,6 +27,8 @@ AUTH_ADMIN_USER_IDS=admin001
 RATE_LIMIT_AGENT_PER_MIN=30
 ```
 
+管理员（`AUTH_ADMIN_USER_IDS`）可：查询 `/api/audit`、使用 `sample_table_rows`、发布/删除团队问法模板 `/api/templates`。
+
 ## 鉴权模式
 
 | 模式 | 适用 |

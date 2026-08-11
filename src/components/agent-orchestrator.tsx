@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentConversation } from "@/components/agent-conversation";
 import { AgentEnvSwitcher } from "@/components/agent-env-switcher";
 import { AgentFavoritesPanel } from "@/components/agent-favorites-panel";
+import { AgentTeamTemplatesPanel } from "@/components/agent-team-templates-panel";
 import { AgentHistoryPanel } from "@/components/agent-history-panel";
 import { AgentMockBanner } from "@/components/agent-mock-banner";
 import { AgentTracePanel } from "@/components/agent-trace-panel";
@@ -190,6 +191,14 @@ export function AgentOrchestratorDemo({
       </div>
 
       <aside className="space-y-3 lg:sticky lg:top-24">
+        <AgentTeamTemplatesPanel
+          currentPrompt={message}
+          onSelect={(prompt) => {
+            setMessage(prompt);
+            textareaRef.current?.focus();
+          }}
+        />
+
         <AgentFavoritesPanel
           currentPrompt={message}
           onSelect={(prompt) => {

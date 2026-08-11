@@ -94,6 +94,7 @@ pnpm test:e2e
 | `POST /api/agent` | Agent 循环（SSE；支持 resume 确认 SQL） |
 | `GET /api/history` | 当前用户查询历史 |
 | `GET /api/favorites` | 收藏问法 |
+| `GET /api/templates` | 团队问法模板（管理员可 POST/DELETE） |
 | `GET /api/envs` | 可用分析环境列表 |
 | `GET /api/audit` | 管理员审计记录查询 |
 

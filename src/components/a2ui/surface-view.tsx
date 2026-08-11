@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   Bar,
@@ -221,15 +221,15 @@ export function A2UISurfaceView({
   const editableCode = surface.components.find(
     (component) => component.type === "Code" && component.editable,
   );
-  const [editableSql, setEditableSql] = useState(
-    editableCode?.type === "Code" ? editableCode.code : "",
-  );
+  const codeFromSurface =
+    editableCode?.type === "Code" ? editableCode.code : "";
+  const [editableSql, setEditableSql] = useState(codeFromSurface);
+  const [syncedCode, setSyncedCode] = useState(codeFromSurface);
 
-  useEffect(() => {
-    if (editableCode?.type === "Code") {
-      setEditableSql(editableCode.code);
-    }
-  }, [editableCode]);
+  if (codeFromSurface !== syncedCode) {
+    setSyncedCode(codeFromSurface);
+    setEditableSql(codeFromSurface);
+  }
 
   const handleAction = (action: string, payload?: Record<string, unknown>) => {
     if (action === "confirm_sql") {

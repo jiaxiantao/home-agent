@@ -14,12 +14,12 @@
 - [x] 收藏问法（`/api/favorites`）
 - [x] 审计 HTTP sink（`AUDIT_HTTP_URL`）
 - [x] 多环境分析库切换（test/prepub profiles）
+- [x] 团队公共问法模板（`/api/templates`）
+- [x] staging MySQL 集成测试（无凭证自动 skip）
 
 ## 可选增强
 
 - [ ] 审计写入独立 DB
-- [ ] 连 staging MySQL 的集成测试 job
-- [ ] 收藏问法分享/团队公共模板
 
 ## 文档
 

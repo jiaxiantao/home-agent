@@ -78,3 +78,30 @@ jobs:
       - name: Stop server
         if: always()
         run: kill "$(cat /tmp/next.pid)" 2>/dev/null || true
+
+  mysql-integration:
+    name: Staging MySQL integration
+    runs-on: ubuntu-latest
+    # 配置仓库 Secrets 后才会真正连库；未配置时 job 仍跑但用例 skip
+    if: ${{ vars.ENABLE_MYSQL_INTEGRATION == 'true' || secrets.ANALYTICS_MYSQL_HOST != '' }}
+    env:
+      ANALYTICS_MYSQL_HOST: ${{ secrets.ANALYTICS_MYSQL_HOST }}
+      ANALYTICS_MYSQL_PORT: ${{ secrets.ANALYTICS_MYSQL_PORT }}
+      ANALYTICS_MYSQL_DATABASE: ${{ secrets.ANALYTICS_MYSQL_DATABASE }}
+      ANALYTICS_MYSQL_USER: ${{ secrets.ANALYTICS_MYSQL_USER }}
+      ANALYTICS_MYSQL_PASSWORD: ${{ secrets.ANALYTICS_MYSQL_PASSWORD }}
+      ANALYTICS_MYSQL_SSL: ${{ secrets.ANALYTICS_MYSQL_SSL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run MySQL integration tests
+        run: pnpm test:integration

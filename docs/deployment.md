@@ -40,8 +40,14 @@ curl -s "$(kubectl -n home-agent get svc home-agent -o jsonpath='{.spec.clusterI
 |------|------|
 | `POST /api/agent` | 问数 SSE |
 | `GET /api/history` | 当前用户查询历史 |
+| `GET /api/favorites` | 个人收藏问法 |
+| `GET /api/templates` | 团队问法模板（管理员可发布） |
 | `GET /api/audit` | 管理员审计查询 |
 | `GET /api/health` | 就绪探针 |
+
+## CI 集成测试（可选）
+
+仓库 CI 含 `mysql-integration` job。在 GitHub Secrets 配置 `ANALYTICS_MYSQL_*`（或设 repository variable `ENABLE_MYSQL_INTEGRATION=true`）后会对 staging 库跑连通与只读探测。未配置时主 `verify` job 中同名用例会自动 skip。
 
 ## 环境矩阵
 

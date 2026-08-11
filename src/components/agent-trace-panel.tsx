@@ -48,20 +48,18 @@ export function AgentTracePanel({
   const bottomRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const [userCollapsed, setUserCollapsed] = useState(false);
+  const autoExpand =
+    running || lines.some((line) => line.kind === "error");
+  const showExpanded = userCollapsed ? false : expanded || autoExpand;
 
   useEffect(() => {
-    if (running || lines.some((line) => line.kind === "error")) {
-      setExpanded(true);
-    }
-  }, [running, lines]);
-
-  useEffect(() => {
-    if (!autoScroll || !expanded) {
+    if (!autoScroll || !showExpanded) {
       return;
     }
 
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [lines, running, autoScroll, expanded]);
+  }, [lines, running, autoScroll, showExpanded]);
 
   const hasContent = lines.length > 0 || running;
 
@@ -69,7 +67,15 @@ export function AgentTracePanel({
     <section className="overflow-hidden rounded-xl border border-white/10 bg-black/20">
       <button
         type="button"
-        onClick={() => setExpanded((current) => !current)}
+        onClick={() => {
+          if (showExpanded) {
+            setUserCollapsed(true);
+            setExpanded(false);
+          } else {
+            setUserCollapsed(false);
+            setExpanded(true);
+          }
+        }}
         className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-white/[0.02]"
       >
         <div>
@@ -78,10 +84,12 @@ export function AgentTracePanel({
             {hasContent ? `${lines.length} 条事件` : "规划、工具调用与 SSE 事件"}
           </p>
         </div>
-        <span className="text-xs text-slate-500">{expanded ? "收起 ▴" : "展开 ▾"}</span>
+        <span className="text-xs text-slate-500">
+          {showExpanded ? "收起 ▴" : "展开 ▾"}
+        </span>
       </button>
 
-      {expanded ? (
+      {showExpanded ? (
         <>
           <div className="flex items-center justify-end border-t border-white/10 px-4 py-2">
             <button
@@ -130,7 +138,9 @@ export function AgentTracePanel({
                 ) : null}
               </ul>
             ) : (
-              <p className="py-6 text-center text-sm text-slate-500">运行后将在此展示详细轨迹</p>
+              <p className="py-6 text-center text-sm text-slate-500">
+                运行后将在此展示详细轨迹
+              </p>
             )}
             <div ref={bottomRef} />
           </div>
