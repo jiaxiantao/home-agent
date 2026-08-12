@@ -17,6 +17,10 @@ export const metadata: Metadata = {
     template: `%s | ${PRODUCT_NAME_EN}`,
   },
   description: `${PRODUCT_NAME_ZH}（${PRODUCT_NAME_EN}）。${PRODUCT_MISSION}`,
+  icons: {
+    icon: "/brand/dfc-logo.png",
+    apple: "/brand/dfc-logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -26,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className="h-full antialiased">
-      <body className="relative min-h-full flex flex-col bg-transparent">
+      <body className="relative h-full overflow-hidden flex flex-col bg-transparent">
         {children}
       </body>
     </html>

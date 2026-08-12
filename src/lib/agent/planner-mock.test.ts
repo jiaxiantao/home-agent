@@ -63,16 +63,44 @@ describe("buildMockPlan", () => {
     }
   });
 
-  it("proposes cheniu_user lookup sql for customer id questions", () => {
+  it("routes customer recordId questions to backend API first", () => {
+    const plan = buildMockPlan("我想知道客户 id 为 demo_user_001 的用户信息", []);
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("route_api");
+    }
+  });
+
+  it("proposes CRM customer sql fallback after API failure", () => {
     const plan = buildMockPlan("我想知道客户 id 为 demo_user_001 的用户信息", [
       {
-        tool: "route_question",
+        tool: "route_api",
         args: { question: "我想知道客户 id 为 demo_user_001 的用户信息" },
-        output: "routed",
+        output: "接口路由",
         data: {
-          suggestedDatabase: "matador",
-          suggestedTable: "cheniu_user",
-          topTables: [{ database: "matador", table: "cheniu_user" }],
+          bestMatch: {
+            endpoint: {
+              id: "super-mario:http:GET:/customer/customerDetail/queryRecordDetail:queryRecordDetail",
+            },
+            httpCallable: true,
+            extractedParams: { recordId: "demo_user_001", objCode: "customer" },
+          },
+        },
+      },
+      {
+        tool: "call_backend_api",
+        args: {
+          endpointId:
+            "super-mario:http:GET:/customer/customerDetail/queryRecordDetail:queryRecordDetail",
+          recordId: "demo_user_001",
+        },
+        output: "网络不可达",
+        data: {
+          status: "error",
+          failureKind: "network",
+          suggestedSql:
+            "SELECT id, name, phone, shop_code, owner, grade, source, date_create, date_update FROM `super_mario`.`customer` WHERE id = 'demo_user_001' LIMIT 20",
+          sqlFallback: { database: "super_mario", table: "customer" },
         },
       },
     ]);
@@ -80,9 +108,9 @@ describe("buildMockPlan", () => {
     expect(plan.action).toBe("tool");
     if (plan.action === "tool") {
       expect(plan.tool).toBe("propose_sql");
-      expect(String(plan.args.sql)).toMatch(/cheniu_user/i);
+      expect(String(plan.args.sql)).toMatch(/super_mario.*customer/i);
       expect(String(plan.args.sql)).toContain("demo_user_001");
-      expect(String(plan.args.sql)).toMatch(/user_id|dfc_user_id/i);
+      expect(String(plan.args.sql)).not.toMatch(/shop_code\s*=/);
     }
   });
 

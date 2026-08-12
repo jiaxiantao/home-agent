@@ -162,15 +162,15 @@ export function AgentEnvSwitcher({
                 }}
                 className={cn(
                   "flex w-full items-start gap-2.5 px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-45",
-                  value === profile.id ? "bg-white/[0.06]" : "hover:bg-white/[0.04]",
+                  value === profile.id ? "bg-brand/10" : "hover:bg-white/[0.04]",
                 )}
               >
                 <span
                   className={cn(
                     "mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border",
                     value === profile.id
-                      ? "border-zinc-200 bg-zinc-100 text-zinc-950"
-                      : "border-white/15 text-transparent",
+                      ? "ui-radio-selected"
+                      : "ui-radio-unselected",
                   )}
                   aria-hidden
                 >

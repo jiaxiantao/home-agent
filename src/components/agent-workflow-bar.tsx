@@ -32,20 +32,20 @@ export function AgentWorkflowBar({
           className={cn(
             "inline-flex h-1.5 w-1.5 rounded-full",
             running
-              ? "animate-pulse bg-zinc-200"
+              ? "animate-pulse bg-brand-soft"
               : phase === "done"
-                ? "bg-emerald-500/80"
+                ? "bg-brand shadow-[0_0_8px_rgba(255,102,0,0.55)]"
                 : phase === "error"
                   ? "bg-rose-400"
                   : phase === "awaiting"
-                    ? "bg-amber-400"
+                    ? "bg-brand"
                     : "bg-zinc-600",
           )}
           aria-hidden
         />
         <span className="text-[12px] text-zinc-400">{phaseLabels[phase]}</span>
         {isMock ? (
-          <span className="rounded border border-amber-400/20 px-1.5 py-0.5 text-[10px] text-amber-200/80">
+          <span className="ui-chip-brand">
             规则模式
           </span>
         ) : null}

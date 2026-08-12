@@ -35,13 +35,18 @@
     "test:integration": "vitest run src/lib/analytics/mysql.integration.test.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "generate:api-catalog": "node scripts/generate-dfc-api-catalog.mjs",
     "smoke": "tsx scripts/smoke-api.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@langchain/core": "^1.2.5",
+    "@langchain/langgraph": "^1.4.9",
+    "@langchain/openai": "^1.5.6",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
+    "langchain": "^1.5.5",
     "mysql2": "^3.23.2",
     "next": "16.2.6",
     "openai": "^6.39.0",

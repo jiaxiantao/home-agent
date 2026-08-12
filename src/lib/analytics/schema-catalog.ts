@@ -6,18 +6,19 @@ export type SchemaColumn = {
 
 export type SchemaTable = {
   name: string;
-  /** 所属库，默认 matador */
-  database?: string;
+  /** 所属业务库（口径元数据，不是连接默认库） */
+  database: string;
   domain: "car" | "trade" | "lead" | "ops" | "user" | "crm" | "member";
   description: string;
   columns: SchemaColumn[];
   notes?: string[];
 };
 
-/** 大风车业务表目录（手写，默认 matador；其他库请用元数据工具实时探索） */
+/** 大风车业务表目录（手写口径；Agent 按问题语义选库，连接层不绑定默认库） */
 export const analyticsSchemaCatalog: SchemaTable[] = [
   {
     name: "car",
+    database: "matador",
     domain: "car",
     description: "车源主表：库存车辆信息",
     columns: [
@@ -44,6 +45,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
   },
   {
     name: "car_extra",
+    database: "matador",
     domain: "car",
     description: "车源扩展信息",
     columns: [
@@ -53,6 +55,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
   },
   {
     name: "main_order",
+    database: "matador",
     domain: "trade",
     description: "主订单表",
     columns: [
@@ -67,6 +70,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
   },
   {
     name: "common_order",
+    database: "matador",
     domain: "trade",
     description: "普通订单明细",
     columns: [
@@ -78,6 +82,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
   },
   {
     name: "car_deal",
+    database: "matador",
     domain: "trade",
     description: "车辆成交记录",
     columns: [
@@ -88,6 +93,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
   },
   {
     name: "buy_car",
+    database: "matador",
     domain: "lead",
     description: "求购线索",
     columns: [
@@ -104,6 +110,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
   },
   {
     name: "buy_call",
+    database: "matador",
     domain: "lead",
     description: "求购相关通话记录",
     columns: [
@@ -114,6 +121,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
   },
   {
     name: "cheniu_user",
+    database: "matador",
     domain: "user",
     description: "车牛/大风车用户主表（客户信息）",
     columns: [
@@ -136,6 +144,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
   },
   {
     name: "operate_report",
+    database: "matador",
     domain: "ops",
     description: "运营日报指标",
     columns: [
@@ -192,7 +201,7 @@ export function formatSchemaCatalogForPrompt(
 ) {
   const filtered = question
     ? tables.filter((table) => {
-        const db = table.database ?? "matador";
+        const db = table.database;
         const haystack = `${question} ${db} ${table.name} ${table.description}`.toLowerCase();
         return (
           haystack.includes(table.name.toLowerCase()) ||
@@ -206,12 +215,11 @@ export function formatSchemaCatalogForPrompt(
       })
     : tables;
 
-  const selected =
-    filtered.length > 0 ? filtered : tables.filter((t) => !(t.database && t.database !== "matador")).slice(0, 8);
+  const selected = filtered.length > 0 ? filtered : tables.slice(0, 8);
 
   return selected
     .map((table) => {
-      const db = table.database ?? "matador";
+      const db = table.database;
       const cols = table.columns
         .map((col) => `  - ${col.name} (${col.type}): ${col.description}`)
         .join("\n");
@@ -226,6 +234,7 @@ export function formatSchemaCatalogForPrompt(
 export function listSchemaSummary() {
   return analyticsSchemaCatalog.map((table) => ({
     name: table.name,
+    database: table.database,
     domain: table.domain,
     description: table.description,
     columns: table.columns.map((col) => col.name),

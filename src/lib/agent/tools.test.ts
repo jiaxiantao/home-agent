@@ -29,4 +29,38 @@ describe("runAgentTool", () => {
     const result = await runAgentTool("list_project_databases", {});
     expect(result.output).toContain("matador");
   });
+
+  it("routes api for customer phone question", async () => {
+    const result = await runAgentTool("route_api", {
+      question: "查询客户手机号为16612341112的客户信息",
+    });
+    expect(result.output).toContain("super-mario");
+    expect(result.output).toContain("queryCustomerDetailsByContact");
+    expect(result.data).toMatchObject({
+      params: { phone: "16612341112" },
+    });
+  });
+
+  it("search_api finds CRM endpoints by keyword", async () => {
+    const result = await runAgentTool("search_api", {
+      keyword: "客户手机号 queryCustomerDetailsByContact",
+      appCode: "super-mario",
+      limit: 5,
+    });
+    expect(result.output).toContain("queryCustomerDetailsByContact");
+    expect((result.data as { matches: unknown[] }).matches.length).toBeGreaterThan(0);
+  });
+
+  it("skips dubbo-only backend call with sql fallback hint", async () => {
+    const result = await runAgentTool("call_backend_api", {
+      endpointId:
+        "matador:dubbo:com.souche.cheniu.api.remote.user.MemberInfoRemote:queryUserInfoByPhone",
+      phone: "16612341112",
+    });
+    expect(result.output).toContain("Dubbo");
+    expect(result.data).toMatchObject({
+      status: "skipped",
+      sqlFallback: { database: "matador", table: "cheniu_user" },
+    });
+  });
 });

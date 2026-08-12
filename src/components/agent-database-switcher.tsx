@@ -9,7 +9,6 @@ type DatabaseOption = {
   description: string;
   domain: string;
   accessible: boolean;
-  isDefault: boolean;
 };
 
 export function AgentDatabaseSwitcher({
@@ -182,16 +181,14 @@ function OptionRow({
       onClick={onSelect}
       className={cn(
         "flex w-full items-start gap-2.5 px-3 py-2 text-left transition",
-        selected ? "bg-white/[0.06]" : "hover:bg-white/[0.04]",
+        selected ? "bg-brand/10" : "hover:bg-white/[0.04]",
         muted && "opacity-50",
       )}
     >
       <span
         className={cn(
           "mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border",
-          selected
-            ? "border-zinc-200 bg-zinc-100 text-zinc-950"
-            : "border-white/15 text-transparent",
+          selected ? "ui-radio-selected" : "ui-radio-unselected",
         )}
         aria-hidden
       >

@@ -1,12 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
+  --background: #0a0a0c;
   --foreground: #e4e4e7;
-  --surface: rgba(24, 24, 27, 0.86);
-  --surface-strong: rgba(24, 24, 27, 0.96);
+  --surface: rgba(20, 20, 22, 0.92);
+  --surface-strong: rgba(16, 16, 18, 0.98);
   --border: rgba(255, 255, 255, 0.08);
-  --accent: #e4e4e7;
+  /* 搜车橙 / 大风车 */
+  --brand: #ff6600;
+  --brand-hover: #ff8533;
+  --brand-soft: #ffb380;
+  --brand-deep: #cc5200;
+  --brand-muted: rgba(255, 102, 0, 0.15);
+  --brand-subtle: rgba(255, 102, 0, 0.08);
+  --accent: var(--brand-soft);
 }
 
 @theme inline {
@@ -16,6 +23,11 @@
   --color-surface-strong: var(--surface-strong);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-muted: var(--brand-muted);
 }
 
 * {
@@ -39,8 +51,66 @@ a {
 }
 
 ::selection {
-  background: rgba(228, 228, 231, 0.22);
+  background: rgba(255, 102, 0, 0.32);
   color: white;
+}
+
+@layer components {
+  .ui-btn-primary {
+    @apply inline-flex items-center justify-center rounded-full bg-brand px-3.5 text-[12px] font-medium text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-35;
+  }
+
+  .ui-btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md border border-white/10 px-3 py-1.5 text-[12px] font-medium text-zinc-300 transition hover:border-brand/25 hover:bg-brand/5 hover:text-brand-soft disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .ui-btn-ghost {
+    @apply rounded-md px-2 py-1 text-[11px] text-zinc-500 transition hover:bg-brand/5 hover:text-brand-soft disabled:opacity-40;
+  }
+
+  .ui-chip-brand {
+    @apply rounded border border-brand/25 bg-brand/10 px-1.5 py-0.5 text-[10px] text-brand-soft;
+  }
+
+  .ui-panel {
+    @apply rounded-xl border border-white/[0.08] bg-white/[0.02];
+  }
+
+  .ui-panel-approval {
+    @apply rounded-xl border border-brand/25 bg-brand/[0.06];
+  }
+
+  .ui-input {
+    @apply rounded-lg border border-white/10 bg-black/30 text-slate-200 outline-none transition focus:border-brand/40;
+  }
+
+  .ui-radio-selected {
+    @apply border-brand bg-brand text-white;
+  }
+
+  .ui-radio-unselected {
+    @apply border-white/15 text-transparent;
+  }
+
+  .ui-status-ok {
+    @apply bg-brand shadow-[0_0_8px_rgba(255,102,0,0.55)];
+  }
+
+  .ui-status-health-ok {
+    @apply bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.55)];
+  }
+
+  .ui-status-health-bad {
+    @apply bg-amber-400;
+  }
+
+  .ui-status-running {
+    @apply animate-pulse bg-brand-soft;
+  }
+
+  .ui-link-subtle {
+    @apply text-slate-500 transition hover:text-brand-soft;
+  }
 }
 
 .markdown {
@@ -91,6 +161,7 @@ a {
 
 .streaming-cursor {
   animation: streaming-cursor-blink 1s step-end infinite;
+  color: var(--brand-soft);
 }
 
 @keyframes trace-line-enter {

@@ -2,6 +2,10 @@ import OpenAI from "openai";
 
 import { formatSchemaCatalogForPrompt } from "@/lib/analytics/schema-catalog";
 import {
+  formatApiCatalogForPrompt,
+  formatApiRouteHintForPrompt,
+} from "@/lib/analytics/api-catalog";
+import {
   formatBusinessGlossaryForPrompt,
   formatServiceRepoMapForPrompt,
 } from "@/lib/analytics/business-glossary";
@@ -33,23 +37,42 @@ ${formatBusinessGlossaryForPrompt(question)}
 - 「客户管理跟进记录」→ super_mario.customer（CRM 客户档案）
 - 「会员有多少」→ danube_member.membership_personal_information
 
-禁止在无问题语义支撑时默认使用 matador；语义不明确时先 route_question / search_schema(acrossDatabases)。
+禁止在无问题语义支撑时默认使用 matador；语义不明确时先 route_api / search_api / route_question / search_schema(acrossDatabases)。
+
+## 接口优先（明细查询）
+大风车后端已有 Dubbo/HTTP 服务封装了业务查询逻辑（权限、门店上下文、字段口径）。**单条/明细类问题**（如按手机号查客户、查用户、查会员）必须：
+1. 先 route_api(question) 匹配 api-catalog
+2. 若命中只读 HTTP 且参数齐全 → call_backend_api(endpointId, phone, recordId, objCode)
+3. 仅当：无匹配接口、Dubbo-only、HTTP 未配置 DFC_API_ENABLED、或调用失败 → 再走 route_question → propose_sql
+4. **聚合统计**（COUNT/GROUP BY/趋势/分布）无对应 HTTP 时直接 SQL，不必 call_backend_api
+5. 「客户 id / recordId」查明细：调用 queryRecordDetail，参数仅需 recordId + objCode=customer（**仅 HTTP 参数，禁止写入 SQL**）；SQL 回退用 WHERE id = ?。门店上下文由登录 SSO 提供。**禁止向用户索取 shop_code**。
+6. 若 call_backend_api 返回 failureKind=network/not_configured/http，或输出含 suggestedSql：**立刻 propose_sql(suggestedSql)**，不要再追问用户补参数，也不要因为 503/upstream 误判为缺参。
+7. **objCode、recordId 不是数据库列**；生成 SQL 时 CRM 客户表用 id，禁止 AND objCode = 'customer'。
 
 ## 自动规划铁律（业务问数）
-1. 不要一上来就 propose_sql（除非 prior 里已有足够的库/表/字段信息）。
-2. 标准路径：
-   a) route_question({ question }) — 自动推断候选库与候选表
-   b) 若表不确定：search_schema({ keyword, acrossDatabases: true }) 或 list_tables({ database })
-   c) describe_table({ database, table }) — 确认字段与口径（已知核心表可跳过）
-   d) propose_sql — SQL 必须使用 \`database\`.\`table\` 限定名
-3. 用户已明确库名/表名时，可跳过对应步骤，但仍建议 describe_table 后再写 SQL。
-4. 按 ID 查详情时：从问题提取 ID，写入 WHERE；区分 CRM 客户（super_mario.customer.id）与车牛用户（matador.cheniu_user.user_id/dfc_user_id）。
-5. 每次只调用一个工具；最多 ${getAgentMaxSteps()} 步。
+1. 不要一上来就 propose_sql（除非 prior 里已有足够的库/表/字段信息，或 route_api 已明确应 SQL 回退）。
+2. 标准路径（明细查询）：
+   a) route_api(question)
+   b) call_backend_api（若 HTTP 可调用）
+   c) 回退：route_question → search_schema / describe_table → propose_sql
+3. 标准路径（聚合/报表）：
+   a) route_question(question)
+   b) search_schema / describe_table（按需）
+   c) propose_sql
+4. 用户已明确库名/表名时，可跳过对应步骤，但仍建议 describe_table 后再写 SQL。
+5. 按 ID 查详情时：从问题提取 ID；区分 CRM 客户（super_mario.customer.id）与车牛用户（matador.cheniu_user.user_id/dfc_user_id）。
+6. 每次只调用一个工具；最多 ${getAgentMaxSteps()} 步。
 
 ${preferredHint}
 
 ## 问题→库路由提示${question ? "（与当前问题相关）" : ""}
 ${formatRouteHintForPrompt(question)}
+
+## 问题→后端接口提示${question ? "（与当前问题相关）" : ""}
+${formatApiRouteHintForPrompt(question)}
+
+## 大风车已有接口目录${question ? "（与当前问题相关）" : ""}
+${formatApiCatalogForPrompt(question)}
 
 ## 大风车业务库登记${question ? "（与当前问题相关）" : ""}
 ${formatProjectDatabasesForPrompt(question)}
@@ -58,7 +81,10 @@ ${formatProjectDatabasesForPrompt(question)}
 ${formatServiceRepoMapForPrompt()}
 
 ## 工具
-- route_question: { question: string } — 【优先】根据问题自动规划候选库/表，并跨库搜索元数据
+- route_api: question, endpointId? — 【明细查询优先】按问题语义在全量接口库中路由 Top 候选
+- search_api: keyword|question, appCode?, entity?, readOnlyOnly?, limit? — 扩大搜索接口目录（route_api 未命中时使用）
+- call_backend_api: endpointId, phone?, recordId?, objCode?, shopCode? — 调用只读 HTTP（需 DFC_API_ENABLED；CRM 客户详情用 recordId+objCode=customer）
+- route_question: question — 【聚合/SQL 路径】根据问题自动规划候选库/表，并跨库搜索元数据
 - list_project_databases / list_databases — 列库
 - list_tables: { database?, pattern?, includeViews? }
 - describe_table / get_column / list_indexes / list_foreign_keys / show_create_table / get_table_stats
@@ -66,7 +92,7 @@ ${formatServiceRepoMapForPrompt()}
 - sample_table_rows: { table, database?, limit? }
 - list_schema: {} — 仅核心表手写口径，不能替代跨库探索
 - propose_sql: { sql, explanation } — 待确认只读 SQL（禁止直接 execute_sql）
-- build_chart: { columns, rows, title?, chartType? }
+- build_chart: { columns, rows, title?, chartType? } — **仅当用户明确要求图表/可视化时**调用
 
 ## SQL 规则
 - 单条只读 SELECT/SHOW/DESCRIBE/EXPLAIN；禁止 USE / 多语句
@@ -115,6 +141,7 @@ function llmUnavailableAnswer(reason: string) {
   };
 }
 
+/** @deprecated LangGraph 运行时已替代 JSON 规划器；保留供测试与兼容导入 */
 export async function planAgentStep(
   message: string,
   prior: AgentToolResult[],

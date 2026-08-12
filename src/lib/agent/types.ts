@@ -14,6 +14,9 @@ export type AgentToolName =
   | "get_table_stats"
   | "search_schema"
   | "route_question"
+  | "route_api"
+  | "search_api"
+  | "call_backend_api"
   | "sample_table_rows"
   | "list_schema"
   | "propose_sql"
@@ -64,6 +67,14 @@ export type AgentResumeAction = {
 export type AgentTraceEvent =
   | { type: "trace"; phase: string; message: string }
   | { type: "plan"; plan: AgentPlan }
+  | {
+      type: "plan_stream";
+      step: number;
+      /** 累积文本 */
+      text: string;
+      /** 本次增量 */
+      delta: string;
+    }
   | {
       type: "step_metric";
       step: number;

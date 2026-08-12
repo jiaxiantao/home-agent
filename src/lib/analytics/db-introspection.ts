@@ -131,15 +131,12 @@ export async function introspectListDatabases(): Promise<DatabaseInfo[]> {
     "SHOW DATABASES",
   );
 
-  const config = getAnalyticsMysqlConfig();
-  const defaultDb = config?.database;
   const all = rows
     .map((row) => {
       const name = String(row.Database ?? row.SCHEMA_NAME ?? "");
       return {
         name,
         accessible: Boolean(name),
-        defaultCollation: defaultDb === name ? "（当前默认库）" : undefined,
       };
     })
     .filter((item) => item.name);
@@ -216,23 +213,26 @@ export async function introspectListTables(options?: {
     params,
   );
 
-  return rows
-    .map((row) => ({
-      name: String(row.name),
-      type: String(row.type ?? "BASE TABLE"),
-      engine: row.engine ? String(row.engine) : undefined,
-      rowEstimate: row.rowEstimate != null ? Number(row.rowEstimate) : undefined,
-      dataLengthBytes:
-        row.dataLengthBytes != null ? Number(row.dataLengthBytes) : undefined,
-      indexLengthBytes:
-        row.indexLengthBytes != null ? Number(row.indexLengthBytes) : undefined,
-      comment: row.comment ? String(row.comment) : undefined,
-      createTime: row.createTime ? String(row.createTime) : undefined,
-      updateTime: row.updateTime ? String(row.updateTime) : undefined,
-    }))
-    .filter((table) =>
-      filterAllowedTableNames([table.name]).length > 0,
-    ) satisfies TableInfo[];
+  return {
+    database,
+    tables: rows
+      .map((row) => ({
+        name: String(row.name),
+        type: String(row.type ?? "BASE TABLE"),
+        engine: row.engine ? String(row.engine) : undefined,
+        rowEstimate: row.rowEstimate != null ? Number(row.rowEstimate) : undefined,
+        dataLengthBytes:
+          row.dataLengthBytes != null ? Number(row.dataLengthBytes) : undefined,
+        indexLengthBytes:
+          row.indexLengthBytes != null ? Number(row.indexLengthBytes) : undefined,
+        comment: row.comment ? String(row.comment) : undefined,
+        createTime: row.createTime ? String(row.createTime) : undefined,
+        updateTime: row.updateTime ? String(row.updateTime) : undefined,
+      }))
+      .filter((table) =>
+        filterAllowedTableNames([table.name]).length > 0,
+      ) satisfies TableInfo[],
+  };
 }
 
 export async function introspectDescribeTable(options: {

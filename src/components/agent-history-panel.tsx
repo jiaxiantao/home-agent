@@ -90,14 +90,14 @@ export function AgentHistoryPanel({
 
   if (!entries.length) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-3 text-[11px] text-zinc-500">
+      <div className="ui-panel p-3 text-[11px] text-zinc-500">
         暂无查询历史（服务端 + 本地缓存，最多 100 条）
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-3">
+    <div className="ui-panel p-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-slate-400">
           最近查询

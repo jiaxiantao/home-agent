@@ -5,6 +5,10 @@ import {
   getTrustedHeaderNames,
   type AuthUser,
 } from "@/lib/security/auth-config";
+import {
+  extractSsoCredentials,
+  hashSsoToken,
+} from "@/lib/security/sso-credentials";
 
 function readBearerToken(authorization: string | null) {
   if (!authorization?.startsWith("Bearer ")) {
@@ -45,6 +49,26 @@ export function resolveAuthUserFromHeaders(headers: Headers): AuthUser | null {
       userId: resolvedUserId,
       userName: headers.get(userName)?.trim() || resolvedUserId,
       authMode: "trusted_header",
+    };
+  }
+
+  if (mode === "sso") {
+    const credentials = extractSsoCredentials(headers);
+    if (!credentials) {
+      return null;
+    }
+
+    const userIdHeader =
+      process.env.SSO_USER_ID_HEADER?.trim() || "x-souche-user-id";
+    const userNameHeader =
+      process.env.SSO_USER_NAME_HEADER?.trim() || "x-souche-user-name";
+    const resolvedUserId = headers.get(userIdHeader)?.trim();
+    const resolvedUserName = headers.get(userNameHeader)?.trim();
+
+    return {
+      userId: resolvedUserId || `sso:${hashSsoToken(credentials.token)}`,
+      userName: resolvedUserName || resolvedUserId || "大风车用户",
+      authMode: "sso",
     };
   }
 

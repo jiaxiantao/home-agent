@@ -15,7 +15,7 @@ function StepIcon({
   if (status === "running") {
     return (
       <span
-        className="mt-0.5 inline-block h-3.5 w-3.5 animate-spin rounded-full border border-zinc-500 border-t-zinc-200"
+        className="mt-0.5 inline-block h-3.5 w-3.5 animate-spin rounded-full border border-brand/30 border-t-brand"
         aria-hidden
       />
     );
@@ -31,7 +31,7 @@ function StepIcon({
 
   if (kind === "awaiting") {
     return (
-      <span className="mt-0.5 text-[11px] text-amber-400" aria-hidden>
+      <span className="mt-0.5 text-[11px] text-brand" aria-hidden>
         ◎
       </span>
     );
@@ -46,7 +46,7 @@ function StepIcon({
   }
 
   return (
-    <span className="mt-0.5 text-[11px] text-zinc-500" aria-hidden>
+    <span className="mt-0.5 text-[11px] text-brand-soft" aria-hidden>
       ✓
     </span>
   );
@@ -66,7 +66,7 @@ function ActivityStepRow({ step }: { step: AgentActivityStep }) {
         onClick={() => hasDetail && setOpen((current) => !current)}
         className={cn(
           "flex w-full items-start gap-2 rounded-md px-1.5 py-1 text-left transition",
-          hasDetail ? "hover:bg-white/[0.03]" : "cursor-default",
+          hasDetail ? "hover:bg-brand/5" : "cursor-default",
         )}
       >
         <StepIcon kind={step.kind} status={step.status} />
@@ -74,7 +74,7 @@ function ActivityStepRow({ step }: { step: AgentActivityStep }) {
           className={cn(
             "min-w-0 flex-1 text-[12px] leading-5",
             step.kind === "error" ? "text-rose-300" : "text-zinc-400",
-            step.status === "running" && "text-zinc-300",
+            step.status === "running" && "text-brand-soft",
           )}
         >
           {step.title}
@@ -98,10 +98,12 @@ export function AgentActivitySteps({
   steps,
   running,
   phaseLabel,
+  streamText,
 }: {
   steps: AgentActivityStep[];
   running?: boolean;
   phaseLabel?: string;
+  streamText?: string;
 }) {
   const [expanded, setExpanded] = useState(true);
 
@@ -110,7 +112,7 @@ export function AgentActivitySteps({
   }
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.015]">
+    <div className="ui-panel">
       <button
         type="button"
         onClick={() => setExpanded((current) => !current)}
@@ -119,7 +121,7 @@ export function AgentActivitySteps({
         <div className="flex items-center gap-2">
           {running ? (
             <span
-              className="inline-block h-3 w-3 animate-spin rounded-full border border-zinc-500 border-t-zinc-200"
+              className="inline-block h-3 w-3 animate-spin rounded-full border border-brand/30 border-t-brand"
               aria-hidden
             />
           ) : (
@@ -140,13 +142,24 @@ export function AgentActivitySteps({
 
       {expanded ? (
         <div className="space-y-0.5 border-t border-white/[0.05] px-2 py-2">
+          {streamText ? (
+            <div className="mb-1 rounded-md border border-brand/15 bg-brand/5 px-2.5 py-2">
+              <p className="mb-1 text-[10px] text-brand-soft">规划思考</p>
+              <p className="whitespace-pre-wrap text-[12px] leading-6 text-zinc-300">
+                {streamText}
+                {running ? (
+                  <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-brand align-middle" />
+                ) : null}
+              </p>
+            </div>
+          ) : null}
           {steps.map((step) => (
             <ActivityStepRow key={step.id} step={step} />
           ))}
-          {running ? (
+          {running && !streamText ? (
             <div className="flex items-center gap-2 px-1.5 py-1 text-[12px] text-zinc-500">
               <span
-                className="inline-block h-3.5 w-3.5 animate-spin rounded-full border border-zinc-600 border-t-zinc-300"
+                className="inline-block h-3.5 w-3.5 animate-spin rounded-full border border-brand/30 border-t-brand"
                 aria-hidden
               />
               {phaseLabel || "继续处理…"}

@@ -339,11 +339,10 @@ export function getRegistryDatabaseNames() {
 
 export function listProjectDatabaseRegistry() {
   const config = getAnalyticsMysqlConfig();
-  const defaultDatabase = config?.database;
 
   return dfcProjectDatabaseRegistry.map((entry) => ({
     ...entry,
-    isDefault: entry.name === defaultDatabase,
+    isDefault: false,
     connectedHost: config?.host,
     connectedPort: config?.port,
   }));

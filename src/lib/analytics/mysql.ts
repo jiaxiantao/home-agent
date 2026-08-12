@@ -8,7 +8,8 @@ export type AnalyticsMysqlConfig = {
   env: string;
   host: string;
   port: number;
-  database: string;
+  /** 可选：MySQL 连接 bootstrap 库，不作为 Agent 默认查询库 */
+  database?: string;
   user: string;
   password: string;
   ssl: boolean;
@@ -100,25 +101,26 @@ function loadProfileConfig(envId: string): AnalyticsMysqlConfig | null {
       ? (process.env.ANALYTICS_MYSQL_PASSWORD ?? "")
       : "");
 
-  if (!host || !database || !user) {
+  if (!host || !user) {
     // fall back to default ANALYTICS_MYSQL_* when profile-specific missing
     if (id !== defaultEnvId().toLowerCase()) {
       return null;
     }
 
     const fallbackHost = process.env.ANALYTICS_MYSQL_HOST?.trim();
-    const fallbackDatabase = process.env.ANALYTICS_MYSQL_DATABASE?.trim();
     const fallbackUser = process.env.ANALYTICS_MYSQL_USER?.trim();
 
-    if (!fallbackHost || !fallbackDatabase || !fallbackUser) {
+    if (!fallbackHost || !fallbackUser) {
       return null;
     }
+
+    const fallbackDatabase = process.env.ANALYTICS_MYSQL_DATABASE?.trim();
 
     return {
       env: id,
       host: fallbackHost,
       port: parsePositiveInt(process.env.ANALYTICS_MYSQL_PORT, 3306),
-      database: fallbackDatabase,
+      database: fallbackDatabase || undefined,
       user: fallbackUser,
       password: process.env.ANALYTICS_MYSQL_PASSWORD ?? "",
       ssl: process.env.ANALYTICS_MYSQL_SSL === "true",
@@ -141,7 +143,7 @@ function loadProfileConfig(envId: string): AnalyticsMysqlConfig | null {
       envKey("ANALYTICS_MYSQL", upper, "PORT") || process.env.ANALYTICS_MYSQL_PORT,
       3306,
     ),
-    database,
+    database: database || undefined,
     user,
     password,
     ssl:
@@ -222,7 +224,7 @@ function buildPoolKey(config: AnalyticsMysqlConfig) {
     config.env,
     config.host,
     config.port,
-    config.database,
+    config.database ?? "(auto)",
     config.user,
     config.ssl ? "ssl" : "nossl",
   ].join("|");
@@ -247,7 +249,7 @@ export function getAnalyticsMysqlPool(): Pool | null {
     port: config.port,
     user: config.user,
     password: config.password,
-    database: config.database,
+    ...(config.database ? { database: config.database } : {}),
     waitForConnections: true,
     connectionLimit: 5,
     connectTimeout: config.connectTimeoutMs,
@@ -265,6 +267,7 @@ export async function checkAnalyticsMysqlHealth(): Promise<{
   ok: boolean;
   latencyMs: number;
   env?: string;
+  host?: string;
   database?: string;
   error?: string;
 }> {
@@ -283,6 +286,7 @@ export async function checkAnalyticsMysqlHealth(): Promise<{
       ok: false,
       latencyMs: 0,
       env: config.env,
+      host: config.host,
       database: config.database,
       error: "pool unavailable",
     };
@@ -305,6 +309,7 @@ export async function checkAnalyticsMysqlHealth(): Promise<{
       ok: true,
       latencyMs: Math.round(performance.now() - started),
       env: config.env,
+      host: config.host,
       database: config.database,
     };
   } catch (error) {
@@ -313,6 +318,7 @@ export async function checkAnalyticsMysqlHealth(): Promise<{
       ok: false,
       latencyMs: Math.round(performance.now() - started),
       env: config.env,
+      host: config.host,
       database: config.database,
       error: error instanceof Error ? error.message : "connection failed",
     };
@@ -334,7 +340,7 @@ export async function queryAnalyticsMysqlWithParams<T extends RowDataPacket[]>(
 
   if (!config || !activePool) {
     throw new Error(
-      "分析库未配置：请在 .env 中设置 ANALYTICS_MYSQL_HOST / DATABASE / USER / PASSWORD（需内网访问 *.scsite.net）",
+      "分析库未配置：请在 .env 中设置 ANALYTICS_MYSQL_HOST / USER / PASSWORD（需内网访问 *.scsite.net）",
     );
   }
 

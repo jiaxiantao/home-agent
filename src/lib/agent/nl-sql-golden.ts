@@ -108,22 +108,110 @@ export const nlSqlGoldenCases: GoldenCase[] = [
     },
   },
   {
+    id: "customer-by-phone-api",
+    question: "帮我查询客户手机号为16612341112的客户信息",
+    expect: {
+      action: "tool",
+      tool: "route_api",
+      argsIncludes: { question: "帮我查询客户手机号为16612341112的客户信息" },
+    },
+  },
+  {
+    id: "customer-by-phone-sql-fallback",
+    question: "帮我查询客户手机号为16612341112的客户信息",
+    prior: [
+      {
+        tool: "route_api",
+        args: { question: "帮我查询客户手机号为16612341112的客户信息" },
+        output: "接口路由",
+        data: {
+          bestMatch: {
+            endpoint: {
+              id: "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
+            },
+            httpCallable: true,
+            extractedParams: { phone: "16612341112" },
+          },
+        },
+      },
+      {
+        tool: "call_backend_api",
+        args: {
+          endpointId:
+            "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
+          phone: "16612341112",
+        },
+        output: "未配置",
+        data: {
+          status: "not_configured",
+          sqlFallback: { database: "super_mario", table: "customer" },
+        },
+      },
+      {
+        tool: "route_question",
+        args: { question: "帮我查询客户手机号为16612341112的客户信息" },
+        output: "routed",
+        data: {
+          suggestedDatabase: "super_mario",
+          suggestedTable: "customer",
+        },
+      },
+    ],
+    expect: {
+      action: "tool",
+      tool: "propose_sql",
+      sqlIncludes: ["super_mario", "customer", "16612341112", "phone"],
+    },
+  },
+  {
     id: "customer-by-id-route",
     question: "我想知道客户 id 为 demo_user_001 的用户信息",
     expect: {
       action: "tool",
-      tool: "route_question",
+      tool: "route_api",
     },
   },
   {
     id: "customer-by-id-sql",
     question: "我想知道客户 id 为 demo_user_001 的用户信息",
-    prior: routedPrior("我想知道客户 id 为 demo_user_001 的用户信息"),
+    prior: [
+      {
+        tool: "route_api",
+        args: { question: "我想知道客户 id 为 demo_user_001 的用户信息" },
+        output: "接口路由",
+        data: {
+          bestMatch: {
+            endpoint: {
+              id: "super-mario:http:GET:/customer/customerDetail/queryRecordDetail:queryRecordDetail",
+            },
+            httpCallable: true,
+            extractedParams: { recordId: "demo_user_001", objCode: "customer" },
+          },
+        },
+      },
+      {
+        tool: "call_backend_api",
+        args: {
+          endpointId:
+            "super-mario:http:GET:/customer/customerDetail/queryRecordDetail:queryRecordDetail",
+          recordId: "demo_user_001",
+          objCode: "customer",
+        },
+        output: "网络不可达",
+        data: {
+          status: "error",
+          failureKind: "network",
+          suggestedSql:
+            "SELECT id, name, phone, shop_code, owner, grade, source, date_create, date_update FROM `super_mario`.`customer` WHERE id = 'demo_user_001' LIMIT 20",
+          sqlFallback: { database: "super_mario", table: "customer" },
+        },
+      },
+    ],
     expect: {
       action: "tool",
       tool: "propose_sql",
-      sqlIncludes: ["cheniu_user", "demo_user_001", "user_id"],
-      sqlExcludes: ["DELETE", "UPDATE", "INSERT"],
+      sqlIncludes: ["super_mario", "customer", "demo_user_001"],
+      sqlExcludes: ["cheniu_user", "DELETE", "UPDATE", "INSERT", "shop_code ="],
     },
   },
   {

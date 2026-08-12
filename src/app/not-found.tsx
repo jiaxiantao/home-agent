@@ -4,7 +4,7 @@ export default function NotFound() {
   return (
     <div className="flex min-h-screen items-center justify-center px-6">
       <div className="max-w-xl rounded-[2rem] border border-white/10 bg-white/5 p-10 text-center">
-        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
+        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-brand-soft/80">
           404
         </p>
         <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white">
@@ -15,7 +15,7 @@ export default function NotFound() {
         </p>
         <Link
           href="/agents"
-          className="mt-8 inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-100"
+          className="mt-8 inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-hover"
         >
           前往问数助手
         </Link>

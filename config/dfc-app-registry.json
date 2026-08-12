@@ -1,0 +1,32 @@
+{
+  "comment": "本地 dafengche-backend 目录名 → Agent 元数据；见 docs/dfc-backend-repos.md",
+  "apps": {
+    "super-mario": { "repo": "gourd/super-mario", "database": "super_mario", "baseUrlEnvKey": "DFC_API_SUPER_MARIO_BASE_URL" },
+    "matador": { "repo": "niu/backends/cheniu", "database": "matador", "baseUrlEnvKey": "DFC_API_MATADOR_BASE_URL" },
+    "danube-member": { "repo": "danube/danube-member", "database": "danube_member", "baseUrlEnvKey": "DFC_API_DANUBE_MEMBER_BASE_URL" },
+    "danube-topcars": { "repo": "danube/danube-topcars", "database": "danube_topcars", "baseUrlEnvKey": "DFC_API_DANUBE_TOPCARS_BASE_URL" },
+    "danube-business-service": { "repo": "gourd/danube-business", "database": "danube_business", "baseUrlEnvKey": "DFC_API_DANUBE_BUSINESS_BASE_URL" },
+    "danube-authorization": { "repo": "danube/danube-authorization", "database": "danube_authorization", "baseUrlEnvKey": "DFC_API_DANUBE_AUTHORIZATION_BASE_URL" },
+    "danube-service-market": { "repo": "danube/danube-service-market", "database": "danube_service_market", "baseUrlEnvKey": "DFC_API_DANUBE_SERVICE_MARKET_BASE_URL" },
+    "danube-electronic-contract": { "repo": "danube/danube-electronic-contract", "database": "danube_electronic_contract", "baseUrlEnvKey": "DFC_API_DANUBE_ELECTRONIC_CONTRACT_BASE_URL" },
+    "danube-chaos": { "repo": "danube/danube-chaos", "database": "danube_chaos", "baseUrlEnvKey": "DFC_API_DANUBE_CHAOS_BASE_URL" },
+    "danube-league": { "repo": "danube/danube-league", "database": "danube_league", "baseUrlEnvKey": "DFC_API_DANUBE_LEAGUE_BASE_URL" },
+    "danube-deal-adapter": { "repo": "danube/danube-deal-adapter", "database": "danube_deal_adapter", "baseUrlEnvKey": "DFC_API_DANUBE_DEAL_ADAPTER_BASE_URL" },
+    "danube-usedcar-market": { "repo": "danube/danube-usedcar-market", "database": "danube_usedcar_market", "baseUrlEnvKey": "DFC_API_DANUBE_USEDCAR_MARKET_BASE_URL" },
+    "rich-man": { "repo": "gourd/rich-man", "database": "matador", "baseUrlEnvKey": "DFC_API_RICH_MAN_BASE_URL" },
+    "crazyracing-kartrider": { "repo": "gourd/crazyracing-kartrider", "database": "matador", "baseUrlEnvKey": "DFC_API_KARTRIDER_BASE_URL" },
+    "maple-story": { "repo": "gourd/maple-story", "database": "maple_story", "baseUrlEnvKey": "DFC_API_MAPLE_STORY_BASE_URL" },
+    "da-vinci": { "repo": "gourd/da-vinci", "database": "da_vinci", "baseUrlEnvKey": "DFC_API_DA_VINCI_BASE_URL" },
+    "anduin": { "repo": "gourd/anduin", "database": "anduin", "baseUrlEnvKey": "DFC_API_ANDUIN_BASE_URL" },
+    "car-model": { "repo": "base-car/car-model", "database": "car_model", "baseUrlEnvKey": "DFC_API_CAR_MODEL_BASE_URL" },
+    "car-model-mapping": { "repo": "base-car/car-model-mapping", "database": "car_model_mapping", "baseUrlEnvKey": "DFC_API_CAR_MODEL_MAPPING_BASE_URL" },
+    "ai-scrm": { "repo": "ai-robot/ai-scrm", "database": "marketing_scrm", "baseUrlEnvKey": "DFC_API_AI_SCRM_BASE_URL" },
+    "dfc-scrm": { "repo": "ai-robot/dfc-scrm", "database": "marketing_scrm", "baseUrlEnvKey": "DFC_API_DFC_SCRM_BASE_URL" },
+    "ai-super-call": { "repo": "ai-robot/super-call", "database": "ai_robot", "baseUrlEnvKey": "DFC_API_AI_SUPER_CALL_BASE_URL" },
+    "cheniu-user": { "repo": "niu/backends/cheniu-user", "database": "cheniu_user", "baseUrlEnvKey": "DFC_API_CHENIU_USER_BASE_URL" },
+    "piebridge": { "repo": "gourd/piebridge-x-courier", "database": "piebridge", "baseUrlEnvKey": "DFC_API_PIEBRIDGE_BASE_URL" }
+  },
+  "defaultAppMeta": {
+    "baseUrlEnvKey": "DFC_API_GATEWAY_BASE_URL"
+  }
+}

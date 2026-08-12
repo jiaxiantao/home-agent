@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { runAgentLoop } from "@/lib/agent/run-loop";
+import { runDfcAgentLoop } from "@/lib/agent/langgraph";
 import {
   resolveAnalyticsEnvId,
   runWithAnalyticsEnv,
@@ -11,12 +11,14 @@ import { getClientIp, resolveAuthUserFromHeaders } from "@/lib/security/auth";
 import { isAuthEnabled } from "@/lib/security/auth-config";
 import { auditFromContext, writeAudit } from "@/lib/security/audit-log";
 import { checkAgentRateLimit } from "@/lib/security/rate-limit";
+import { resolveSsoCredentialsFromRequest } from "@/lib/security/dfc-user-profile";
+import { runWithSsoRequestContext } from "@/lib/security/sso-context";
+import { runWithLlmProvider, parseLlmProvider } from "@/lib/llm-provider-context";
 
 const agentSchema = z.object({
   message: z.string().default(""),
   threadId: z.string().optional(),
-  analyticsEnv: z.string().optional(),
-  analyticsDatabase: z.string().optional(),
+  llmProvider: z.string().optional(),
   resume: z
     .object({
       actionId: z.enum(["confirm_sql", "cancel_sql"]),
@@ -83,7 +85,7 @@ export async function POST(request: Request) {
     let analyticsEnv: string;
 
     try {
-      analyticsEnv = resolveAnalyticsEnvId(body.analyticsEnv);
+      analyticsEnv = resolveAnalyticsEnvId(undefined);
     } catch (error) {
       return Response.json(
         {
@@ -109,23 +111,25 @@ export async function POST(request: Request) {
         };
 
         try {
-          await runWithAnalyticsEnv(analyticsEnv, async () => {
-            await runWithPreferredAnalyticsDatabase(
-              body.analyticsDatabase,
-              async () => {
-                for await (const trace of runAgentLoop(
-                  body.message.trim() || "(resume)",
-                  {
-                    signal: request.signal,
-                    resume: body.resume,
-                    audit,
-                    threadId: body.threadId,
-                  },
-                )) {
-                  send(trace.type, trace);
-                }
-              },
-            );
+          const ssoCredentials = resolveSsoCredentialsFromRequest(request.headers);
+          await runWithSsoRequestContext(ssoCredentials, async () => {
+            await runWithLlmProvider(parseLlmProvider(body.llmProvider), async () => {
+              await runWithAnalyticsEnv(analyticsEnv, async () => {
+                await runWithPreferredAnalyticsDatabase(undefined, async () => {
+                  for await (const trace of runDfcAgentLoop(
+                    body.message.trim() || "(resume)",
+                    {
+                      signal: request.signal,
+                      resume: body.resume,
+                      audit,
+                      threadId: body.threadId,
+                    },
+                  )) {
+                    send(trace.type, trace);
+                  }
+                });
+              });
+            });
           });
         } catch (error) {
           send("error", {

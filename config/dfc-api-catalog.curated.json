@@ -1,0 +1,98 @@
+{
+  "comment": "高优先级接口人工增强：SQL 回退、参数映射、额外 matchPatterns",
+  "overrides": [
+    {
+      "id": "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
+      "patch": {
+        "preferOverSql": true,
+        "title": "CRM 客户详情（手机/微信联系方式）",
+        "path": "/customerAction/queryCustomerDetailsByContact",
+        "http": {
+          "method": "GET",
+          "path": "/customerAction/queryCustomerDetailsByContact",
+          "queryParams": { "contact": "phone" }
+        },
+        "sqlFallback": {
+          "database": "super_mario",
+          "table": "customer",
+          "hint": "WHERE phone = ? LIMIT 20（门店由登录态限定；勿向用户索取 shop_code）"
+        },
+        "matchPatterns": [
+          "客户.*(?:手机|电话|联系方式)",
+          "(?:手机|电话).*(?:客户|CRM)",
+          "crm.*客户.*(?:信息|资料|详情)"
+        ]
+      }
+    },
+    {
+      "id": "super-mario:http:GET:/customer/customerDetail/queryRecordDetail:queryRecordDetail",
+      "patch": {
+        "preferOverSql": true,
+        "title": "CRM 客户详情（客户 recordId）",
+        "entity": "crm_customer",
+        "http": {
+          "method": "GET",
+          "path": "/customer/customerDetail/queryRecordDetail",
+          "queryParams": { "recordId": "recordId", "objCode": "objCode" }
+        },
+        "sqlFallback": {
+          "database": "super_mario",
+          "table": "customer",
+          "hint": "WHERE id = ? LIMIT 20（objCode 仅 HTTP 参数，禁止写入 SQL；勿向用户索取 shop_code）"
+        },
+        "matchPatterns": [
+          "客户\\s*id",
+          "客户.*(?:id|ID).*(?:信息|资料|详情)",
+          "recordId.*客户",
+          "queryRecordDetail"
+        ]
+      }
+    },
+    {
+      "id": "super-mario:http:GET:/customer/customerDetail/getCustomerIdByPhone:getCustomerIdByPhone",
+      "patch": {
+        "preferOverSql": true,
+        "http": {
+          "method": "GET",
+          "path": "/customer/customerDetail/getCustomerIdByPhone",
+          "queryParams": { "phone": "phone" }
+        },
+        "sqlFallback": {
+          "database": "super_mario",
+          "table": "customer",
+          "hint": "SELECT id FROM customer WHERE phone = ? LIMIT 20"
+        }
+      }
+    },
+    {
+      "id": "matador:http:GET:/api/web/workbench/user/UserSearchApi/searchUserNameByPhone:searchUserNameByPhone",
+      "patch": {
+        "preferOverSql": true,
+        "http": {
+          "method": "GET",
+          "path": "/api/web/workbench/user/UserSearchApi/searchUserNameByPhone",
+          "queryParams": { "phone": "phone" }
+        },
+        "sqlFallback": {
+          "database": "matador",
+          "table": "cheniu_user",
+          "hint": "WHERE phone = ? AND date_delete IS NULL"
+        }
+      }
+    },
+    {
+      "id": "matador:dubbo:com.souche.cheniu.api.remote.user.MemberInfoRemote:queryUserInfoByPhone",
+      "patch": {
+        "preferOverSql": true,
+        "title": "车牛用户按手机号查询",
+        "entity": "cheniu_user",
+        "sqlFallback": {
+          "database": "matador",
+          "table": "cheniu_user",
+          "hint": "WHERE phone = ? AND date_delete IS NULL"
+        },
+        "matchPatterns": ["车牛用户.*手机", "用户.*手机", "queryUserInfoByPhone"]
+      }
+    }
+  ]
+}

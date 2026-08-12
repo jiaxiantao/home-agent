@@ -18,13 +18,22 @@ import {
   introspectShowCreateTable,
   introspectTableStats,
 } from "@/lib/analytics/db-introspection";
-import { getAnalyticsMysqlConfig } from "@/lib/analytics/mysql";
+import {
+  getDfcApiEndpointById,
+  loadDfcApiCatalog,
+  pickBestApiForQuestion,
+  rankApisForQuestion,
+  searchApis,
+  extractApiParams,
+} from "@/lib/analytics/api-catalog";
+import { callBackendApi } from "@/lib/analytics/backend-api-client";
 import { runAnalyticsQuery } from "@/lib/analytics/run-query";
 import {
   formatSchemaCatalogForPrompt,
   listSchemaSummary,
 } from "@/lib/analytics/schema-catalog";
 import { assertReadOnlySql } from "@/lib/analytics/sql-guard";
+import { sanitizeAgentSql } from "@/lib/analytics/sql-sanitize";
 import { assertAllowedDatabases } from "@/lib/security/database-allowlist";
 import { assertAllowedTables } from "@/lib/security/table-allowlist";
 
@@ -77,10 +86,7 @@ export async function runAgentTool(
     case "list_project_databases": {
       const result = await introspectListProjectDatabases();
       const lines = result.summary.map((entry) => {
-        const flags = [
-          entry.isDefault ? "默认连接" : undefined,
-          entry.accessible ? "可访问" : "未检测到权限",
-        ]
+        const flags = [entry.accessible ? "可访问" : "未检测到权限"]
           .filter(Boolean)
           .join(" · ");
         return `- ${entry.name} [${entry.domain}/${entry.env}] — ${entry.description}${flags ? ` (${flags})` : ""}`;
@@ -106,9 +112,11 @@ export async function runAgentTool(
       const database = readOptionalString(args, "database");
       const pattern = readOptionalString(args, "pattern");
       const includeViews = readOptionalBoolean(args, "includeViews");
-      const tables = await introspectListTables({ database, pattern, includeViews });
-      const resolvedDatabase =
-        database ?? getAnalyticsMysqlConfig()?.database ?? "default";
+      const { database: resolvedDatabase, tables } = await introspectListTables({
+        database,
+        pattern,
+        includeViews,
+      });
 
       return {
         output: formatListTablesOutput(resolvedDatabase, tables),
@@ -275,6 +283,150 @@ export async function runAgentTool(
         data: result,
       };
     }
+    case "route_api": {
+      const question =
+        readOptionalString(args, "question") ||
+        readOptionalString(args, "message") ||
+        "";
+      if (!question) {
+        throw new Error("route_api 需要 question 参数");
+      }
+
+      const endpointId = readOptionalString(args, "endpointId");
+      const params = extractApiParams(question);
+      const ranked = rankApisForQuestion(question, 5);
+      const best =
+        (endpointId
+          ? ranked.find((item) => item.endpoint.id === endpointId)
+          : undefined) ?? pickBestApiForQuestion(question);
+
+      const lines = ranked.map(
+        (item) =>
+          `- [${item.endpoint.id}] score=${item.score} ${item.endpoint.title}（${item.endpoint.appCode}）｜${item.httpCallable ? "可 HTTP" : "Dubbo/SQL"}｜${item.reasons.join("；")}`,
+      );
+
+      return {
+        output: [
+          `接口路由「${question}」`,
+          `提取参数：${JSON.stringify(params)}`,
+          best
+            ? `推荐：${best.endpoint.id} — ${best.endpoint.title}（${best.httpCallable ? "尝试 call_backend_api" : "建议 SQL 回退"}）`
+            : "未命中只读接口，请直接 route_question + propose_sql",
+          "候选接口：",
+          lines.join("\n") || "- （无）",
+        ].join("\n"),
+        data: {
+          question,
+          params,
+          bestMatch: best,
+          candidates: ranked,
+        },
+      };
+    }
+    case "search_api": {
+      const keyword =
+        readOptionalString(args, "keyword") ||
+        readOptionalString(args, "question") ||
+        "";
+      if (!keyword) {
+        throw new Error("search_api 需要 keyword 或 question 参数");
+      }
+
+      const appCode = readOptionalString(args, "appCode");
+      const entity = readOptionalString(args, "entity");
+      const readOnlyOnly = readOptionalBoolean(args, "readOnlyOnly") !== false;
+      const limit = readOptionalNumber(args, "limit") ?? 15;
+
+      const matches = searchApis({
+        question: keyword,
+        appCode,
+        entity,
+        readOnlyOnly,
+        limit,
+      });
+
+      const stats = loadDfcApiCatalog().length;
+      const lines = matches.map(
+        (item) =>
+          `- [${item.endpoint.id}] score=${item.score} ${item.endpoint.appCode} ${item.endpoint.title}（${item.endpoint.kind}）｜${item.httpCallable ? "可 HTTP" : "Dubbo/SQL"}｜${item.reasons.join("；")}`,
+      );
+
+      return {
+        output: [
+          `接口搜索「${keyword}」全库 ${stats} 条`,
+          appCode ? `应用过滤：${appCode}` : "",
+          entity ? `实体过滤：${entity}` : "",
+          `命中 ${matches.length} 条：`,
+          lines.join("\n") || "- （无）",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        data: {
+          keyword,
+          appCode,
+          entity,
+          readOnlyOnly,
+          matches,
+        },
+      };
+    }
+    case "call_backend_api": {
+      const endpointId = requireString(args, "endpointId", "call_backend_api");
+      const endpoint = getDfcApiEndpointById(endpointId);
+      if (!endpoint) {
+        throw new Error(`未知 endpointId：${endpointId}`);
+      }
+
+      const fromQuestion = extractApiParams(
+        readOptionalString(args, "question") || "",
+      );
+      const params = {
+        ...fromQuestion,
+        phone: readOptionalString(args, "phone") || fromQuestion.phone,
+        recordId: readOptionalString(args, "recordId") || fromQuestion.recordId,
+        shopCode:
+          readOptionalString(args, "shopCode") ||
+          fromQuestion.shopCode ||
+          process.env.DFC_API_DEFAULT_SHOP_CODE?.trim() ||
+          undefined,
+        objCode:
+          readOptionalString(args, "objCode") ||
+          fromQuestion.objCode ||
+          "customer",
+      };
+
+      const result = await callBackendApi(endpoint, params);
+
+      const tablePreview =
+        result.table && result.table.rows.length > 0
+          ? result.table.rows
+              .slice(0, 3)
+              .map((row) => JSON.stringify(row))
+              .join("\n")
+          : "";
+
+      return {
+        output: [
+          `后端接口 ${endpointId}（${endpoint.appCode}）`,
+          result.message,
+          result.request
+            ? `请求：${result.request.method} ${result.request.url}`
+            : "",
+          result.request?.query
+            ? `已自动填充参数：${JSON.stringify(result.request.query)}`
+            : "",
+          tablePreview ? `结果预览：\n${tablePreview}` : "",
+          result.suggestedSql
+            ? `建议立即 propose_sql（勿向用户索参）：\n${result.suggestedSql}`
+            : result.status !== "success" && result.sqlFallback
+              ? `SQL 回退：\`${result.sqlFallback.database}.${result.sqlFallback.table}\` ${result.sqlFallback.hint}`
+              : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        data: result,
+      };
+    }
     case "route_question": {
       const question =
         readOptionalString(args, "question") ||
@@ -345,12 +497,15 @@ export async function runAgentTool(
       };
     }
     case "propose_sql": {
-      const sql = String(args.sql ?? "").trim();
+      const rawSql = String(args.sql ?? "").trim();
       const explanation = String(args.explanation ?? args.reason ?? "").trim();
 
-      if (!sql) {
+      if (!rawSql) {
         throw new Error("propose_sql 需要 sql 参数");
       }
+
+      const sanitized = sanitizeAgentSql(rawSql);
+      const sql = sanitized.sql;
 
       const guarded = assertReadOnlySql(sql);
 
@@ -372,7 +527,10 @@ export async function runAgentTool(
 
       const data: ProposeSqlData = {
         sql: guarded.sql,
-        explanation: explanation || "建议执行以下只读查询",
+        explanation:
+          sanitized.notes.length > 0
+            ? `${explanation || "建议执行以下只读查询"}（${sanitized.notes.join("；")}）`
+            : explanation || "建议执行以下只读查询",
       };
 
       return {

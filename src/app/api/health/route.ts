@@ -75,6 +75,7 @@ export async function GET() {
         ok: analyticsMysql.ok,
         latencyMs: analyticsMysql.latencyMs,
         env: analyticsMysql.env,
+        host: analyticsMysql.host,
         database: analyticsMysql.database,
         error: analyticsMysql.error,
         tableAllowlistEnabled: Boolean(allowlist),

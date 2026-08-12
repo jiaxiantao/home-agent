@@ -40,10 +40,8 @@ export function AgentOrchestratorDemo({
     pendingRunId,
     conversation,
     loadHistoryQuestion,
-    analyticsEnv,
-    setAnalyticsEnv,
-    analyticsDatabase,
-    setAnalyticsDatabase,
+    llmProvider,
+    setLlmProvider,
   } = useAgentStream();
 
   const handleA2UIAction = useCallback(
@@ -106,9 +104,9 @@ export function AgentOrchestratorDemo({
   const hasConversation = conversation.length > 0;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
-      <div className="flex min-h-[70vh] flex-col">
-        <div className="mb-2 flex items-center justify-between gap-3">
+    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
           <AgentWorkflowBar
             phase={phase}
             running={running}
@@ -119,7 +117,7 @@ export function AgentOrchestratorDemo({
           <button
             type="button"
             onClick={() => setSidebarOpen((current) => !current)}
-            className="rounded-md px-2 py-1 text-[11px] text-zinc-500 transition hover:bg-white/[0.04] hover:text-zinc-300 lg:hidden"
+            className="ui-btn-ghost lg:hidden"
           >
             {sidebarOpen ? "收起工具" : "模板/历史"}
           </button>
@@ -130,7 +128,7 @@ export function AgentOrchestratorDemo({
           label={plannerLabel}
         />
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-0.5 py-2">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0.5 py-2 [scrollbar-gutter:stable]">
           <AgentConversation
             turns={conversation}
             onAction={handleA2UIAction}
@@ -139,28 +137,30 @@ export function AgentOrchestratorDemo({
           />
         </div>
 
-        <AgentTracePanel lines={lines} running={running} />
+        <div className="shrink-0">
+          <AgentTracePanel lines={lines} running={running} />
+        </div>
 
-        <AgentComposer
-          value={message}
-          onChange={setMessage}
-          onSubmit={() => void runAgent()}
-          onStop={stop}
-          onReset={reset}
-          running={running}
-          hasConversation={hasConversation}
-          analyticsEnv={analyticsEnv}
-          onAnalyticsEnvChange={setAnalyticsEnv}
-          analyticsDatabase={analyticsDatabase}
-          onAnalyticsDatabaseChange={setAnalyticsDatabase}
-          quickPrompts={agentQuickPrompts}
-          onQuickPrompt={handleQuickPrompt}
-          inputRef={textareaRef}
-        />
+        <div className="shrink-0">
+          <AgentComposer
+            value={message}
+            onChange={setMessage}
+            onSubmit={() => void runAgent()}
+            onStop={stop}
+            onReset={reset}
+            running={running}
+            hasConversation={hasConversation}
+            llmProvider={llmProvider}
+            onLlmProviderChange={setLlmProvider}
+            quickPrompts={agentQuickPrompts}
+            onQuickPrompt={handleQuickPrompt}
+            inputRef={textareaRef}
+          />
+        </div>
       </div>
 
       <aside
-        className={`space-y-3 lg:sticky lg:top-20 ${
+        className={`min-h-0 space-y-3 overflow-y-auto lg:sticky lg:top-4 lg:max-h-full ${
           sidebarOpen ? "block" : "hidden lg:block"
         }`}
       >
@@ -179,7 +179,7 @@ export function AgentOrchestratorDemo({
           }}
         />
 
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-3 text-[11px] leading-5 text-zinc-500">
+        <div className="ui-panel p-3 text-[11px] leading-5 text-zinc-500">
           <p className="font-medium text-zinc-400">快捷操作</p>
           <ul className="mt-1.5 list-inside list-disc space-y-1">
             <li>⌘↵ 发送 · Esc 停止</li>

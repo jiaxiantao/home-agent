@@ -83,6 +83,37 @@ export const agentToolCatalog: Array<{
     args: { question: "string", limitPerTerm: "number?" },
   },
   {
+    name: "route_api",
+    label: "接口路由",
+    description: "匹配大风车已有后端 HTTP/Dubbo 接口，优先于直查 SQL",
+    args: { question: "string", endpointId: "string?" },
+  },
+  {
+    name: "search_api",
+    label: "搜索接口目录",
+    description: "在全量接口库（约 1 万条）中按关键词/实体/应用搜索候选接口",
+    args: {
+      keyword: "string?",
+      question: "string?",
+      appCode: "string?",
+      entity: "string?",
+      readOnlyOnly: "boolean?",
+      limit: "number?",
+    },
+  },
+  {
+    name: "call_backend_api",
+    label: "调用后端接口",
+    description: "按 api-catalog 调用只读 HTTP 接口（需 DFC_API_ENABLED）",
+    args: {
+      endpointId: "string",
+      phone: "string?",
+      recordId: "string?",
+      shopCode: "string?",
+      objCode: "string?",
+    },
+  },
+  {
     name: "sample_table_rows",
     label: "样例行",
     description: "安全预览表的前 N 行（自动 LIMIT）",
@@ -109,7 +140,7 @@ export const agentToolCatalog: Array<{
   {
     name: "build_chart",
     label: "生成图表",
-    description: "根据查询结果生成 bar/line/pie 图表描述",
+    description: "根据查询结果生成 bar/line/pie 图表描述（仅当用户明确要求图表时）",
     args: { columns: "string[]", rows: "object[]", chartType: "bar|line|pie" },
   },
 ];

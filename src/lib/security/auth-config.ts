@@ -1,6 +1,6 @@
 import { PRODUCT_SLUG } from "@/lib/product";
 
-export type AuthMode = "disabled" | "token" | "trusted_header";
+export type AuthMode = "disabled" | "token" | "trusted_header" | "sso";
 
 export type AuthUser = {
   userId: string;
@@ -13,7 +13,7 @@ const AUTH_COOKIE_NAME = "dfc_data_agent_session";
 export function getAuthMode(): AuthMode {
   const raw = process.env.AUTH_MODE?.trim().toLowerCase();
 
-  if (raw === "token" || raw === "trusted_header") {
+  if (raw === "token" || raw === "trusted_header" || raw === "sso") {
     return raw;
   }
 
@@ -82,7 +82,7 @@ export function assertAuthConfiguredForProduction() {
 
   if (getAuthMode() === "disabled") {
     console.warn(
-      "[security] AUTH_MODE=disabled in production — enable token or trusted_header before enterprise rollout",
+      "[security] AUTH_MODE=disabled in production — enable token, sso, or trusted_header before enterprise rollout",
     );
   }
 }

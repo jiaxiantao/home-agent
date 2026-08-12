@@ -14,10 +14,11 @@ import {
   updateQueryHistory,
   type QueryHistoryEntry,
 } from "@/lib/history/query-history";
+import type { LlmProvider } from "@/lib/llm-config";
 import {
-  getStoredAnalyticsEnv,
-  storeAnalyticsEnv,
-} from "@/lib/analytics/analytics-env-preference";
+  getStoredLlmProvider,
+  storeLlmProvider,
+} from "@/lib/llm-provider-preference";
 import { parseSseBlock } from "@/lib/sse";
 import { PRODUCT_SLUG } from "@/lib/product";
 
@@ -68,6 +69,8 @@ export type ConversationTurn = {
   status: "running" | "awaiting" | "done" | "error" | "cancelled";
   historyId?: string;
   steps: AgentActivityStep[];
+  /** LLM 规划流式输出（进行中） */
+  planStreamText?: string;
 };
 
 
@@ -119,6 +122,8 @@ function traceLineFromEvent(payload: AgentTraceEvent): AgentTraceLine | null {
         kind: "trace",
         text: `[planner] ${payload.label ?? (payload.mock ? "规则模式" : "LLM")}`,
       };
+    case "plan_stream":
+      return null;
     case "tool_call":
       return {
         id,
@@ -162,6 +167,8 @@ function phaseFromEvent(payload: AgentTraceEvent): AgentPhase | null {
       return null;
     case "plan":
       return "planning";
+    case "plan_stream":
+      return "planning";
     case "tool_call":
       return "tool";
     case "awaiting_input":
@@ -185,9 +192,21 @@ async function consumeAgentStream(
   const response = await fetch("/api/agent", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(body),
     signal,
   });
+
+  if (response.status === 401) {
+    const payload = (await response.json().catch(() => ({}))) as {
+      loginUrl?: string;
+    };
+    if (payload.loginUrl && typeof window !== "undefined") {
+      window.location.href = payload.loginUrl;
+      return;
+    }
+    throw new Error("未登录，请先登录大风车账号");
+  }
 
   if (!response.ok || !response.body) {
     throw new Error(`HTTP ${response.status}`);
@@ -233,15 +252,13 @@ export function useAgentStream() {
   const [threadId, setThreadId] = useState<string | undefined>(getStoredThreadId);
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
-  const [analyticsEnv, setAnalyticsEnvState] = useState<string>(
-    () => getStoredAnalyticsEnv() ?? "test",
+  const [llmProvider, setLlmProviderState] = useState<LlmProvider>(
+    () => getStoredLlmProvider(),
   );
-  const setAnalyticsEnv = useCallback((envId: string) => {
-    const normalized = envId.trim().toLowerCase();
-    setAnalyticsEnvState(normalized);
-    storeAnalyticsEnv(normalized);
+  const setLlmProvider = useCallback((provider: LlmProvider) => {
+    setLlmProviderState(provider);
+    storeLlmProvider(provider);
   }, []);
-  const [analyticsDatabase, setAnalyticsDatabase] = useState<string>("");
 
   const abortRef = useRef<AbortController | null>(null);
   const turnRef = useRef<ConversationTurn | null>(null);
@@ -366,8 +383,11 @@ export function useAgentStream() {
       } else if (payload.type === "planner_mode") {
         setIsMock(payload.mock);
         setPlannerLabel(payload.label ?? null);
-        updateTurn({ isMock: payload.mock });
+        updateTurn({ isMock: payload.mock, planStreamText: undefined });
+      } else if (payload.type === "plan_stream") {
+        updateTurn({ planStreamText: payload.text });
       } else if (payload.type === "plan") {
+        updateTurn({ planStreamText: undefined });
         appendTurnStep({
           id: crypto.randomUUID(),
           kind: "plan",
@@ -376,6 +396,7 @@ export function useAgentStream() {
           status: "done",
         });
       } else if (payload.type === "tool_call") {
+        updateTurn({ planStreamText: undefined });
         setCurrentStep((current) => current + 1);
         appendTurnStep({
           id: crypto.randomUUID(),
@@ -528,7 +549,7 @@ export function useAgentStream() {
 
       try {
         await consumeAgentStream(
-          { message: message.trim(), threadId, analyticsEnv, analyticsDatabase: analyticsDatabase || undefined },
+          { message: message.trim(), threadId, llmProvider },
           controller.signal,
           handlePayload,
         );
@@ -553,7 +574,7 @@ export function useAgentStream() {
         setRunning(false);
       }
     },
-    [beginTurn, handlePayload, resetCurrentTurn, threadId, analyticsEnv, analyticsDatabase],
+    [beginTurn, handlePayload, resetCurrentTurn, threadId, llmProvider],
   );
 
   const resume = useCallback(
@@ -573,7 +594,7 @@ export function useAgentStream() {
 
       try {
         await consumeAgentStream(
-          { message: "", threadId, analyticsEnv, analyticsDatabase: analyticsDatabase || undefined, resume: action },
+          { message: "", threadId, llmProvider, resume: action },
           controller.signal,
           handlePayload,
         );
@@ -593,7 +614,7 @@ export function useAgentStream() {
         setRunning(false);
       }
     },
-    [handlePayload, threadId, updateTurn, analyticsEnv, analyticsDatabase],
+    [handlePayload, threadId, updateTurn, llmProvider],
   );
 
   const loadHistoryQuestion = useCallback((question: string) => {
@@ -622,9 +643,7 @@ export function useAgentStream() {
     conversation,
     currentQuestion,
     loadHistoryQuestion,
-    analyticsEnv,
-    setAnalyticsEnv,
-    analyticsDatabase,
-    setAnalyticsDatabase,
+    llmProvider,
+    setLlmProvider,
   };
 }

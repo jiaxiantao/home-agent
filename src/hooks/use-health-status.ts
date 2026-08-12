@@ -10,6 +10,7 @@ export type HealthStatus = {
     ok: boolean;
     latencyMs: number;
     env?: string;
+    host?: string;
     database?: string;
     error?: string;
   };

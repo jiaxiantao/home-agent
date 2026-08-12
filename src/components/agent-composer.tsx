@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 
-import { AgentEnvSwitcher } from "@/components/agent-env-switcher";
-import { AgentDatabaseSwitcher } from "@/components/agent-database-switcher";
+import { AgentModelSwitcher } from "@/components/agent-model-switcher";
 import { cn } from "@/lib/utils";
+import type { LlmProvider } from "@/lib/llm-config";
 
 export function AgentComposer({
   value,
@@ -14,10 +14,8 @@ export function AgentComposer({
   onReset,
   running,
   hasConversation,
-  analyticsEnv,
-  onAnalyticsEnvChange,
-  analyticsDatabase,
-  onAnalyticsDatabaseChange,
+  llmProvider,
+  onLlmProviderChange,
   quickPrompts,
   onQuickPrompt,
   inputRef,
@@ -29,10 +27,8 @@ export function AgentComposer({
   onReset: () => void;
   running: boolean;
   hasConversation: boolean;
-  analyticsEnv: string;
-  onAnalyticsEnvChange: (env: string) => void;
-  analyticsDatabase: string;
-  onAnalyticsDatabaseChange: (database: string) => void;
+  llmProvider: LlmProvider;
+  onLlmProviderChange: (provider: LlmProvider) => void;
   quickPrompts: Array<{ id: string; label: string; prompt: string }>;
   onQuickPrompt: (prompt: string, runImmediately?: boolean) => void;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
@@ -57,7 +53,7 @@ export function AgentComposer({
   }
 
   return (
-    <div className="sticky bottom-0 z-20 -mx-1 border-t border-white/[0.05] bg-[#0a0a0c]/90 px-1 pt-3 pb-1 backdrop-blur-md">
+    <div className="shrink-0 border-t border-white/[0.05] bg-[#0a0a0c]/90 px-1 pt-3 pb-1 backdrop-blur-md">
       {!hasConversation ? (
         <div className="mb-2.5 flex flex-wrap gap-1">
           {quickPrompts.slice(0, 6).map((item) => (
@@ -67,7 +63,7 @@ export function AgentComposer({
               onClick={() => onQuickPrompt(item.prompt)}
               onDoubleClick={() => onQuickPrompt(item.prompt, true)}
               title="双击立即运行"
-              className="rounded-full px-2.5 py-1 text-[11px] text-zinc-500 transition hover:bg-white/[0.05] hover:text-zinc-200"
+              className="rounded-full px-2.5 py-1 text-[11px] text-zinc-500 transition hover:bg-brand/10 hover:text-brand-soft"
             >
               {item.label}
             </button>
@@ -79,7 +75,7 @@ export function AgentComposer({
         className={cn(
           "rounded-2xl border border-white/[0.08] bg-[#111113]",
           "shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_36px_rgba(0,0,0,0.35)]",
-          "transition focus-within:border-white/18",
+          "transition focus-within:border-brand/30",
         )}
       >
         <textarea
@@ -105,21 +101,16 @@ export function AgentComposer({
 
         <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-0.5">
-            <AgentDatabaseSwitcher
-              value={analyticsDatabase}
-              onChange={onAnalyticsDatabaseChange}
-              disabled={running}
-            />
-            <AgentEnvSwitcher
-              value={analyticsEnv}
-              onChange={onAnalyticsEnvChange}
+            <AgentModelSwitcher
+              value={llmProvider}
+              onChange={onLlmProviderChange}
               disabled={running}
             />
             <button
               type="button"
               onClick={onReset}
               disabled={running}
-              className="rounded-md px-2 py-1 text-[11px] text-zinc-600 transition hover:bg-white/[0.04] hover:text-zinc-300 disabled:opacity-40"
+              className="ui-btn-ghost"
             >
               新对话
             </button>
@@ -143,10 +134,7 @@ export function AgentComposer({
                 type="button"
                 onClick={onSubmit}
                 disabled={!value.trim()}
-                className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-35",
-                  "bg-zinc-100 text-zinc-950 hover:bg-white",
-                )}
+                className="ui-btn-primary h-8 px-3.5"
               >
                 {hasConversation ? "发送" : "问数"}
               </button>

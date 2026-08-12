@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { introspectListProjectDatabases } from "@/lib/analytics/db-introspection";
-import { getAnalyticsMysqlConfig } from "@/lib/analytics/mysql";
 
 export async function GET() {
   try {
     const result = await introspectListProjectDatabases();
-    const config = getAnalyticsMysqlConfig();
 
     return NextResponse.json({
       databases: result.summary.map((entry) => ({
@@ -14,9 +12,8 @@ export async function GET() {
         description: entry.description,
         domain: entry.domain,
         accessible: entry.accessible,
-        isDefault: entry.isDefault,
       })),
-      defaultDatabase: config?.database ?? "matador",
+      preferredDatabase: null,
       liveCount: result.liveAccessible.length,
     });
   } catch (error) {
@@ -24,7 +21,7 @@ export async function GET() {
       {
         error: error instanceof Error ? error.message : "Failed to list databases",
         databases: [],
-        defaultDatabase: "matador",
+        preferredDatabase: null,
       },
       { status: 200 },
     );

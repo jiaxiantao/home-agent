@@ -6,6 +6,12 @@ import {
   extractQuestionSearchTerms,
   suggestedTablesForQuestion,
 } from "@/lib/analytics/question-router";
+import {
+  extractPhoneFromQuestion,
+  isApiFirstQuestion,
+} from "@/lib/analytics/api-catalog";
+import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
+import { userRequestedChart } from "@/lib/agent/chart-intent";
 import { PRODUCT_NAME_ZH } from "@/lib/product";
 
 type ConversationTurn = { role: string; content: string; sql?: string };
@@ -385,7 +391,71 @@ export function buildMockPlan(
   }
 
   if (wantsAnalytics && !hasTool(prior, "propose_sql") && !hasTool(prior, "execute_sql")) {
-    // 1) 先自动路由库/表
+    const phone = extractPhoneFromQuestion(normalized);
+    const apiFirst = isApiFirstQuestion(normalized);
+
+    if (apiFirst && !hasTool(prior, "route_api")) {
+      return {
+        action: "tool",
+        tool: "route_api",
+        args: { question: normalized },
+        reasoning: "明细查询：先匹配大风车后端已有接口",
+      };
+    }
+
+    const apiRouted = lastToolData<{
+      bestMatch?: { endpoint: { id: string }; httpCallable: boolean; extractedParams: Record<string, string> };
+    }>(prior, "route_api");
+
+    if (
+      apiFirst &&
+      apiRouted?.bestMatch?.httpCallable &&
+      !hasTool(prior, "call_backend_api")
+    ) {
+      const match = apiRouted.bestMatch;
+      return {
+        action: "tool",
+        tool: "call_backend_api",
+        args: {
+          endpointId: match.endpoint.id,
+          phone: match.extractedParams.phone ?? phone,
+          recordId: match.extractedParams.recordId,
+          shopCode: match.extractedParams.shopCode,
+          objCode: match.extractedParams.objCode,
+        },
+        reasoning: "调用 super-mario/matador 等 HTTP 接口查询（优先于 SQL）",
+      };
+    }
+
+    const apiResult = lastToolData<BackendApiCallResult>(prior, "call_backend_api");
+    if (apiResult?.status === "success" && apiResult.table?.rows.length) {
+      return {
+        action: "answer",
+        answer: `已通过后端接口 \`${apiResult.endpointId}\` 查询到 ${apiResult.table.rows.length} 条记录。\n${JSON.stringify(apiResult.table.rows.slice(0, 5), null, 2)}`,
+        reasoning: "HTTP 接口返回成功，直接汇总答案",
+      };
+    }
+
+    // HTTP 失败但已给出可执行 SQL：直接回退，不向用户索取额外参数
+    if (
+      apiResult &&
+      apiResult.status !== "success" &&
+      apiResult.suggestedSql &&
+      !hasTool(prior, "propose_sql")
+    ) {
+      return {
+        action: "tool",
+        tool: "propose_sql",
+        args: {
+          sql: apiResult.suggestedSql,
+          explanation: `HTTP 调用失败（${apiResult.failureKind ?? apiResult.status}），参数已齐全，自动 SQL 回退`,
+        },
+        reasoning:
+          "call_backend_api 失败且已有 suggestedSql：立即 propose_sql，禁止向用户索取 shop_code",
+      };
+    }
+
+    // 1) 再自动路由库/表（SQL 回退）
     if (!hasTool(prior, "route_question")) {
       return {
         action: "tool",
@@ -437,6 +507,66 @@ export function buildMockPlan(
     };
 
     const lookupId = extractLookupId(normalized);
+    if (phone && /客户|CRM|跟进|门店客户/.test(normalized) && !/车牛用户|dfc_user/.test(normalized)) {
+      const crmDb = targetDatabase === "super_mario" ? targetDatabase : "super_mario";
+      const escapedPhone = phone.replace(/'/g, "''");
+      return {
+        action: "tool",
+        tool: "propose_sql",
+        args: {
+          sql: `SELECT id, name, phone, shop_code, owner, grade, source, date_create, date_update FROM \`${crmDb}\`.\`customer\` WHERE phone = '${escapedPhone}' LIMIT 20`,
+          explanation: `接口不可用时的 SQL 回退：按手机号 ${phone} 查 CRM 客户（${crmDb}.customer）`,
+        },
+        reasoning: "route_api/call_backend_api 未成功，按手机号查 CRM 客户 SQL",
+      };
+    }
+
+    if (phone && (/用户|车牛/.test(normalized) || /客户信息/.test(normalized))) {
+      const userDb =
+        targetDatabase ||
+        ruleTables.find((item) => item.table === "cheniu_user")?.database;
+      if (!userDb) {
+        return {
+          action: "tool",
+          tool: "search_schema",
+          args: {
+            keyword: "cheniu_user",
+            acrossDatabases: true,
+          },
+          reasoning: "未确定车牛用户所在库，先跨库搜索",
+        };
+      }
+      const escapedPhone = phone.replace(/'/g, "''");
+      return {
+        action: "tool",
+        tool: "propose_sql",
+        args: {
+          sql: `SELECT user_id, dfc_user_id, name, phone, area, address, is_auth, app_source, date_create FROM \`${userDb}\`.\`cheniu_user\` WHERE phone = '${escapedPhone}' AND date_delete IS NULL LIMIT 20`,
+          explanation: `接口不可用时的 SQL 回退：按手机号 ${phone} 查车牛用户（${userDb}.cheniu_user）`,
+        },
+        reasoning: "按手机号查用户信息 SQL 回退",
+      };
+    }
+
+    if (
+      lookupId &&
+      /客户\s*id|record\s*id/i.test(normalized) &&
+      !/车牛用户|dfc_user_id/i.test(normalized)
+    ) {
+      const crmDb =
+        targetDatabase === "super_mario" ? targetDatabase : "super_mario";
+      const escaped = lookupId.replace(/'/g, "''");
+      return {
+        action: "tool",
+        tool: "propose_sql",
+        args: {
+          sql: `SELECT id, name, phone, shop_code, owner, grade, source, date_create, date_update FROM \`${crmDb}\`.\`customer\` WHERE id = '${escaped}' LIMIT 20`,
+          explanation: `接口不可用时的 SQL 回退：按 CRM 客户 ID「${lookupId}」查 ${crmDb}.customer`,
+        },
+        reasoning: "route_api/call_backend_api 未成功，按客户 recordId 查 CRM SQL",
+      };
+    }
+
     if (
       lookupId &&
       (/客户|用户|会员|cheniu_user|user_id|dfc_user_id/i.test(normalized) ||
@@ -595,7 +725,11 @@ export function buildMockPlan(
     };
   }
 
-  if (hasTool(prior, "execute_sql") && !hasTool(prior, "build_chart")) {
+  if (
+    userRequestedChart(message) &&
+    hasTool(prior, "execute_sql") &&
+    !hasTool(prior, "build_chart")
+  ) {
     const result = lastToolData<{
       columns: string[];
       rows: Record<string, unknown>[];

@@ -19,8 +19,10 @@ function StatusDot({
     >
       <span
         className={cn(
-          "h-1.5 w-1.5 rounded-full",
-          ok ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" : "bg-amber-400",
+          "h-2 w-2 shrink-0 rounded-full",
+          ok
+            ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.55)]"
+            : "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.45)]",
         )}
         aria-hidden
       />
@@ -29,7 +31,7 @@ function StatusDot({
   );
 }
 
-export function SiteHealthBadge() {
+export function SiteHealthBadge({ layout = "inline" }: { layout?: "inline" | "sidebar" }) {
   const { health, loading } = useHealthStatus();
 
   if (loading) {
@@ -45,13 +47,25 @@ export function SiteHealthBadge() {
   const mysql = health.analyticsMysql;
   const mysqlOk = Boolean(mysql?.configured && mysql.ok);
   const mysqlLabel = !mysql?.configured
-    ? "分析库未配置"
+    ? "DB 未配置"
     : mysqlOk
-      ? "分析库 · 在线"
-      : "分析库异常";
+      ? "DB"
+      : "DB 异常";
+
+  const llmOk = health.llm.configured && (health.llm.ok ?? true);
+  const llmLabel = health.llm.configured
+    ? "LLM"
+    : health.llm.required
+      ? "LLM ×"
+      : "规则";
+
+  const containerClass =
+    layout === "sidebar"
+      ? "flex flex-wrap items-center gap-1.5"
+      : "flex flex-wrap items-center justify-end gap-1.5";
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1.5">
+    <div className={containerClass}>
       <StatusDot
         ok={mysqlOk}
         label={mysqlLabel}
@@ -59,19 +73,13 @@ export function SiteHealthBadge() {
           mysql?.error
             ? `analyticsMysql: ${mysql.error}`
             : mysqlOk
-              ? `env=${mysql?.env} default=${mysql?.database ?? "?"} latency=${mysql?.latencyMs}ms`
-            : "大风车分析 MySQL"
+              ? `env=${mysql?.env} host=${mysql?.host ?? "?"} latency=${mysql?.latencyMs}ms`
+              : "大风车分析 MySQL"
         }
       />
       <StatusDot
-        ok={health.llm.configured && (health.llm.ok ?? true)}
-        label={
-          health.llm.configured
-            ? (health.llm.label ?? "LLM")
-            : health.llm.required
-              ? "LLM 不可用"
-              : "规则模式"
-        }
+        ok={llmOk}
+        label={llmLabel}
         title={health.llm.error ?? health.llm.label ?? "LLM"}
       />
       {!health.ready ? (

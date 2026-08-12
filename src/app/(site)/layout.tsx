@@ -1,4 +1,4 @@
-import { SiteHeader } from "@/components/site-header";
+import { SiteConsoleLayout } from "@/components/site-console-layout";
 import { SiteShell } from "@/components/site-shell";
 
 export default function SiteLayout({
@@ -8,10 +8,7 @@ export default function SiteLayout({
 }) {
   return (
     <SiteShell>
-      <div className="flex min-h-screen flex-col text-foreground">
-        <SiteHeader />
-        <div className="flex-1">{children}</div>
-      </div>
+      <SiteConsoleLayout>{children}</SiteConsoleLayout>
     </SiteShell>
   );
 }

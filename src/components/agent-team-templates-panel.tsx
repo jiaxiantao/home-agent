@@ -80,7 +80,7 @@ export function AgentTeamTemplatesPanel({
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-3">
+    <div className="ui-panel p-3">
       <p className="text-[11px] font-medium text-zinc-400">团队问法模板</p>
       <p className="mt-1 text-[10px] text-zinc-600">
         全员可用；管理员可发布自定义口径
@@ -92,13 +92,13 @@ export function AgentTeamTemplatesPanel({
             value={label}
             onChange={(event) => setLabel(event.target.value)}
             placeholder="名称（可选）"
-            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-cyan-300/30"
+            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-brand/30"
           />
           <button
             type="button"
             disabled={saving || !currentPrompt.trim()}
             onClick={() => void handlePublish()}
-            className="shrink-0 rounded-full border border-amber-300/30 px-2.5 py-1 text-[11px] text-amber-100 transition hover:bg-amber-300/10 disabled:opacity-40"
+            className="shrink-0 rounded-full border border-brand/30 px-2.5 py-1 text-[11px] text-brand-soft transition hover:bg-brand/10 disabled:opacity-40"
           >
             发布
           </button>

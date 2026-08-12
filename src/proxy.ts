@@ -6,8 +6,9 @@ import {
   isAuthEnabled,
 } from "@/lib/security/auth-config";
 import { resolveAuthUserFromHeaders } from "@/lib/security/auth";
+import { buildSsoLoginUrl } from "@/lib/security/sso-config";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/session", "/api/health"];
+const PUBLIC_PATHS = ["/login", "/api/auth/session", "/api/auth/config", "/api/auth/sso-token", "/api/health"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some(
@@ -16,17 +17,33 @@ function isPublicPath(pathname: string) {
 }
 
 function unauthorizedResponse(request: NextRequest) {
+  const authMode = getAuthMode();
+  const returnUrl = request.nextUrl.href;
+  const loginUrl =
+    authMode === "sso" ? buildSsoLoginUrl(returnUrl) : undefined;
+
   if (request.nextUrl.pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      {
+        error: "Unauthorized",
+        loginUrl,
+        authMode,
+      },
+      { status: 401 },
+    );
   }
 
-  const loginUrl = request.nextUrl.clone();
-  loginUrl.pathname = "/login";
-  loginUrl.searchParams.set("next", request.nextUrl.pathname);
-  return NextResponse.redirect(loginUrl);
+  if (authMode === "sso" && loginUrl) {
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const localLogin = request.nextUrl.clone();
+  localLogin.pathname = "/login";
+  localLogin.searchParams.set("next", request.nextUrl.pathname);
+  return NextResponse.redirect(localLogin);
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   if (!isAuthEnabled()) {
     return NextResponse.next();
   }

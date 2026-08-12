@@ -20,8 +20,16 @@ function AgentsOrchestratorInner() {
 
 export function AgentsOrchestratorSection() {
   return (
-    <Suspense fallback={<SectionSkeleton lines={6} />}>
-      <AgentsOrchestratorInner />
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 flex-col">
+          <SectionSkeleton lines={6} />
+        </div>
+      }
+    >
+      <div className="flex h-full min-h-0 flex-col">
+        <AgentsOrchestratorInner />
+      </div>
     </Suspense>
   );
 }

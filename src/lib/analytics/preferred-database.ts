@@ -2,7 +2,6 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { assertSqlIdentifier } from "@/lib/analytics/sql-identifier";
 import { assertDatabaseNameAllowed } from "@/lib/security/database-allowlist";
-import { getAnalyticsMysqlConfig } from "@/lib/analytics/mysql";
 
 const preferredDbStore = new AsyncLocalStorage<string>();
 
@@ -25,20 +24,18 @@ export function getPreferredAnalyticsDatabase() {
   return preferredDbStore.getStore();
 }
 
-/** 工具未显式传 database 时：优先会话偏好库，否则连接默认库 */
-export function resolvePreferredOrDefaultDatabase(explicit?: string) {
-  const config = getAnalyticsMysqlConfig();
+const MISSING_DATABASE_MESSAGE =
+  "未指定数据库：请先 route_question / search_schema 确定目标库，或传入 database 参数";
 
-  if (!config) {
-    throw new Error("分析库未配置");
+/** 解析本次工具调用的目标库：显式参数 > 会话偏好库；不回落连接配置里的默认库 */
+export function resolvePreferredOrDefaultDatabase(explicit?: string) {
+  const resolved = explicit?.trim() || getPreferredAnalyticsDatabase();
+
+  if (!resolved) {
+    throw new Error(MISSING_DATABASE_MESSAGE);
   }
 
-  const resolved = assertSqlIdentifier(
-    explicit?.trim() ||
-      getPreferredAnalyticsDatabase() ||
-      config.database,
-    "数据库",
-  );
-  assertDatabaseNameAllowed(resolved);
-  return resolved;
+  const normalized = assertSqlIdentifier(resolved, "数据库");
+  assertDatabaseNameAllowed(normalized);
+  return normalized;
 }

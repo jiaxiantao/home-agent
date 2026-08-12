@@ -19,9 +19,10 @@ import {
 
 import type { A2UIComponent, A2UISurface } from "@/lib/a2ui/types";
 import { buildCsv, downloadCsv } from "@/lib/export/csv";
+import { BRAND_CHART_COLORS, BRAND_HEX } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
-const PIE_COLORS = ["#a1a1aa", "#71717a", "#d4d4d8", "#52525b", "#e4e4e7", "#3f3f46"];
+const PIE_COLORS = [...BRAND_CHART_COLORS];
 
 function ChartView({ chart }: { chart: Extract<A2UIComponent, { type: "Chart" }>["chart"] }) {
   const data = chart.data.map((row) => ({
@@ -59,7 +60,7 @@ function ChartView({ chart }: { chart: Extract<A2UIComponent, { type: "Chart" }>
           <XAxis dataKey={chart.xKey} stroke="#71717a" fontSize={11} />
           <YAxis stroke="#71717a" fontSize={11} />
           <Tooltip />
-          <Line type="monotone" dataKey={chart.yKey} stroke="#e4e4e7" strokeWidth={2} />
+          <Line type="monotone" dataKey={chart.yKey} stroke={BRAND_HEX.primary} strokeWidth={2} />
         </LineChart>
       </ResponsiveContainer>
     );
@@ -72,7 +73,7 @@ function ChartView({ chart }: { chart: Extract<A2UIComponent, { type: "Chart" }>
         <XAxis dataKey={chart.xKey} stroke="#71717a" fontSize={11} />
         <YAxis stroke="#71717a" fontSize={11} />
         <Tooltip />
-        <Bar dataKey={chart.yKey} fill="#a1a1aa" radius={[3, 3, 0, 0]} />
+        <Bar dataKey={chart.yKey} fill={BRAND_HEX.primary} radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -94,7 +95,7 @@ function TableView({
               buildCsv(component.columns, component.rows),
             )
           }
-          className="rounded-md border border-white/[0.08] px-2.5 py-1 text-[11px] text-zinc-400 transition hover:border-white/15 hover:text-zinc-200"
+          className="ui-btn-secondary px-2.5 py-1 text-[11px]"
         >
           导出 CSV
         </button>
@@ -228,8 +229,8 @@ function ComponentView({
                 className={cn(
                   "rounded-md px-3 py-1.5 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40",
                   isPrimary
-                    ? "bg-zinc-100 text-zinc-950 hover:bg-white"
-                    : "border border-white/[0.1] text-zinc-300 hover:bg-white/[0.04]",
+                    ? "bg-brand text-white hover:bg-brand-hover"
+                    : "border border-white/10 text-zinc-300 hover:border-brand/25 hover:bg-brand/5 hover:text-brand-soft",
                 )}
               >
                 {button.label}
@@ -292,21 +293,21 @@ export function A2UISurfaceView({
       className={cn(
         "space-y-3 rounded-xl border p-3.5",
         isApproval
-          ? "border-amber-400/20 bg-amber-400/[0.04]"
-          : "border-white/[0.08] bg-white/[0.02]",
+          ? "ui-panel-approval"
+          : "ui-panel",
       )}
     >
       {surface.title ? (
         <div className="flex items-center gap-2">
           {isApproval ? (
-            <span className="text-[11px] text-amber-400" aria-hidden>
+            <span className="text-[11px] text-brand" aria-hidden>
               ⚠
             </span>
           ) : null}
           <h3
             className={cn(
               "text-[12px] font-medium",
-              isApproval ? "text-amber-100/90" : "text-zinc-300",
+              isApproval ? "text-brand-soft" : "text-zinc-300",
             )}
           >
             {surface.title}

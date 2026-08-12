@@ -27,7 +27,7 @@ export function AgentFinalAnswer({
         <button
           type="button"
           onClick={() => void copyAnswer()}
-          className="rounded-md border border-white/[0.08] bg-[#121214] px-2 py-1 text-[10px] text-zinc-400 transition hover:text-zinc-200"
+          className="rounded-md border border-white/10 bg-[#121214] px-2 py-1 text-[10px] text-zinc-400 transition hover:border-brand/25 hover:text-brand-soft"
         >
           {copied ? "已复制" : "复制"}
         </button>

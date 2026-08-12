@@ -69,4 +69,20 @@ describe("auth", () => {
       userName: "Bob",
     });
   });
+
+  it("reads sso cookie as authenticated user", () => {
+    process.env.AUTH_MODE = "sso";
+    const headers = new Headers({
+      cookie: "_security_token=my-sso-token",
+    });
+
+    const user = resolveAuthUserFromHeaders(headers);
+    expect(user?.authMode).toBe("sso");
+    expect(user?.userId).toMatch(/^sso:/);
+  });
+
+  it("rejects missing sso credentials", () => {
+    process.env.AUTH_MODE = "sso";
+    expect(resolveAuthUserFromHeaders(new Headers())).toBeNull();
+  });
 });
