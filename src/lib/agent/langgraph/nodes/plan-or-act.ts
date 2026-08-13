@@ -15,7 +15,6 @@ import { createChatModel, isLangGraphLlmEnabled } from "@/lib/agent/langgraph/mo
 import { buildAgentSystemPrompt } from "@/lib/agent/langgraph/prompts";
 import type { DfcAgentStateType } from "@/lib/agent/langgraph/state";
 import { createLangChainTools } from "@/lib/agent/langgraph/tools";
-import { isApiFirstQuestion } from "@/lib/analytics/api-catalog";
 
 function isLlmRequired() {
   const flag = process.env.LLM_REQUIRE?.toLowerCase();
@@ -111,13 +110,6 @@ function extractMessageChunkText(chunk: AIMessageChunk) {
   return "";
 }
 
-function looksLikeDataQuestion(message: string) {
-  return (
-    isApiFirstQuestion(message) ||
-    /客户|车源|订单|会员|用户|查询|统计|多少|分布|表|数据库|id|ID/i.test(message)
-  );
-}
-
 function extractAiText(response: AIMessage) {
   if (typeof response.content === "string") {
     return response.content.trim();
@@ -141,16 +133,12 @@ function extractAiText(response: AIMessage) {
 
 export function needsRuleBasedFallback(
   update: Partial<DfcAgentStateType>,
-  state: DfcAgentStateType,
-  conversation: ThreadTurn[] = [],
+  _state?: DfcAgentStateType,
+  _conversation: ThreadTurn[] = [],
 ): boolean {
   const lastAi = update.messages?.at(-1);
   if (lastAi instanceof AIMessage && lastAi.tool_calls?.length) {
     return false;
-  }
-
-  if (state.priorToolResults.length > 0) {
-    return shouldContinueWithMockPlanner(state, conversation);
   }
 
   const text = String(
@@ -158,10 +146,7 @@ export function needsRuleBasedFallback(
       (lastAi instanceof AIMessage ? extractAiText(lastAi) : ""),
   ).trim();
 
-  if (looksLikeDataQuestion(state.userMessage)) {
-    return true;
-  }
-
+  // 模型已给出规划（工具或文本）时不再切规则；仅空响应视为调用异常
   return !text;
 }
 
@@ -179,6 +164,89 @@ export function shouldContinueWithMockPlanner(
 
   const plan = buildMockPlan(state.userMessage, state.priorToolResults, conversation);
   return plan.action === "tool" || plan.action === "answer";
+}
+
+function parseToolArgs(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  if (typeof raw !== "string" || !raw.trim()) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function toolCallsFromStreamedMessage(chunk: AIMessageChunk): NonNullable<AIMessage["tool_calls"]> {
+  if (Array.isArray(chunk.tool_calls) && chunk.tool_calls.length) {
+    return chunk.tool_calls;
+  }
+
+  const fromKwargs = chunk.additional_kwargs?.tool_calls;
+  if (Array.isArray(fromKwargs) && fromKwargs.length) {
+    return fromKwargs.map((item, index) => {
+      const fn = (
+        item as {
+          id?: string;
+          name?: string;
+          function?: { name?: string; arguments?: string };
+        }
+      );
+      return {
+        id: String(fn.id ?? `call_${index}`),
+        name: String(fn.function?.name ?? fn.name ?? ""),
+        args: parseToolArgs(fn.function?.arguments),
+        type: "tool_call" as const,
+      };
+    }).filter((item) => item.name);
+  }
+
+  const parts = chunk.tool_call_chunks ?? [];
+  if (!parts.length) {
+    return [];
+  }
+
+  const byIndex = new Map<number, { id?: string; name?: string; args: string }>();
+  for (const part of parts) {
+    const index = part.index ?? 0;
+    const current = byIndex.get(index) ?? { args: "" };
+    byIndex.set(index, {
+      id: part.id ?? current.id,
+      name: part.name ?? current.name,
+      args: `${current.args}${part.args ?? ""}`,
+    });
+  }
+
+  return [...byIndex.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, part], index) => ({
+      id: part.id || `call_${index}`,
+      name: part.name || "",
+      args: parseToolArgs(part.args),
+      type: "tool_call" as const,
+    }))
+    .filter((item) => item.name);
+}
+
+function finalizeStreamedAiMessage(gathered: AIMessageChunk | undefined): AIMessage {
+  if (!gathered) {
+    return new AIMessage({ content: "" });
+  }
+
+  const toolCalls = toolCallsFromStreamedMessage(gathered);
+  return new AIMessage({
+    content: gathered.content,
+    tool_calls: toolCalls.length ? toolCalls : undefined,
+    additional_kwargs: gathered.additional_kwargs,
+    response_metadata: gathered.response_metadata,
+    id: gathered.id,
+  });
 }
 
 function buildAgentUpdateFromResponse(
@@ -203,7 +271,9 @@ export async function* streamLlmAgentNode(
   | { kind: "delta"; text: string; delta: string }
   | { kind: "done"; update: Partial<DfcAgentStateType> }
 > {
-  const model = createChatModel().bindTools(createLangChainTools());
+  const model = createChatModel().bindTools(createLangChainTools(), {
+    tool_choice: "auto",
+  });
   const stream = await model.stream([
     new SystemMessage(buildAgentSystemPrompt(state.userMessage)),
     ...state.messages,
@@ -221,10 +291,9 @@ export async function* streamLlmAgentNode(
     }
   }
 
-  const response = (gathered ?? new AIMessage({ content: "" })) as AIMessage;
   yield {
     kind: "done",
-    update: buildAgentUpdateFromResponse(state, response),
+    update: buildAgentUpdateFromResponse(state, finalizeStreamedAiMessage(gathered)),
   };
 }
 
@@ -257,18 +326,6 @@ export async function* streamRoutePlannerNode(
   }
 
   try {
-    // 仅在已处于规则规划路径时续跑 mock，避免 LLM 成功出工具后被强制切回规则规划器
-    if (state.mock && shouldContinueWithMockPlanner(state, conversation)) {
-      yield {
-        kind: "delta",
-        text: "根据上一步结果继续执行…",
-        delta: "根据上一步结果继续执行…",
-      };
-      const mockUpdate = await mockPlanNode(state, conversation);
-      yield { kind: "done", update: { mock: true, ...mockUpdate } };
-      return;
-    }
-
     let llmUpdate: Partial<DfcAgentStateType> = {};
     for await (const event of streamLlmAgentNode(state)) {
       if (event.kind === "delta") {
@@ -281,8 +338,8 @@ export async function* streamRoutePlannerNode(
     if (needsRuleBasedFallback(llmUpdate, state, conversation)) {
       yield {
         kind: "delta",
-        text: "LLM 未产生有效工具调用，回退规则规划器…",
-        delta: "LLM 未产生有效工具调用，回退规则规划器…",
+        text: "LLM 未返回可用规划，回退规则规划器…",
+        delta: "LLM 未返回可用规划，回退规则规划器…",
       };
       const mockUpdate = await mockPlanNode(state, conversation);
       yield { kind: "done", update: { mock: true, ...mockUpdate } };

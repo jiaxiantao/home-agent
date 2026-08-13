@@ -121,6 +121,46 @@ describe("langgraph graph", () => {
     expect(needsRuleBasedFallback(emptyLlmUpdate, state)).toBe(true);
   });
 
+  it("does not fallback when LLM answers a data question", () => {
+    const question = "帮我查询车牌号为皖JV066M的车辆信息";
+    const state = createGraphInput(question);
+    const llmUpdate = {
+      mock: false,
+      stepCount: 1,
+      messages: [new AIMessage({ content: "先按车牌路由车辆接口。" })],
+      finalAnswer: "先按车牌路由车辆接口。",
+      shouldEnd: true,
+    };
+
+    expect(needsRuleBasedFallback(llmUpdate, state)).toBe(false);
+  });
+
+  it("does not fallback when LLM emits tool calls", () => {
+    const question = "帮我查询车牌号为皖JV066M的车辆信息";
+    const state = createGraphInput(question);
+    const llmUpdate = {
+      mock: false,
+      stepCount: 1,
+      messages: [
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              id: "call_1",
+              name: "route_api",
+              args: { question },
+              type: "tool_call" as const,
+            },
+          ],
+        }),
+      ],
+      finalAnswer: null,
+      shouldEnd: false,
+    };
+
+    expect(needsRuleBasedFallback(llmUpdate, state)).toBe(false);
+  });
+
   it("continues with mock planner after route_api when already on mock path", () => {
     const question = "我想知道客户 id 为 ANwbnMyLF0 的客户信息";
     const state = {

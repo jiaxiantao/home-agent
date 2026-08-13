@@ -36,7 +36,9 @@ export function plannerModeEvent(mock: boolean): AgentTraceEvent {
   return {
     type: "planner_mode",
     mock,
-    label: mock ? "规则规划器（LLM 未启用或调用失败）" : "LangChain 规划器",
+    label: mock
+      ? "规则规划器（LLM 未启用或调用失败）"
+      : "LangChain 规划器",
   };
 }
 
