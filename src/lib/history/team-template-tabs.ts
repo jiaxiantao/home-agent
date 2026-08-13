@@ -9,7 +9,11 @@ export type TeamTemplateCategoryTab = {
   templateId: string;
   templateLabel: string;
   useCount: number;
+  /** 该分类下全部模板使用次数之和 */
+  categoryUseCount: number;
 };
+
+export const MAX_COMPOSER_CATEGORY_TABS = 6;
 
 const PREFERRED_CATEGORY_ORDER = [
   "车源",
@@ -84,13 +88,21 @@ export function compareCategoryTabOrder(
   return a.name.localeCompare(b.name, "zh-CN");
 }
 
+function categoryHeat(templates: TeamTemplate[], category: string) {
+  return templates
+    .filter((item) => (item.category ?? "通用") === category)
+    .reduce((sum, item) => sum + (item.useCount ?? 0), 0);
+}
+
 export function buildTeamTemplateCategoryTabs(input: {
   categories?: Array<Pick<TeamTemplateCategory, "name" | "sortOrder">>;
   templates: TeamTemplate[];
+  limit?: number;
 }): TeamTemplateCategoryTab[] {
   const templates = input.templates.filter(
     (item) => item.category && item.category !== "内置",
   );
+  const limit = input.limit ?? MAX_COMPOSER_CATEGORY_TABS;
 
   const fromCatalog = (input.categories ?? [])
     .filter((item) => item.name !== "内置")
@@ -103,10 +115,19 @@ export function buildTeamTemplateCategoryTabs(input: {
         sortOrder: 0,
       }));
 
-  names.sort(compareCategoryTabOrder);
+  names.sort((a, b) => {
+    const heatDiff = categoryHeat(templates, b.name) - categoryHeat(templates, a.name);
+    if (heatDiff !== 0) {
+      return heatDiff;
+    }
+    return compareCategoryTabOrder(a, b);
+  });
 
   const tabs: TeamTemplateCategoryTab[] = [];
   for (const category of names) {
+    if (tabs.length >= limit) {
+      break;
+    }
     const top = pickTopTemplateInCategory(templates, category.name);
     if (!top?.prompt) {
       continue;
@@ -117,6 +138,7 @@ export function buildTeamTemplateCategoryTabs(input: {
       templateId: top.id,
       templateLabel: top.label,
       useCount: top.useCount ?? 0,
+      categoryUseCount: categoryHeat(templates, category.name),
     });
   }
 
