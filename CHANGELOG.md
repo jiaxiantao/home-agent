@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- 本地 `pnpm dev` 因 Turbopack HMR panic（Next.js package not found）导致浏览器整页循环刷新；开发模式改用 webpack。
+
 ### Changed
 
 - 仓库地址改为搜车 GitLab `dfc-ai/dfc-data-agent`，MCP client 名与内存 store 键同步更名。
