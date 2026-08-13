@@ -1,112 +1,201 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { DarkSelect } from "@/components/dark-select";
 
 type TeamTemplateItem = {
   id: string;
   label: string;
   prompt: string;
+  category?: string;
   createdAt: string;
   createdBy: string;
   builtin?: boolean;
+  useCount?: number;
+  lastUsedAt?: string | null;
 };
 
+const PAGE_SIZE = 10;
+
 export function AgentTeamTemplatesPanel({
-  currentPrompt,
   onSelect,
 }: {
-  currentPrompt: string;
   onSelect: (prompt: string) => void;
 }) {
   const [templates, setTemplates] = useState<TeamTemplateItem[]>([]);
+  const [categories, setCategories] = useState<string[]>(["全部"]);
   const [canManage, setCanManage] = useState(false);
-  const [label, setLabel] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const refresh = useCallback(async () => {
-    try {
-      const response = await fetch("/api/templates");
-      if (!response.ok) {
-        return;
-      }
-      const data = (await response.json()) as {
-        templates?: TeamTemplateItem[];
-        canManage?: boolean;
-      };
-      setTemplates(data.templates ?? []);
-      setCanManage(Boolean(data.canManage));
-    } catch {
-      // ignore
-    }
-  }, []);
+  const [queryInput, setQueryInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("全部");
+
+  const listRef = useRef<HTMLUListElement>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void refresh();
-    }, 0);
+      setQuery(queryInput.trim());
+      setPage(1);
+    }, 300);
     return () => window.clearTimeout(timer);
-  }, [refresh]);
+  }, [queryInput]);
 
-  async function handlePublish() {
-    if (!currentPrompt.trim()) {
+  const loadPage = useCallback(
+    async (nextPage: number, append: boolean) => {
+      const requestId = ++requestIdRef.current;
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        setTemplates([]);
+        setHasMore(true);
+      }
+
+      try {
+        const params = new URLSearchParams({
+          sort: "popular",
+          page: String(nextPage),
+          pageSize: String(PAGE_SIZE),
+        });
+        if (query) {
+          params.set("q", query);
+        }
+        if (category !== "全部") {
+          params.set("category", category);
+        }
+
+        const response = await fetch(`/api/templates?${params.toString()}`);
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as {
+          templates?: TeamTemplateItem[];
+          total?: number;
+          page?: number;
+          pageSize?: number;
+          categories?: string[];
+          canManage?: boolean;
+        };
+
+        if (requestId !== requestIdRef.current) {
+          return;
+        }
+
+        const items = data.templates ?? [];
+        const nextTotal = data.total ?? items.length;
+        setTotal(nextTotal);
+        setCanManage(Boolean(data.canManage));
+        setCategories([
+          "全部",
+          ...(data.categories ?? []).sort((a, b) => a.localeCompare(b, "zh-CN")),
+        ]);
+        setTemplates((current) => (append ? [...current, ...items] : items));
+        setPage(nextPage);
+        setHasMore(nextPage * PAGE_SIZE < nextTotal);
+      } catch {
+        // ignore
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+      }
+    },
+    [category, query],
+  );
+
+  useEffect(() => {
+    void loadPage(1, false);
+  }, [loadPage]);
+
+  function handleListScroll() {
+    const list = listRef.current;
+    if (!list || loading || loadingMore || !hasMore) {
       return;
     }
 
-    setSaving(true);
-    try {
-      const response = await fetch("/api/templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          label: label.trim() || currentPrompt.trim().slice(0, 16),
-          prompt: currentPrompt.trim(),
-        }),
-      });
-
-      if (response.ok) {
-        setLabel("");
-        await refresh();
-      }
-    } finally {
-      setSaving(false);
+    const remaining = list.scrollHeight - list.scrollTop - list.clientHeight;
+    if (remaining < 48) {
+      void loadPage(page + 1, true);
     }
+  }
+
+  async function handleSelect(item: TeamTemplateItem) {
+    void fetch("/api/templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "use", id: item.id }),
+    });
+    onSelect(item.prompt);
+    setTemplates((current) =>
+      [...current]
+        .map((entry) =>
+          entry.id === item.id
+            ? { ...entry, useCount: (entry.useCount ?? 0) + 1 }
+            : entry,
+        )
+        .sort((a, b) => (b.useCount ?? 0) - (a.useCount ?? 0)),
+    );
   }
 
   async function handleDelete(id: string) {
     await fetch(`/api/templates?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
-    await refresh();
+    setTemplates((current) => current.filter((item) => item.id !== id));
+    setTotal((current) => Math.max(0, current - 1));
   }
 
   return (
-    <div className="ui-panel p-3">
-      <p className="text-[11px] font-medium text-zinc-400">团队问法模板</p>
-      <p className="mt-1 text-[10px] text-zinc-600">
-        全员可用；管理员可发布自定义口径
+    <div className="ui-panel flex max-h-[28rem] flex-col p-3">
+      <div className="flex shrink-0 items-center justify-between gap-2">
+        <p className="text-[11px] font-medium text-zinc-400">团队问法模板</p>
+        <span className="font-mono text-[10px] text-zinc-600">{total} 条</span>
+      </div>
+      <p className="mt-1 shrink-0 text-[10px] text-zinc-600">
+        按热度排序；点击即计入触发次数
       </p>
 
-      {canManage ? (
-        <div className="mt-3 flex gap-2">
-          <input
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder="名称（可选）"
-            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-brand/30"
-          />
-          <button
-            type="button"
-            disabled={saving || !currentPrompt.trim()}
-            onClick={() => void handlePublish()}
-            className="shrink-0 rounded-full border border-brand/30 px-2.5 py-1 text-[11px] text-brand-soft transition hover:bg-brand/10 disabled:opacity-40"
-          >
-            发布
-          </button>
-        </div>
-      ) : null}
+      <div className="mt-3 shrink-0 space-y-2">
+        <input
+          value={queryInput}
+          onChange={(event) => setQueryInput(event.target.value)}
+          placeholder="搜索问法…"
+          className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-brand/30"
+        />
+        <DarkSelect
+          value={category}
+          options={categories.map((item) => ({ value: item, label: item }))}
+          onChange={(next) => {
+            setCategory(next);
+            setPage(1);
+          }}
+          buttonClassName="rounded-lg bg-black/30 px-2 py-1.5 text-[11px]"
+        />
+      </div>
 
-      {templates.length ? (
-        <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+      {loading && !templates.length ? (
+        <div className="mt-3 flex items-center justify-center gap-2 py-8 text-[11px] text-slate-500">
+          <span
+            className="inline-block h-3.5 w-3.5 animate-spin rounded-full border border-brand/30 border-t-brand"
+            aria-hidden
+          />
+          加载中…
+        </div>
+      ) : templates.length ? (
+        <ul
+          ref={listRef}
+          onScroll={handleListScroll}
+          className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-0.5"
+        >
           {templates.map((item) => (
             <li
               key={item.id}
@@ -114,11 +203,17 @@ export function AgentTeamTemplatesPanel({
             >
               <button
                 type="button"
-                onClick={() => onSelect(item.prompt)}
+                onClick={() => void handleSelect(item)}
                 className="w-full text-left"
               >
                 <div className="flex items-center gap-1.5">
                   <p className="text-xs text-slate-200">{item.label}</p>
+                  <span className="font-mono text-[9px] text-brand-soft/80">
+                    {item.useCount ?? 0}
+                  </span>
+                  <span className="text-[9px] text-slate-600">
+                    {item.category ?? "通用"}
+                  </span>
                   {item.builtin ? (
                     <span className="text-[9px] uppercase tracking-wide text-slate-600">
                       内置
@@ -129,7 +224,7 @@ export function AgentTeamTemplatesPanel({
                   {item.prompt}
                 </p>
               </button>
-              {canManage && !item.builtin ? (
+              {canManage ? (
                 <button
                   type="button"
                   onClick={() => void handleDelete(item.id)}
@@ -140,9 +235,23 @@ export function AgentTeamTemplatesPanel({
               ) : null}
             </li>
           ))}
+          {loadingMore || loading ? (
+            <li className="flex items-center justify-center gap-2 py-3 text-[10px] text-slate-500">
+              <span
+                className="inline-block h-3 w-3 animate-spin rounded-full border border-brand/30 border-t-brand"
+                aria-hidden
+              />
+              加载中…
+            </li>
+          ) : null}
+          {!loading && !loadingMore && !hasMore && templates.length > 0 ? (
+            <li className="py-2 text-center text-[10px] text-slate-700">
+              已加载全部
+            </li>
+          ) : null}
         </ul>
       ) : (
-        <p className="mt-3 text-[11px] text-slate-600">暂无团队模板</p>
+        <p className="mt-3 text-[11px] text-slate-600">暂无匹配的团队模板</p>
       )}
     </div>
   );

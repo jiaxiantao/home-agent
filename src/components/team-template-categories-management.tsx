@@ -1,0 +1,458 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+
+type CategoryItem = {
+  id: string;
+  name: string;
+  description?: string | null;
+  sortOrder: number;
+  createdAt: string;
+  templateCount?: number;
+};
+
+type Draft = {
+  name: string;
+  description: string;
+  sortOrder: string;
+};
+
+const emptyDraft = (): Draft => ({
+  name: "",
+  description: "",
+  sortOrder: "0",
+});
+
+function CategoryFormModal({
+  open,
+  title,
+  draft,
+  saving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  title: string;
+  draft: Draft;
+  saving: boolean;
+  onChange: (draft: Draft) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-white/10 px-5 py-4">
+          <h2 className="text-base font-medium text-white">{title}</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            分类名称会用于模板筛选与新建时的下拉选择。
+          </p>
+        </div>
+
+        <div className="space-y-3 px-5 py-4">
+          <label className="block">
+            <span className="mb-1.5 block text-xs text-slate-400">分类名称</span>
+            <input
+              value={draft.name}
+              onChange={(event) =>
+                onChange({ ...draft, name: event.target.value })
+              }
+              placeholder="例如：金融"
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand/30"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs text-slate-400">说明（可选）</span>
+            <input
+              value={draft.description}
+              onChange={(event) =>
+                onChange({ ...draft, description: event.target.value })
+              }
+              placeholder="例如：贷款、放款相关问法"
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand/30"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs text-slate-400">排序值</span>
+            <input
+              type="number"
+              min={0}
+              value={draft.sortOrder}
+              onChange={(event) =>
+                onChange({ ...draft, sortOrder: event.target.value })
+              }
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand/30"
+            />
+            <span className="mt-1 block text-[11px] text-slate-600">
+              数值越小越靠前
+            </span>
+          </label>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-white/10 px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-lg px-4 py-2 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            disabled={saving || !draft.name.trim()}
+            onClick={onSave}
+            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-slate-100 disabled:opacity-40"
+          >
+            {saving ? "保存中…" : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TeamTemplateCategoriesManagement() {
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [canManage, setCanManage] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft>(emptyDraft());
+  const [saving, setSaving] = useState(false);
+
+  const [deleteTarget, setDeleteTarget] = useState<CategoryItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/template-categories");
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json()) as {
+        categories?: CategoryItem[];
+        canManage?: boolean;
+      };
+      setCategories(data.categories ?? []);
+      setCanManage(Boolean(data.canManage));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const filtered = categories.filter((item) => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) {
+      return true;
+    }
+    return (
+      item.name.toLowerCase().includes(keyword) ||
+      (item.description ?? "").toLowerCase().includes(keyword)
+    );
+  });
+
+  function openCreateModal() {
+    setEditingId(null);
+    setDraft(emptyDraft());
+    setErrorMessage(null);
+    setModalOpen(true);
+  }
+
+  function openEditModal(item: CategoryItem) {
+    setEditingId(item.id);
+    setDraft({
+      name: item.name,
+      description: item.description ?? "",
+      sortOrder: String(item.sortOrder),
+    });
+    setErrorMessage(null);
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    if (saving) {
+      return;
+    }
+    setModalOpen(false);
+    setEditingId(null);
+    setDraft(emptyDraft());
+    setErrorMessage(null);
+  }
+
+  async function handleSave() {
+    if (!draft.name.trim()) {
+      return;
+    }
+
+    setSaving(true);
+    setErrorMessage(null);
+    try {
+      const payload = {
+        name: draft.name.trim(),
+        description: draft.description.trim() || undefined,
+        sortOrder: Number.parseInt(draft.sortOrder, 10) || 0,
+      };
+
+      const response = await fetch("/api/template-categories", {
+        method: editingId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          editingId ? { id: editingId, ...payload } : payload,
+        ),
+      });
+
+      if (response.ok) {
+        closeModal();
+        await refresh();
+        return;
+      }
+
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      setErrorMessage(data.error ?? "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const response = await fetch(
+        `/api/template-categories?id=${encodeURIComponent(deleteTarget.id)}`,
+        { method: "DELETE" },
+      );
+      if (response.ok) {
+        setDeleteTarget(null);
+        await refresh();
+      } else {
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setErrorMessage(data.error ?? "删除失败");
+        setDeleteTarget(null);
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-5 shrink-0">
+        <Link
+          href="/templates"
+          className="inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-brand-soft"
+        >
+          <span aria-hidden>←</span>
+          返回模板列表
+        </Link>
+        <h1 className="mt-3 text-2xl font-semibold text-white">分类管理</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          维护团队模板分类；新建模板时从下列分类中选择。
+        </p>
+      </div>
+
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
+        <div className="flex min-w-60 flex-1 items-stretch overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] focus-within:border-brand/30">
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="按分类名称搜索"
+            className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm text-slate-200 outline-none"
+          />
+          <button
+            type="button"
+            aria-label="搜索"
+            className="inline-flex shrink-0 items-center gap-1.5 border-l border-white/10 px-4 text-sm text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              className="h-4 w-4"
+              aria-hidden
+            >
+              <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.6" />
+              <path
+                d="M13.5 13.5 17 17"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              />
+            </svg>
+            搜索
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-slate-300 transition hover:border-white/20 hover:text-white"
+        >
+          刷新
+        </button>
+
+        {canManage ? (
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-slate-100"
+          >
+            <span aria-hidden>+</span>
+            新建分类
+          </button>
+        ) : null}
+      </div>
+
+      {errorMessage ? (
+        <div className="mb-4 rounded-xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-300">
+          {errorMessage}
+        </div>
+      ) : null}
+
+      <div className="ui-panel flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+        {loading ? (
+          <p className="px-5 py-12 text-center text-sm text-slate-500">加载中…</p>
+        ) : filtered.length ? (
+          <ul className="divide-y divide-white/6">
+            {filtered.map((item) => (
+              <li
+                key={item.id}
+                className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition hover:bg-white/2"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-white">{item.name}</p>
+                    <span className="rounded-full border border-brand/20 bg-brand/10 px-2 py-0.5 text-[10px] text-brand-soft">
+                      {item.templateCount ?? 0} 条模板
+                    </span>
+                  </div>
+                  {item.description ? (
+                    <p className="mt-1 text-xs text-slate-500">{item.description}</p>
+                  ) : null}
+                  <p className="mt-1 text-[11px] text-slate-600">
+                    排序 {item.sortOrder}
+                  </p>
+                </div>
+
+                {canManage ? (
+                  <div className="flex items-center gap-3 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(item)}
+                      className="text-slate-400 transition hover:text-white"
+                    >
+                      编辑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setErrorMessage(null);
+                        setDeleteTarget(item);
+                      }}
+                      className="text-slate-500 transition hover:text-rose-300"
+                    >
+                      删除
+                    </button>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-5 py-12 text-center text-sm text-slate-500">
+            暂无分类
+          </p>
+        )}
+        </div>
+      </div>
+
+      <CategoryFormModal
+        open={modalOpen}
+        title={editingId ? "编辑分类" : "新建分类"}
+        draft={draft}
+        saving={saving}
+        onChange={setDraft}
+        onClose={closeModal}
+        onSave={() => void handleSave()}
+      />
+
+      {deleteTarget ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="presentation"
+          onClick={() => {
+            if (!deleting) {
+              setDeleteTarget(null);
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-4 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 className="text-sm font-medium text-white">删除分类？</h2>
+            <p className="mt-2 text-xs leading-5 text-slate-400">
+              确认删除「{deleteTarget.name}」？
+              {(deleteTarget.templateCount ?? 0) > 0
+                ? `该分类下还有 ${deleteTarget.templateCount} 条模板，无法删除。`
+                : "删除后不可恢复。"}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="rounded-lg px-3 py-1.5 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                disabled={deleting || (deleteTarget.templateCount ?? 0) > 0}
+                className="rounded-lg bg-rose-500/20 px-3 py-1.5 text-xs font-medium text-rose-300 transition hover:bg-rose-500/30 disabled:opacity-40"
+              >
+                {deleting ? "删除中…" : "确认删除"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { AgentActivityStep } from "@/hooks/use-agent-sse";
 import { cn } from "@/lib/utils";
@@ -105,7 +105,13 @@ export function AgentActivitySteps({
   phaseLabel?: string;
   streamText?: string;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(Boolean(running));
+
+  useEffect(() => {
+    if (running) {
+      setExpanded(true);
+    }
+  }, [running]);
 
   if (!steps.length && !running) {
     return null;

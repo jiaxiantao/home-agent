@@ -41,6 +41,7 @@ describe("team templates", () => {
       createdBy: "admin1",
     });
     expect(second.id).toBe(first.id);
+    expect(first.id).toHaveLength(16);
 
     const builtins = (await listTeamTemplates()).filter((item) => item.builtin);
     expect(await deleteTeamTemplate(builtins[0]!.id)).toBe(false);

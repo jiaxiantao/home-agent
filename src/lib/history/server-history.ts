@@ -1,5 +1,7 @@
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
+import { executeAppMysql, isAppMysqlConfigured, queryAppMysql } from "@/lib/app-mysql/client";
 import { PRODUCT_SLUG } from "@/lib/product";
+import type { RowDataPacket } from "mysql2/promise";
 
 export type ServerHistoryStatus = "awaiting" | "done" | "error" | "cancelled";
 
@@ -33,6 +35,20 @@ if (!globalStore.__dfcDataAgentHistory) {
   globalStore.__dfcDataAgentHistory = memoryStore;
 }
 
+type HistoryRow = RowDataPacket & {
+  id: string;
+  user_id: string;
+  thread_id: string;
+  question: string;
+  answer: string | null;
+  sql_text: string | null;
+  row_count: number | null;
+  status: ServerHistoryStatus;
+  run_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
 function redisKey(userId: string) {
   return `${REDIS_PREFIX}${userId}`;
 }
@@ -41,7 +57,32 @@ function sortByCreatedDesc(entries: ServerHistoryEntry[]) {
   return [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+function mapRow(row: HistoryRow): ServerHistoryEntry {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    threadId: row.thread_id,
+    question: row.question,
+    answer: row.answer ?? undefined,
+    sql: row.sql_text ?? undefined,
+    rowCount: row.row_count ?? undefined,
+    status: row.status,
+    runId: row.run_id ?? undefined,
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
+  };
+}
+
 async function readUserHistory(userId: string): Promise<ServerHistoryEntry[]> {
+  if (isAppMysqlConfigured()) {
+    const rows = await queryAppMysql<HistoryRow>(
+      `SELECT id, user_id, thread_id, question, answer, sql_text, row_count, status, run_id, created_at, updated_at
+       FROM query_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`,
+      [userId, MAX_PER_USER],
+    );
+    return rows.map(mapRow);
+  }
+
   if (isRedisConfigured()) {
     const client = await getRedisClient();
 
@@ -104,6 +145,26 @@ export async function createServerHistory(input: {
     updatedAt: now,
   };
 
+  if (isAppMysqlConfigured()) {
+    await executeAppMysql(
+      `INSERT INTO query_history
+        (id, user_id, thread_id, question, answer, sql_text, row_count, status, run_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entry.id,
+        entry.userId,
+        entry.threadId,
+        entry.question,
+        entry.answer ?? null,
+        entry.sql ?? null,
+        entry.rowCount ?? null,
+        entry.status,
+        entry.runId ?? null,
+      ],
+    );
+    return entry;
+  }
+
   const current = await readUserHistory(input.userId);
   await writeUserHistory(input.userId, [entry, ...current]);
   return entry;
@@ -119,6 +180,39 @@ export async function updateServerHistory(
     >
   >,
 ) {
+  if (isAppMysqlConfigured()) {
+    const current = await queryAppMysql<HistoryRow>(
+      `SELECT id, user_id, thread_id, question, answer, sql_text, row_count, status, run_id, created_at, updated_at
+       FROM query_history WHERE user_id = ? AND id = ? LIMIT 1`,
+      [userId, id],
+    );
+    if (!current[0]) {
+      return null;
+    }
+
+    const next = {
+      ...mapRow(current[0]),
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+    await executeAppMysql(
+      `UPDATE query_history
+       SET status = ?, sql_text = ?, answer = ?, row_count = ?, run_id = ?, thread_id = ?
+       WHERE user_id = ? AND id = ?`,
+      [
+        next.status,
+        next.sql ?? null,
+        next.answer ?? null,
+        next.rowCount ?? null,
+        next.runId ?? null,
+        next.threadId,
+        userId,
+        id,
+      ],
+    );
+    return next;
+  }
+
   const current = await readUserHistory(userId);
   const index = current.findIndex((item) => item.id === id);
 
@@ -143,6 +237,18 @@ export async function updateServerHistoryByRunId(
     Pick<ServerHistoryEntry, "status" | "sql" | "answer" | "rowCount">
   >,
 ) {
+  if (isAppMysqlConfigured()) {
+    const current = await queryAppMysql<HistoryRow>(
+      `SELECT id, user_id, thread_id, question, answer, sql_text, row_count, status, run_id, created_at, updated_at
+       FROM query_history WHERE user_id = ? AND run_id = ? LIMIT 1`,
+      [userId, runId],
+    );
+    if (!current[0]) {
+      return null;
+    }
+    return updateServerHistory(userId, current[0].id, patch);
+  }
+
   const current = await readUserHistory(userId);
   const index = current.findIndex((item) => item.runId === runId);
 
@@ -161,6 +267,14 @@ export async function updateServerHistoryByRunId(
 }
 
 export async function deleteServerHistory(userId: string, id: string) {
+  if (isAppMysqlConfigured()) {
+    const result = await executeAppMysql(
+      `DELETE FROM query_history WHERE user_id = ? AND id = ?`,
+      [userId, id],
+    );
+    return result.affectedRows > 0;
+  }
+
   const current = await readUserHistory(userId);
   const next = current.filter((item) => item.id !== id);
 

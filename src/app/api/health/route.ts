@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { checkAnalyticsMysqlHealth, listAnalyticsEnvProfiles } from "@/lib/analytics/mysql";
+import { checkAppMysqlHealth } from "@/lib/app-mysql/client";
 import { getAgentMaxSteps } from "@/lib/agent/config";
 import { checkLlmHealth, isLlmConfigured } from "@/lib/llm-config";
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
@@ -47,8 +48,9 @@ async function checkRedisHealth() {
 
 export async function GET() {
   const started = performance.now();
-  const [analyticsMysql, llm, redis] = await Promise.all([
+  const [analyticsMysql, appMysql, llm, redis] = await Promise.all([
     checkAnalyticsMysqlHealth(),
+    checkAppMysqlHealth(),
     checkLlmHealth(),
     checkRedisHealth(),
   ]);
@@ -81,6 +83,14 @@ export async function GET() {
         tableAllowlistEnabled: Boolean(allowlist),
         tableAllowlistCount: allowlist?.size ?? 0,
         profiles: listAnalyticsEnvProfiles(),
+      },
+      appMysql: {
+        configured: appMysql.configured,
+        ok: appMysql.ok,
+        latencyMs: appMysql.latencyMs,
+        host: appMysql.host,
+        database: appMysql.database,
+        error: appMysql.error,
       },
       llm: {
         configured: llm.configured,

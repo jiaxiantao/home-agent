@@ -242,7 +242,12 @@ async function consumeAgentStream(
   }
 }
 
-export function useAgentStream() {
+export function useAgentStream(options?: {
+  initialThreadId?: string;
+  forceNew?: boolean;
+}) {
+  const initialThreadId = options?.initialThreadId;
+  const forceNew = Boolean(options?.forceNew);
   const [lines, setLines] = useState<AgentTraceLine[]>([]);
   const [finalAnswer, setFinalAnswer] = useState("");
   const [running, setRunning] = useState(false);
@@ -266,9 +271,25 @@ export function useAgentStream() {
   }, []);
 
   useEffect(() => {
-    setThreadId(getStoredThreadId());
     setLlmProviderState(getStoredLlmProvider());
   }, []);
+
+  useEffect(() => {
+    if (forceNew) {
+      const nextThread = `thread_${crypto.randomUUID().slice(0, 12)}`;
+      setThreadId(nextThread);
+      storeThreadId(nextThread);
+      setConversation([]);
+      setCurrentQuestion("");
+      return;
+    }
+    if (initialThreadId) {
+      setThreadId(initialThreadId);
+      storeThreadId(initialThreadId);
+      return;
+    }
+    setThreadId(getStoredThreadId());
+  }, [forceNew, initialThreadId]);
 
   const abortRef = useRef<AbortController | null>(null);
   const turnRef = useRef<ConversationTurn | null>(null);
@@ -685,6 +706,20 @@ export function useAgentStream() {
     setCurrentQuestion(question);
   }, []);
 
+  const restoreThread = useCallback(
+    (id: string, turns: ConversationTurn[]) => {
+      abortRef.current?.abort();
+      resetCurrentTurn();
+      setThreadId(id);
+      storeThreadId(id);
+      setConversation(turns);
+      setCurrentQuestion("");
+      setPhase("idle");
+      setRunning(false);
+    },
+    [resetCurrentTurn],
+  );
+
   return {
     run,
     resume,
@@ -707,6 +742,7 @@ export function useAgentStream() {
     conversation,
     currentQuestion,
     loadHistoryQuestion,
+    restoreThread,
     llmProvider,
     setLlmProvider,
   };

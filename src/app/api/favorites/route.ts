@@ -5,6 +5,7 @@ import {
   createFavorite,
   deleteFavorite,
   listFavorites,
+  listFavoritesPage,
 } from "@/lib/history/favorites";
 import { resolveAuthUserFromHeaders } from "@/lib/security/auth";
 import { isAuthEnabled } from "@/lib/security/auth-config";
@@ -32,8 +33,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const favorites = await listFavorites(user.userId);
-  return NextResponse.json({ favorites });
+  const url = new URL(request.url);
+  const hasPagination =
+    url.searchParams.has("page") || url.searchParams.has("pageSize");
+
+  if (!hasPagination) {
+    const favorites = await listFavorites(user.userId);
+    return NextResponse.json({
+      favorites,
+      total: favorites.length,
+    });
+  }
+
+  const page = Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
+  const pageSize =
+    Number.parseInt(url.searchParams.get("pageSize") ?? "10", 10) || 10;
+  const result = await listFavoritesPage(user.userId, { page, pageSize });
+
+  return NextResponse.json({
+    favorites: result.items,
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
+  });
 }
 
 const createSchema = z.object({

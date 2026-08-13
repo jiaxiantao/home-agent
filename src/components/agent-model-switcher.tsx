@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-
 import type { LlmProvider } from "@/lib/llm-config";
+import { resolveDefaultLlmProvider } from "@/lib/llm-providers-catalog";
 import { cn } from "@/lib/utils";
 
 type ProviderOption = {
@@ -29,8 +29,13 @@ export function AgentModelSwitcher({
 }) {
   const [providers, setProviders] = useState<ProviderOption[]>([]);
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -88,16 +93,16 @@ export function AgentModelSwitcher({
     };
   }, [open]);
 
-  const selected =
-    providers.find((item) => item.id === value) ??
-    ({
-      id: value,
-      label: value === "ollama" ? "本地模型" : value,
-      shortLabel: value === "ollama" ? "本地" : value,
-      kind: value === "ollama" ? "local" : "cloud",
+  const displayValue = mounted ? value : resolveDefaultLlmProvider();
+  const displaySelected: ProviderOption =
+    providers.find((item) => item.id === displayValue) ?? {
+      id: displayValue,
+      label: displayValue === "ollama" ? "本地模型" : displayValue,
+      shortLabel: displayValue === "ollama" ? "本地" : displayValue,
+      kind: displayValue === "ollama" ? "local" : "cloud",
       model: "",
       configured: true,
-    } satisfies ProviderOption);
+    };
 
   return (
     <div ref={rootRef} className="relative">
@@ -107,7 +112,7 @@ export function AgentModelSwitcher({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
-        title={`规划模型：${selected.label}${selected.model ? ` · ${selected.model}` : ""}`}
+        title={`规划模型：${displaySelected.label}${displaySelected.model ? ` · ${displaySelected.model}` : ""}`}
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
           "inline-flex max-w-[180px] items-center gap-1.5 rounded-md px-2 py-1 text-[11px] transition disabled:opacity-40",
@@ -117,11 +122,17 @@ export function AgentModelSwitcher({
         )}
       >
         <span className="shrink-0 text-zinc-600">模型</span>
-        <span className="truncate text-zinc-300">{selected.shortLabel}</span>
+        <span className="truncate text-zinc-300" suppressHydrationWarning>
+          {displaySelected.shortLabel}
+        </span>
         <span
           className={cn(
             "h-1.5 w-1.5 shrink-0 rounded-full",
-            selected.ok ? "bg-emerald-400" : selected.configured ? "bg-amber-400" : "bg-zinc-600",
+            displaySelected.ok
+              ? "bg-emerald-400"
+              : displaySelected.configured
+                ? "bg-amber-400"
+                : "bg-zinc-600",
           )}
           aria-hidden
         />

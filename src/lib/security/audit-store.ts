@@ -1,6 +1,8 @@
 import type { AuditRecord } from "@/lib/security/audit-log";
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
+import { executeAppMysql, isAppMysqlConfigured, queryAppMysql } from "@/lib/app-mysql/client";
 import { PRODUCT_SLUG } from "@/lib/product";
+import type { RowDataPacket } from "mysql2/promise";
 
 const MAX_ENTRIES = 500;
 
@@ -16,6 +18,17 @@ const memoryBuffer =
 
 if (!globalStore.__dfcDataAgentAuditBuffer) {
   globalStore.__dfcDataAgentAuditBuffer = memoryBuffer;
+}
+
+type AuditRow = RowDataPacket & {
+  payload_json: AuditRecord | string;
+};
+
+function parseRecord(value: AuditRow["payload_json"]): AuditRecord {
+  if (typeof value === "string") {
+    return JSON.parse(value) as AuditRecord;
+  }
+  return value;
 }
 
 async function postAuditHttpSink(record: AuditRecord) {
@@ -59,6 +72,28 @@ export async function persistAudit(record: AuditRecord) {
 
   void postAuditHttpSink(record);
 
+  if (isAppMysqlConfigured()) {
+    try {
+      await executeAppMysql(
+        `INSERT INTO audit_events (event, user_id, payload_json) VALUES (?, ?, ?)`,
+        [record.event, record.userId ?? null, JSON.stringify(record)],
+      );
+      const countRows = await queryAppMysql<RowDataPacket & { n: number }>(
+        `SELECT COUNT(*) AS n FROM audit_events`,
+      );
+      const extra = Number(countRows[0]?.n ?? 0) - MAX_ENTRIES;
+      if (extra > 0) {
+        await executeAppMysql(
+          `DELETE FROM audit_events ORDER BY id ASC LIMIT ?`,
+          [extra],
+        );
+      }
+    } catch (error) {
+      console.error("[audit] mysql persist failed:", error);
+    }
+    return;
+  }
+
   if (!isRedisConfigured()) {
     return;
   }
@@ -85,6 +120,25 @@ export async function listAuditRecords(options?: {
 }) {
   const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200);
   let records: AuditRecord[] = [];
+
+  if (isAppMysqlConfigured()) {
+    const clauses: string[] = [];
+    const params: Array<string | number> = [];
+    if (options?.userId) {
+      clauses.push("user_id = ?");
+      params.push(options.userId);
+    }
+    if (options?.event) {
+      clauses.push("event = ?");
+      params.push(options.event);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const rows = await queryAppMysql<AuditRow>(
+      `SELECT payload_json FROM audit_events ${where} ORDER BY id DESC LIMIT ?`,
+      [...params, limit],
+    );
+    return rows.map((row) => parseRecord(row.payload_json));
+  }
 
   if (isRedisConfigured()) {
     const client = await getRedisClient();

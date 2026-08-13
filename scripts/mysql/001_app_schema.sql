@@ -42,8 +42,11 @@ CREATE TABLE IF NOT EXISTS agent_threads (
   thread_id VARCHAR(64) NOT NULL,
   user_id VARCHAR(64) NOT NULL,
   messages_json JSON NOT NULL,
+  title VARCHAR(120) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  PRIMARY KEY (user_id, thread_id)
+  PRIMARY KEY (user_id, thread_id),
+  KEY idx_agent_threads_updated (user_id, updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pending_sql_runs (
