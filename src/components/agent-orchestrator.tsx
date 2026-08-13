@@ -11,8 +11,8 @@ import { AgentMockBanner } from "@/components/agent-mock-banner";
 import { AgentTracePanel } from "@/components/agent-trace-panel";
 import { AgentWorkflowBar } from "@/components/agent-workflow-bar";
 import { useAgentStream } from "@/hooks/use-agent-sse";
-import { agentQuickPrompts } from "@/lib/agent-quick-prompts";
 import type { AgentResumeAction } from "@/lib/agent/types";
+import type { TeamTemplateCategoryTab } from "@/lib/history/team-template-tabs";
 
 export function AgentOrchestratorDemo({
   initialMessage,
@@ -20,6 +20,7 @@ export function AgentOrchestratorDemo({
   initialMessage?: string;
 }) {
   const [message, setMessage] = useState(initialMessage ?? "");
+  const [selectedCategory, setSelectedCategory] = useState<string>();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -94,6 +95,11 @@ export function AgentOrchestratorDemo({
     }
   }
 
+  function handleCategoryTab(tab: TeamTemplateCategoryTab, runImmediately = false) {
+    setSelectedCategory(tab.category);
+    handleQuickPrompt(tab.prompt, runImmediately);
+  }
+
   function fillPrompt(prompt: string) {
     setMessage(prompt);
     textareaRef.current?.focus();
@@ -149,12 +155,16 @@ export function AgentOrchestratorDemo({
             onChange={setMessage}
             onSubmit={() => void runAgent()}
             onStop={stop}
-            onReset={reset}
+            onReset={() => {
+              setSelectedCategory(undefined);
+              reset();
+            }}
             running={running}
             hasConversation={hasConversation}
             llmProvider={llmProvider}
             onLlmProviderChange={setLlmProvider}
-            quickPrompts={agentQuickPrompts}
+            selectedCategory={selectedCategory}
+            onCategoryTab={handleCategoryTab}
             onQuickPrompt={handleQuickPrompt}
             followUps={followUps}
             inputRef={textareaRef}

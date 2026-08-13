@@ -8,8 +8,7 @@ test.describe("Agents page", () => {
       /大风车数据分析助手/,
     );
     await expect(page.getByRole("button", { name: "问数" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "查客户" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "查车辆" })).toBeVisible();
+    await expect(page.getByTestId("template-category-tabs")).toBeVisible();
   });
 
   test("prefills task from query string", async ({ page }) => {

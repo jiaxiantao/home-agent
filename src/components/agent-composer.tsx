@@ -3,8 +3,10 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 import { AgentModelSwitcher } from "@/components/agent-model-switcher";
+import { AgentTemplateCategoryTabs } from "@/components/agent-template-category-tabs";
 import { cn } from "@/lib/utils";
 import type { LlmProvider } from "@/lib/llm-config";
+import type { TeamTemplateCategoryTab } from "@/lib/history/team-template-tabs";
 
 export function AgentComposer({
   value,
@@ -16,7 +18,8 @@ export function AgentComposer({
   hasConversation,
   llmProvider,
   onLlmProviderChange,
-  quickPrompts,
+  selectedCategory,
+  onCategoryTab,
   onQuickPrompt,
   followUps = [],
   inputRef,
@@ -30,7 +33,8 @@ export function AgentComposer({
   hasConversation: boolean;
   llmProvider: LlmProvider;
   onLlmProviderChange: (provider: LlmProvider) => void;
-  quickPrompts: Array<{ id: string; label: string; prompt: string }>;
+  selectedCategory?: string;
+  onCategoryTab: (tab: TeamTemplateCategoryTab, runImmediately?: boolean) => void;
   onQuickPrompt: (prompt: string, runImmediately?: boolean) => void;
   /** 当前会话本轮推荐追问（来自大模型） */
   followUps?: string[];
@@ -61,20 +65,11 @@ export function AgentComposer({
   return (
     <div className="shrink-0 border-t border-white/[0.05] bg-[#0a0a0c]/90 px-1 pt-3 pb-1 backdrop-blur-md">
       {!hasConversation ? (
-        <div className="mb-2.5 flex flex-wrap gap-1">
-          {quickPrompts.slice(0, 8).map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onQuickPrompt(item.prompt)}
-              onDoubleClick={() => onQuickPrompt(item.prompt, true)}
-              title="双击立即运行"
-              className="rounded-full px-2.5 py-1 text-[11px] text-zinc-500 transition hover:bg-brand/10 hover:text-brand-soft"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <AgentTemplateCategoryTabs
+          selectedCategory={selectedCategory}
+          onSelect={onCategoryTab}
+          disabled={running}
+        />
       ) : followUps.length ? (
         <div className="mb-2.5 flex flex-wrap gap-1">
           {followUps.map((prompt) => (
