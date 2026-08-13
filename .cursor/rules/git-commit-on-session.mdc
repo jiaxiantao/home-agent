@@ -1,19 +1,24 @@
 ---
-description: 每次对话有代码改动时提交并推送到搜车 GitLab 远程仓库
+description: 每次对话有代码改动时提交并推送到 GitHub 与搜车 GitLab 的 master
 alwaysApply: true
 ---
 
 # Git 提交与推送约定
 
-远程仓库：`https://git.souche-inc.com/dfc-ai/dfc-data-agent.git`（`souche` / `master`）
+默认分支：`master`（不要再使用 `main`）
+
+远程仓库：
+
+- `origin` → `git@github.com:jiaxiantao/home-agent.git`
+- `souche` → `git@git.souche-inc.com:dfc-ai/dfc-data-agent.git`
 
 当本次对话中对仓库产生了代码或配置改动时，在回复用户前完成：
 
 1. 并行执行 `git status`、`git diff`、`git log -1 --oneline`。
 2. 不要提交 `.env` 或含密钥的文件；`.env.example` 可以提交。
-3. 有改动时：`git add`（相关文件）→ `git commit`（HEREDOC 写清「为什么」）→ `git push souche HEAD:master`（或当前分支）。
-4. 若无改动但此前有未推送的 commit，仍执行 `git push souche HEAD:master`。
+3. 有改动时：`git add`（相关文件）→ `git commit`（HEREDOC 写清「为什么」）→ `git push origin master` 且 `git push souche master`。
+4. 若无改动但此前有未推送的 commit，仍执行 `git push origin master` 与 `git push souche master`。
 5. 若无任何可提交改动且已同步远程，不要空提交。
-6. 不要使用 `git push --force` 到 `main`，除非用户明确要求。
+6. 不要使用 `git push --force` 到 `master`，除非用户明确要求。
 
 在最终回复中简短告知：commit hash（如有）、分支、push 是否成功。
