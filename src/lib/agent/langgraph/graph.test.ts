@@ -221,4 +221,19 @@ describe("langgraph graph", () => {
       true,
     );
   });
+
+  it("emits plan progress before the first tool call", async () => {
+    process.env.LLM_DISABLED = "1";
+
+    const events = [];
+    for await (const event of runDfcAgentLoop("大风车正式车源一共有多少辆？")) {
+      events.push(event);
+    }
+
+    const types = events.map((event) => event.type);
+    const progressAt = types.indexOf("plan_stream");
+    const toolAt = types.indexOf("tool_call");
+    expect(progressAt).toBeGreaterThanOrEqual(0);
+    expect(toolAt).toBeGreaterThan(progressAt);
+  });
 });

@@ -15,7 +15,8 @@ import {
   storeLlmProvider,
 } from "@/lib/llm-provider-preference";
 import { resolveDefaultLlmProvider, type LlmProvider } from "@/lib/llm-providers-catalog";
-import { parseSseBlock } from "@/lib/sse";
+import { dispatchSsePayloads } from "@/lib/sse-dispatch";
+import { parseSseBlock, takeSseBlocks } from "@/lib/sse";
 import { PRODUCT_SLUG } from "@/lib/product";
 
 export type AgentTraceLine = {
@@ -223,19 +224,12 @@ async function consumeAgentStream(
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-    let boundary = buffer.indexOf("\n\n");
-
-    while (boundary !== -1) {
-      const block = buffer.slice(0, boundary).trim();
-      buffer = buffer.slice(boundary + 2);
-      const parsed = parseSseBlock(block);
-
-      if (parsed?.payload) {
-        onPayload(parsed.payload);
-      }
-
-      boundary = buffer.indexOf("\n\n");
-    }
+    const { blocks, rest } = takeSseBlocks(buffer);
+    buffer = rest;
+    const payloads = blocks
+      .map((block) => parseSseBlock(block)?.payload)
+      .filter((payload): payload is AgentTraceEvent => Boolean(payload));
+    await dispatchSsePayloads(payloads, onPayload);
   }
 }
 
@@ -387,21 +381,65 @@ export function useAgentStream() {
       if (payload.type === "thread") {
         setThreadId(payload.threadId);
         storeThreadId(payload.threadId);
+      } else if (payload.type === "trace") {
+        if (payload.phase === "plan") {
+          const last = turnRef.current?.steps.at(-1);
+          if (last?.kind === "plan" && last.status === "running") {
+            patchLastTurnStep(
+              (step) => step.kind === "plan" && step.status === "running",
+              { title: payload.message },
+            );
+          } else {
+            appendTurnStep({
+              id: crypto.randomUUID(),
+              kind: "plan",
+              title: payload.message,
+              status: "running",
+            });
+          }
+        } else if (payload.phase === "tool") {
+          patchLastTurnStep(
+            (step) => step.kind === "tool" && step.status === "running",
+            { detail: payload.message },
+          );
+        }
       } else if (payload.type === "planner_mode") {
         setIsMock(payload.mock);
         setPlannerLabel(payload.label ?? null);
         updateTurn({ isMock: payload.mock, planStreamText: undefined });
       } else if (payload.type === "plan_stream") {
         updateTurn({ planStreamText: payload.text });
+        setLines((current) => {
+          const last = current.at(-1);
+          if (last?.kind === "stream") {
+            return [...current.slice(0, -1), { ...last, text: payload.text }];
+          }
+          return [
+            ...current,
+            { id: crypto.randomUUID(), kind: "stream", text: payload.text },
+          ];
+        });
       } else if (payload.type === "plan") {
         updateTurn({ planStreamText: undefined });
-        appendTurnStep({
-          id: crypto.randomUUID(),
-          kind: "plan",
-          title: formatPlan(payload.plan),
-          detail: payload.plan.reasoning,
-          status: "done",
-        });
+        const last = turnRef.current?.steps.at(-1);
+        if (last?.kind === "plan" && last.status === "running") {
+          patchLastTurnStep(
+            (step) => step.kind === "plan" && step.status === "running",
+            {
+              status: "done",
+              title: formatPlan(payload.plan),
+              detail: payload.plan.reasoning,
+            },
+          );
+        } else {
+          appendTurnStep({
+            id: crypto.randomUUID(),
+            kind: "plan",
+            title: formatPlan(payload.plan),
+            detail: payload.plan.reasoning,
+            status: "done",
+          });
+        }
       } else if (payload.type === "tool_call") {
         updateTurn({ planStreamText: undefined });
         setCurrentStep((current) => current + 1);

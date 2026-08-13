@@ -6,7 +6,7 @@ import {
   runWithAnalyticsEnv,
 } from "@/lib/analytics/mysql";
 import { runWithPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
-import { encodeSseEvent } from "@/lib/sse";
+import { encodeSseEvent, SSE_PAD_COMMENT } from "@/lib/sse";
 import { getClientIp, resolveAuthUserFromHeaders } from "@/lib/security/auth";
 import { isAuthEnabled } from "@/lib/security/auth-config";
 import { auditFromContext, writeAudit } from "@/lib/security/audit-log";
@@ -14,6 +14,9 @@ import { checkAgentRateLimit } from "@/lib/security/rate-limit";
 import { resolveSsoCredentialsFromRequest } from "@/lib/security/dfc-user-profile";
 import { runWithSsoRequestContext } from "@/lib/security/sso-context";
 import { runWithLlmProvider, parseLlmProvider } from "@/lib/llm-provider-context";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const agentSchema = z.object({
   message: z.string().default(""),
@@ -108,6 +111,7 @@ export async function POST(request: Request) {
       async start(controller) {
         const send = (event: string, data: unknown) => {
           controller.enqueue(encoder.encode(encodeSseEvent(event, data)));
+          controller.enqueue(encoder.encode(SSE_PAD_COMMENT));
         };
 
         try {
@@ -147,6 +151,7 @@ export async function POST(request: Request) {
         "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
         "X-Analytics-Env": analyticsEnv,
       },
     });

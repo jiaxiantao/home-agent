@@ -3,6 +3,10 @@ import { ChatOpenAI } from "@langchain/openai";
 import { getLlmConfig, isLlmConfigured } from "@/lib/llm-config";
 
 export function isLangGraphLlmEnabled() {
+  const flag = process.env.LLM_DISABLED?.toLowerCase();
+  if (flag === "1" || flag === "true" || flag === "yes") {
+    return false;
+  }
   return isLlmConfigured();
 }
 
@@ -13,6 +17,7 @@ export function createChatModel() {
     model,
     apiKey,
     temperature: 0.1,
+    streaming: true,
     configuration: { baseURL: baseURL.replace(/\/$/, "") },
   });
 }

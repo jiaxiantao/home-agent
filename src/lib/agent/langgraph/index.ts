@@ -38,6 +38,10 @@ import {
   tracePlanStep,
 } from "@/lib/agent/langgraph/stream-adapter";
 import {
+  STREAM_HEARTBEAT_MS,
+  withIdleHeartbeat,
+} from "@/lib/agent/stream-heartbeat";
+import {
   runBuildChartTool,
   runExecuteSqlTool,
 } from "@/lib/agent/langgraph/tools";
@@ -638,6 +642,8 @@ export async function* runDfcAgentLoop(
   const userId = options.audit?.user.userId ?? "unknown";
   const thread = await ensureThread(options.threadId, userId);
   yield { type: "thread", threadId: thread.threadId };
+  yield { type: "trace", phase: "start", message: "LangGraph Agent 循环启动" };
+  yield { type: "trace", phase: "start", message: "加载会话上下文…" };
 
   await appendThreadMessage(thread.threadId, userId, {
     role: "user",
@@ -655,8 +661,6 @@ export async function* runDfcAgentLoop(
     outcome: "success",
   });
 
-  yield { type: "trace", phase: "start", message: "LangGraph Agent 循环启动" };
-
   const runTools = createToolsNodeHandler(
     options.sso ?? getSsoRequestContext(),
   );
@@ -671,20 +675,53 @@ export async function* runDfcAgentLoop(
     steps += 1;
 
     yield tracePlanStep(steps);
+    yield planStreamEvent({
+      step: steps,
+      text: "正在规划…",
+      delta: "正在规划…",
+    });
 
     const planStartedAt = performance.now();
     let agentUpdate: Partial<DfcAgentStateType> = {};
-    for await (const planEvent of streamRoutePlannerNode(state, conversation)) {
-      assertNotAborted(options.signal);
-      if (planEvent.kind === "delta") {
-        yield planStreamEvent({
-          step: steps,
-          text: planEvent.text,
-          delta: planEvent.delta,
-        });
-      } else {
-        agentUpdate = planEvent.update;
+    type PlannerWait =
+      | { kind: "delta"; event: AgentTraceEvent }
+      | { kind: "done"; update: Partial<DfcAgentStateType> };
+
+    async function* plannerWaitStream(): AsyncGenerator<PlannerWait> {
+      for await (const planEvent of streamRoutePlannerNode(state, conversation)) {
+        if (planEvent.kind === "delta") {
+          yield {
+            kind: "delta",
+            event: planStreamEvent({
+              step: steps,
+              text: planEvent.text,
+              delta: planEvent.delta,
+            }),
+          };
+        } else {
+          yield { kind: "done", update: planEvent.update };
+        }
       }
+    }
+
+    for await (const item of withIdleHeartbeat(
+      plannerWaitStream(),
+      STREAM_HEARTBEAT_MS,
+      (waitedMs) => ({
+        kind: "delta" as const,
+        event: planStreamEvent({
+          step: steps,
+          text: `规划进行中… 已等待 ${Math.max(1, Math.round(waitedMs / 1000))} 秒`,
+          delta: "",
+        }),
+      }),
+    )) {
+      assertNotAborted(options.signal);
+      if (item.kind === "done") {
+        agentUpdate = item.update;
+        break;
+      }
+      yield item.event;
     }
     lastMock = agentUpdate.mock ?? lastMock;
     state = mergeState(state, agentUpdate);
@@ -830,7 +867,31 @@ export async function* runDfcAgentLoop(
 
     try {
       const toolStartedAt = performance.now();
-      const toolUpdate = await runTools(state);
+      type ToolWait =
+        | { kind: "result"; update: Partial<DfcAgentStateType> }
+        | { kind: "beat"; waitedMs: number };
+
+      async function* toolWaitStream(): AsyncGenerator<ToolWait> {
+        yield { kind: "result", update: await runTools(state) };
+      }
+
+      let toolUpdate: Partial<DfcAgentStateType> = {};
+      for await (const item of withIdleHeartbeat(
+        toolWaitStream(),
+        STREAM_HEARTBEAT_MS,
+        (waitedMs) => ({ kind: "beat" as const, waitedMs }),
+      )) {
+        assertNotAborted(options.signal);
+        if (item.kind === "beat") {
+          yield {
+            type: "trace",
+            phase: "tool",
+            message: `${toolName} 执行中… 已等待 ${Math.max(1, Math.round(item.waitedMs / 1000))} 秒`,
+          };
+          continue;
+        }
+        toolUpdate = item.update;
+      }
       state = mergeState(state, toolUpdate);
       const postUpdate = postToolsNode(state);
       state = mergeState(state, postUpdate);
