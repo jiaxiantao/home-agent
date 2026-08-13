@@ -146,6 +146,7 @@ export async function runCallBackendApiTool(args: {
   recordId?: string;
   shopCode?: string;
   objCode?: string;
+  plate?: string;
   query?: Record<string, string>;
   body?: Record<string, unknown>;
 }): Promise<ToolPayload> {

@@ -126,6 +126,7 @@ export async function dfcMcpCallHttpApi(
       recordId: input.recordId,
       shopCode: input.shopCode,
       objCode: input.objCode ?? "customer",
+      plate: input.plate,
     };
     return {
       status: "skipped",
@@ -144,12 +145,16 @@ export async function dfcMcpCallHttpApi(
     ...fromQuestion,
     phone: input.phone || fromQuestion.phone,
     recordId: input.recordId || fromQuestion.recordId,
+    plate: input.plate || fromQuestion.plate,
     shopCode:
       input.shopCode ||
       fromQuestion.shopCode ||
       process.env.DFC_API_DEFAULT_SHOP_CODE?.trim() ||
       undefined,
-    objCode: input.objCode || fromQuestion.objCode || "customer",
+    objCode:
+      input.objCode ||
+      fromQuestion.objCode ||
+      (fromQuestion.plate || input.plate ? "car" : "customer"),
   };
 
   const ssoPayload = input.sso ?? input._sso;
@@ -183,6 +188,7 @@ function withAuthMissing(
     recordId?: string;
     shopCode?: string;
     objCode?: string;
+    plate?: string;
   },
 ): DfcMcpCallHttpResult {
   return {

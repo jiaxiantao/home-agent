@@ -63,8 +63,74 @@ describe("buildMockPlan", () => {
     }
   });
 
-  it("proposes crazy_kartrider.car sql for plate lookup", () => {
+  it("routes plate lookup to backend API first", () => {
     const plan = buildMockPlan("查询车牌号为皖JV066M的车辆信息", []);
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("route_api");
+    }
+  });
+
+  it("calls queryRecordPageInfo after routing plate questions", () => {
+    const plan = buildMockPlan("查询车牌号为皖JV066M的车辆信息", [
+      {
+        tool: "route_api",
+        args: { question: "查询车牌号为皖JV066M的车辆信息" },
+        output: "接口路由",
+        data: {
+          bestMatch: {
+            endpoint: {
+              id: "crazyracing-kartrider:http:POST:/web/v3/carViewQuery/queryRecordPageInfo.json:queryRecordPageInfo",
+            },
+            httpCallable: true,
+            extractedParams: { plate: "皖JV066M", objCode: "car" },
+          },
+        },
+      },
+    ]);
+
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("call_backend_api");
+      expect(String(plan.args.endpointId)).toContain("queryRecordPageInfo");
+      expect(plan.args.plate).toBe("皖JV066M");
+    }
+  });
+
+  it("proposes crazy_kartrider.car sql after plate API failure", () => {
+    const plan = buildMockPlan("查询车牌号为皖JV066M的车辆信息", [
+      {
+        tool: "route_api",
+        args: { question: "查询车牌号为皖JV066M的车辆信息" },
+        output: "接口路由",
+        data: {
+          bestMatch: {
+            endpoint: {
+              id: "crazyracing-kartrider:http:POST:/web/v3/carViewQuery/queryRecordPageInfo.json:queryRecordPageInfo",
+            },
+            httpCallable: true,
+            extractedParams: { plate: "皖JV066M" },
+          },
+        },
+      },
+      {
+        tool: "call_backend_api",
+        args: {
+          endpointId:
+            "crazyracing-kartrider:http:POST:/web/v3/carViewQuery/queryRecordPageInfo.json:queryRecordPageInfo",
+          plate: "皖JV066M",
+        },
+        output: "网络不可达",
+        data: {
+          status: "error",
+          failureKind: "network",
+          suggestedSql:
+            "SELECT id, plate_number FROM `crazy_kartrider`.`car` WHERE plate_number = '皖JV066M' AND date_delete = 0 LIMIT 20",
+          sqlFallback: { database: "crazy_kartrider", table: "car" },
+        },
+      },
+    ]);
+
     expect(plan.action).toBe("tool");
     if (plan.action === "tool") {
       expect(plan.tool).toBe("propose_sql");

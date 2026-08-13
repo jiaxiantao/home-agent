@@ -4,6 +4,7 @@
  */
 
 import { matchBusinessEntities } from "@/lib/analytics/business-glossary";
+import { extractLicensePlate } from "@/lib/analytics/question-router";
 import type {
   ApiRouteMatch,
   ApiRouteParams,
@@ -55,6 +56,7 @@ export function extractWechatFromQuestion(question: string): string | undefined 
 export function extractApiParams(question: string): ApiRouteParams {
   const phone = extractPhoneFromQuestion(question);
   const wechat = extractWechatFromQuestion(question);
+  const plate = extractLicensePlate(question);
   const recordId =
     question.match(
       /(?:客户|record)\s*(?:id|ID|Id)\s*(?:为|是|=|：|:)\s*['"`]?([a-zA-Z0-9_-]{2,64})/i,
@@ -65,6 +67,7 @@ export function extractApiParams(question: string): ApiRouteParams {
   return {
     phone: phone || wechat,
     wechat,
+    plate,
     recordId,
     shopCode: isCrmQuestion
       ? process.env.DFC_API_DEFAULT_SHOP_CODE?.trim() || undefined
@@ -155,6 +158,20 @@ function scoreEndpoint(
   ) {
     score -= 10;
     reasons.push("需要手机号/微信号但问题未提供");
+  }
+
+  if (params.plate) {
+    if (/plate|车牌|queryrecordpageinfo|kartrider|keywords/i.test(blob)) {
+      score += 8;
+      reasons.push("车牌号 + 车辆列表/详情接口");
+    }
+    if (
+      endpoint.http?.bodyTemplate &&
+      "keywords" in (endpoint.http.bodyTemplate as Record<string, unknown>)
+    ) {
+      score += 10;
+      reasons.push("body keywords 可传车牌");
+    }
   }
 
   if (params.recordId) {
@@ -255,14 +272,18 @@ export function pickBestApiForQuestion(question: string): ApiRouteMatch | undefi
   const top = ranked[0];
   if (!top || top.score < 8) return undefined;
 
-  if (/车牌|牌照|license.?number|license.?plate/i.test(question) && !paramsHasPhone(params)) {
-    const plateHit = ranked.find((item) =>
-      item.reasons.some((reason) => reason.includes("curated")) ||
-      /plate|license|车牌/i.test(
-        `${item.endpoint.title} ${item.endpoint.keywords.join(" ")} ${item.endpoint.http?.path ?? ""}`,
-      ),
+  if (params.plate || /车牌|牌照|license.?number|license.?plate/i.test(question)) {
+    const plateHit = ranked.find(
+      (item) =>
+        item.endpoint.methodName === "queryRecordPageInfo" ||
+        item.endpoint.http?.path?.includes("queryRecordPageInfo") ||
+        item.reasons.some((reason) => reason.includes("curated") || reason.includes("车牌")) ||
+        /plate|license|车牌/i.test(
+          `${item.endpoint.title} ${item.endpoint.keywords.join(" ")} ${item.endpoint.http?.path ?? ""}`,
+        ),
     );
-    return plateHit && plateHit.score >= 8 ? plateHit : undefined;
+    if (plateHit && plateHit.score >= 8) return plateHit;
+    if (!paramsHasPhone(params)) return undefined;
   }
 
   if (params.recordId) {
@@ -306,6 +327,9 @@ export function isApiFirstQuestion(question: string): boolean {
   const params = extractApiParams(question);
   const best = pickBestApiForQuestion(question);
   if (!best) return false;
+  if (params.plate && best.httpCallable) {
+    return true;
+  }
   if (best.endpoint.entity === "car" || best.endpoint.entity === "order") {
     return /手机|电话|微信|id\s*为|详情|信息/.test(question) && paramsHasPhone(params);
   }

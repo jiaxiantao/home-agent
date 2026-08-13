@@ -42,6 +42,25 @@ describe("buildSuggestedSqlForEndpoint", () => {
     expect(sql).toMatch(/phone\s*=/);
     expect(sql).toMatch(/weichat\s*=/);
   });
+
+  it("builds crazy_kartrider plate sql fallback", () => {
+    const carEndpoint = {
+      ...endpoint,
+      id: "crazyracing-kartrider:http:POST:/web/v3/carViewQuery/queryRecordPageInfo.json:queryRecordPageInfo",
+      appCode: "crazyracing-kartrider",
+      entity: "car",
+      sqlFallback: {
+        database: "crazy_kartrider",
+        table: "car",
+        hint: "WHERE plate_number = ? AND date_delete = 0 LIMIT 20",
+      },
+      baseUrlEnvKey: "DFC_API_KARTRIDER_BASE_URL",
+    } satisfies DfcApiEndpoint;
+    const sql = buildSuggestedSqlForEndpoint(carEndpoint, { plate: "皖JV066M" });
+    expect(sql).toMatch(/`crazy_kartrider`\.`car`/);
+    expect(sql).toContain("plate_number = '皖JV066M'");
+    expect(sql).toContain("date_delete = 0");
+  });
 });
 
 describe("buildDfcUpstreamSsoHeaders", () => {

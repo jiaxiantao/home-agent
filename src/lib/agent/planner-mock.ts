@@ -397,19 +397,6 @@ export function buildMockPlan(
     const plate = extractLicensePlate(normalized);
     const apiFirst = isApiFirstQuestion(normalized);
 
-    if (plate && /车牌|车辆|车源|查车/.test(normalized) && !apiFirst) {
-      const escaped = plate.replace(/'/g, "''");
-      return {
-        action: "tool",
-        tool: "propose_sql",
-        args: {
-          sql: `SELECT id, JSON_UNQUOTE(JSON_EXTRACT(name, '$.displayValue')) AS car_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.brandName')) AS brand_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.seriesName')) AS series_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.modelName')) AS model_name, plate_number, vin_number, mileage, JSON_UNQUOTE(JSON_EXTRACT(area, '$.displayValue')) AS area, sale_price, shop_code, date_create FROM \`crazy_kartrider\`.\`car\` WHERE plate_number = '${escaped}' AND date_delete = 0 LIMIT 20`,
-          explanation: `按车牌号 ${plate} 查询车辆管理主表 crazy_kartrider.car（date_delete = 0）。测试环境车牌通常不在 matador.car`,
-        },
-        reasoning: "车牌查车：crazy_kartrider.car.plate_number",
-      };
-    }
-
     if (apiFirst && !hasTool(prior, "route_api")) {
       return {
         action: "tool",
@@ -438,8 +425,9 @@ export function buildMockPlan(
           recordId: match.extractedParams.recordId,
           shopCode: match.extractedParams.shopCode,
           objCode: match.extractedParams.objCode,
+          plate: match.extractedParams.plate ?? plate,
         },
-        reasoning: "调用 super-mario/matador 等 HTTP 接口查询（优先于 SQL）",
+        reasoning: "调用大风车 HTTP 接口查询（CRM/车辆管理等，优先于 SQL）",
       };
     }
 

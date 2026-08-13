@@ -343,6 +343,7 @@ export async function runAgentTool(
         recordId: readOptionalString(args, "recordId"),
         shopCode: readOptionalString(args, "shopCode"),
         objCode: readOptionalString(args, "objCode"),
+        plate: readOptionalString(args, "plate"),
         query,
         body,
       });

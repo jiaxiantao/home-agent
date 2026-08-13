@@ -37,7 +37,7 @@
 同一 MySQL 实例上可分析多个大风车库（matador、danube_member、danube_topcars 等）。
 
 - **接口优先**：按手机号/ID 查客户、用户、会员等**明细**时，Agent 会从全量接口库（约 1 万条 HTTP/Dubbo）中自动匹配，先 `route_api`，必要时 `search_api`，再 `call_backend_api`；未配置网关或调用失败时回退 SQL
-- **按车牌查车**：问「车牌号为皖JV066M的车辆信息」优先走车辆管理 `crazy_kartrider.car.plate_number`（`date_delete = 0`）。`matador.car` 是在售车源，测试环境车牌常不在该表；无匹配 HTTP 时直接出 SQL。测试环境只连 `*.dasouche.net`，不要打线上 `*.souche.com`
+- **按车牌查车**：先调车辆管理 HTTP `POST /web/v3/carViewQuery/queryRecordPageInfo.json`（`keywords`=车牌；测试 `https://crazyracing-kartrider.stable.dasouche.net`）。失败再 SQL：`crazy_kartrider.car.plate_number`（`date_delete = 0`）。不要打线上 `*.souche.com`
 - Agent 会先 `route_api` / `route_question` 自动推断查哪个服务或库表，再执行；**默认无需手动选库**
 - 输入区「偏好库」默认为「自动规划」；仅在你想加权某个库时再切换
 - 也可直接问：「现在个人会员一共有多少？」Agent 会自动选库，无需记库名

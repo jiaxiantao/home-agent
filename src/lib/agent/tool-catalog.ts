@@ -112,6 +112,7 @@ export const agentToolCatalog: Array<{
       recordId: "string?",
       shopCode: "string?",
       objCode: "string?",
+      plate: "string?",
     },
   },
   {

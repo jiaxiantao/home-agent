@@ -132,8 +132,13 @@ function applyCuratedOverrides(endpoints: DfcApiEndpoint[]): DfcApiEndpoint[] {
       }
     } else if (item.endpoint) {
       const normalized = normalizeEndpoint(item.endpoint);
-      endpoints.push(normalized);
-      byId.set(normalized.id, normalized);
+      const existingById = byId.get(normalized.id);
+      if (existingById) {
+        Object.assign(existingById, normalized);
+      } else {
+        endpoints.push(normalized);
+        byId.set(normalized.id, normalized);
+      }
     }
   }
 

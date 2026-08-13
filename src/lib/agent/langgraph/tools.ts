@@ -49,6 +49,17 @@ const toolSchemas: Partial<Record<AgentToolName, z.ZodType>> = {
     sql: z.string(),
     explanation: z.string().optional(),
   }),
+  call_backend_api: z.object({
+    endpointId: z.string(),
+    question: z.string().optional(),
+    phone: z.string().optional(),
+    recordId: z.string().optional(),
+    shopCode: z.string().optional(),
+    objCode: z.string().optional(),
+    plate: z.string().optional().describe("车牌号，queryRecordPageInfo keywords"),
+    query: z.record(z.string(), z.string()).optional(),
+    body: z.record(z.string(), z.unknown()).optional(),
+  }),
 };
 
 function wrapAgentTool(name: AgentToolName, description: string) {

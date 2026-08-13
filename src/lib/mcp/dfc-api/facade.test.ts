@@ -50,6 +50,15 @@ describe("dfc mcp facade", () => {
     expect(Array.isArray(result.endpoint?.matchPatterns)).toBe(true);
   });
 
+  it("routes plate questions to queryRecordPageInfo", () => {
+    const result = dfcMcpRouteApi({
+      question: "查询车牌号为皖JV066M的车辆信息",
+    });
+    expect(result.params.plate).toBe("皖JV066M");
+    expect(result.bestMatch?.endpoint.methodName).toBe("queryRecordPageInfo");
+    expect(result.bestMatch?.httpCallable).toBe(true);
+  });
+
   it("skips dubbo calls in phase-1", async () => {
     const id =
       "ai-privacy-number:dubbo:com.souche.aiprivacynumber.api.AiPrivacyNumberService:bindAxB";

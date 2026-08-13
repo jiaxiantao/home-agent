@@ -119,6 +119,7 @@ export function createDfcApiMcpServer() {
         recordId: z.string().optional(),
         shopCode: z.string().optional(),
         objCode: z.string().optional(),
+        plate: z.string().optional(),
         query: z.record(z.string(), z.string()).optional(),
         body: z.record(z.string(), z.unknown()).optional(),
         sso: ssoSchema,

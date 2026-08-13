@@ -140,6 +140,56 @@
       }
     },
     {
+      "endpoint": {
+        "id": "crazyracing-kartrider:http:POST:/web/v3/carViewQuery/queryRecordPageInfo.json:queryRecordPageInfo",
+        "appCode": "crazyracing-kartrider",
+        "repo": "gourd/crazyracing-kartrider",
+        "entity": "car",
+        "kind": "http",
+        "method": "POST",
+        "path": "/web/v3/carViewQuery/queryRecordPageInfo.json",
+        "title": "车辆管理列表（按车牌/VIN/关键词）",
+        "description": "web-app-car-acquisition kartrider.queryRecordPageInfo：keywords 可传车牌号",
+        "readOnly": true,
+        "preferOverSql": true,
+        "keywords": [
+          "queryRecordPageInfo",
+          "车牌",
+          "车牌号",
+          "车辆信息",
+          "查车辆",
+          "plate_number",
+          "kartrider"
+        ],
+        "methodName": "queryRecordPageInfo",
+        "className": "CarViewQuery",
+        "baseUrlEnvKey": "DFC_API_KARTRIDER_BASE_URL",
+        "http": {
+          "method": "POST",
+          "path": "/web/v3/carViewQuery/queryRecordPageInfo.json",
+          "bodyTemplate": {
+            "keywords": "{{plate}}",
+            "objCode": "car",
+            "pageNo": 1,
+            "pageSize": 20
+          }
+        },
+        "sqlFallback": {
+          "database": "crazy_kartrider",
+          "table": "car",
+          "hint": "WHERE plate_number = ? AND date_delete = 0 LIMIT 20"
+        },
+        "matchPatterns": [
+          "车牌",
+          "牌照",
+          "车辆信息",
+          "查(?:一?下)?车",
+          "license.?plate",
+          "queryRecordPageInfo"
+        ]
+      }
+    },
+    {
       "id": "matador:dubbo:com.souche.cheniu.api.remote.user.MemberInfoRemote:queryUserInfoByPhone",
       "patch": {
         "preferOverSql": true,

@@ -114,6 +114,14 @@ export function buildSuggestedSqlForEndpoint(
     return `SELECT user_id, dfc_user_id, name, phone, area, address, is_auth, app_source, date_create FROM \`${db}\`.\`${table}\` WHERE (user_id = '${id}' OR dfc_user_id = '${id}') AND date_delete IS NULL LIMIT 20`;
   }
 
+  if (params.plate) {
+    const plate = escapeSqlLiteral(params.plate);
+    if (db === "crazy_kartrider" || /kartrider/i.test(table)) {
+      return `SELECT id, JSON_UNQUOTE(JSON_EXTRACT(name, '$.displayValue')) AS car_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.brandName')) AS brand_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.seriesName')) AS series_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.modelName')) AS model_name, plate_number, vin_number, mileage, JSON_UNQUOTE(JSON_EXTRACT(area, '$.displayValue')) AS area, sale_price, shop_code, date_create FROM \`crazy_kartrider\`.\`car\` WHERE plate_number = '${plate}' AND date_delete = 0 LIMIT 20`;
+    }
+    return `SELECT car_id, brand_name, series_name, model_name, license_number, vin, sale_price, car_status, date_create FROM \`${db}\`.\`${table}\` WHERE license_number = '${plate}' LIMIT 20`;
+  }
+
   return undefined;
 }
 
@@ -412,6 +420,35 @@ export async function callBackendApi(
             body: request.body,
           },
           message: `接口 ${endpoint.methodName ?? endpoint.id} 缺少参数：${missing.join("、")}。若问题已含 recordId/手机号，请改用 SQL 回退；不要向用户索取 shop_code。`,
+          sqlFallback,
+        },
+        endpoint,
+        params,
+      );
+    }
+  }
+
+  if (endpoint.http.bodyTemplate) {
+    const placeholders = [
+      ...JSON.stringify(endpoint.http.bodyTemplate).matchAll(/\{\{(\w+)\}\}/g),
+    ].map((match) => match[1]!);
+    const missing = placeholders.filter(
+      (key) => !params[key as keyof ApiRouteParams],
+    );
+    if (missing.length > 0) {
+      return withSqlFallback(
+        {
+          status: "skipped",
+          failureKind: "missing_params",
+          endpointId: endpoint.id,
+          appCode: endpoint.appCode,
+          request: {
+            method: request.method,
+            url: request.url,
+            query: request.query,
+            body: request.body,
+          },
+          message: `接口 ${endpoint.methodName ?? endpoint.id} 缺少参数：${missing.join("、")}。请直接 propose_sql 回退。`,
           sqlFallback,
         },
         endpoint,
