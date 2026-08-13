@@ -1,5 +1,5 @@
 ---
-description: 每次对话有代码改动时提交并推送到 GitHub 与搜车 GitLab 的 master
+description: 每次对话有代码改动时只本地提交；用户明确要求时才推送到 master
 alwaysApply: true
 ---
 
@@ -16,9 +16,9 @@ alwaysApply: true
 
 1. 并行执行 `git status`、`git diff`、`git log -1 --oneline`。
 2. 不要提交 `.env` 或含密钥的文件；`.env.example` 可以提交。
-3. 有改动时：`git add`（相关文件）→ `git commit`（HEREDOC 写清「为什么」）→ `git push origin master` 且 `git push souche master`。
-4. 若无改动但此前有未推送的 commit，仍执行 `git push origin master` 与 `git push souche master`。
-5. 若无任何可提交改动且已同步远程，不要空提交。
+3. 有改动时：`git add`（相关文件）→ `git commit`（HEREDOC 写清「为什么」）。**不要自动 push。**
+4. 只有用户明确说「推送 / push / 推到远程」时，才执行 `git push origin master` 与 `git push souche master`。
+5. 若无任何可提交改动，不要空提交。
 6. 不要使用 `git push --force` 到 `master`，除非用户明确要求。
 
-在最终回复中简短告知：commit hash（如有）、分支、push 是否成功。
+在最终回复中简短告知：commit hash（如有）、分支；未要求推送则注明「未推送」。
