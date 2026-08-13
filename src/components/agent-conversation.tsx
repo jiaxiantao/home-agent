@@ -15,6 +15,38 @@ const phaseHints: Partial<Record<AgentPhase, string>> = {
   awaiting: "等待确认 SQL",
 };
 
+function getScrollParent(node: HTMLElement | null) {
+  let current = node?.parentElement ?? null;
+  while (current) {
+    const overflowY = window.getComputedStyle(current).overflowY;
+    if (overflowY === "auto" || overflowY === "scroll") {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function scrollConversationToBottom(anchor: HTMLElement | null, smooth: boolean) {
+  if (!anchor) {
+    return;
+  }
+
+  const container = getScrollParent(anchor);
+  if (container) {
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: smooth ? "smooth" : "auto",
+    });
+    return;
+  }
+
+  anchor.scrollIntoView({
+    behavior: smooth ? "smooth" : "auto",
+    block: "end",
+  });
+}
+
 function TurnStatusDot({ status }: { status: ConversationTurn["status"] }) {
   return (
     <span
@@ -47,12 +79,37 @@ export function AgentConversation({
   const isLive = Boolean(running && lastTurn);
 
   useEffect(() => {
-    if (!isLive) {
+    if (!turns.length) {
       return;
     }
 
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [isLive, lastTurn?.steps.length, lastTurn?.surfaces.length, lastTurn?.finalAnswer, lastTurn?.planStreamText]);
+    let cancelled = false;
+    const smooth = isLive;
+
+    function run() {
+      if (!cancelled) {
+        scrollConversationToBottom(bottomRef.current, smooth);
+      }
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      run();
+      window.requestAnimationFrame(run);
+    });
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [
+    isLive,
+    turns.length,
+    lastTurn?.id,
+    lastTurn?.steps.length,
+    lastTurn?.surfaces.length,
+    lastTurn?.finalAnswer,
+    lastTurn?.planStreamText,
+  ]);
 
   if (!turns.length) {
     return (
