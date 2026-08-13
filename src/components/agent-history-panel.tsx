@@ -61,13 +61,6 @@ export function AgentHistoryPanel({
     return () => window.clearTimeout(timer);
   }, [refresh, refreshToken]);
 
-  async function handleDelete(threadId: string) {
-    await fetch(`/api/agent-threads?id=${encodeURIComponent(threadId)}`, {
-      method: "DELETE",
-    });
-    await refresh();
-  }
-
   return (
     <div className="ui-panel p-3">
       <div className="flex items-center justify-between gap-2">
@@ -135,13 +128,6 @@ export function AgentHistoryPanel({
                     {active ? " · 当前" : ""}
                   </p>
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => void handleDelete(item.threadId)}
-                  className="mt-1 text-[10px] text-slate-600 transition hover:text-rose-300"
-                >
-                  删除
-                </button>
               </li>
             );
           })}

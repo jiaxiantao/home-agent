@@ -25,7 +25,6 @@ export function AgentTeamTemplatesPanel({
 }) {
   const [templates, setTemplates] = useState<TeamTemplateItem[]>([]);
   const [categories, setCategories] = useState<string[]>(["全部"]);
-  const [canManage, setCanManage] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -92,7 +91,6 @@ export function AgentTeamTemplatesPanel({
         const items = data.templates ?? [];
         const nextTotal = data.total ?? items.length;
         setTotal(nextTotal);
-        setCanManage(Boolean(data.canManage));
         setCategories([
           "全部",
           ...(data.categories ?? []).sort((a, b) => a.localeCompare(b, "zh-CN")),
@@ -144,14 +142,6 @@ export function AgentTeamTemplatesPanel({
         )
         .sort((a, b) => (b.useCount ?? 0) - (a.useCount ?? 0)),
     );
-  }
-
-  async function handleDelete(id: string) {
-    await fetch(`/api/templates?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
-    setTemplates((current) => current.filter((item) => item.id !== id));
-    setTotal((current) => Math.max(0, current - 1));
   }
 
   return (
@@ -224,15 +214,6 @@ export function AgentTeamTemplatesPanel({
                   {item.prompt}
                 </p>
               </button>
-              {canManage ? (
-                <button
-                  type="button"
-                  onClick={() => void handleDelete(item.id)}
-                  className="mt-1 text-[10px] text-slate-600 transition hover:text-rose-300"
-                >
-                  删除
-                </button>
-              ) : null}
             </li>
           ))}
           {loadingMore || loading ? (

@@ -119,14 +119,6 @@ export function AgentFavoritesPanel({
     }
   }
 
-  async function handleDelete(id: string) {
-    await fetch(`/api/favorites?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
-    setFavorites((current) => current.filter((item) => item.id !== id));
-    setTotal((current) => Math.max(0, current - 1));
-  }
-
   return (
     <div className="ui-panel flex max-h-[22rem] flex-col p-3">
       <div className="flex shrink-0 items-center justify-between gap-2">
@@ -179,13 +171,6 @@ export function AgentFavoritesPanel({
                 <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">
                   {item.prompt}
                 </p>
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDelete(item.id)}
-                className="mt-1 text-[10px] text-slate-600 transition hover:text-rose-300"
-              >
-                删除
               </button>
             </li>
           ))}
