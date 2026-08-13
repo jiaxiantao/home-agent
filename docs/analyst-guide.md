@@ -56,7 +56,7 @@
 
 **CRM 客户详情（对齐前后端）**：
 - 主接口：`GET /v1/customerAction/crmQueryCustomerInfo.json?recordId=`
-- 鉴权头：同时带 `Souche-Security-Token` + `souche-security-token`，Cookie `_security_token`，CRM 另加 `_source_code=WEB`
+- 鉴权头：只写一次 `Souche-Security-Token`（勿再双写 `souche-security-token`，Node fetch 会合并成非法 `token, token`），Cookie `_security_token`，CRM 另加 `_source_code=WEB`
 - 经 **MCP → HTTP**；缺 SSO 返回 `failureKind=auth`
 
 未配置 `DFC_API_*` 时 Agent 仍会识别推荐接口，并自动用等价 SQL 回退（如 `super_mario.customer` 按 `phone` 查询）。

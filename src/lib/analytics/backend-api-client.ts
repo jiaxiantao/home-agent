@@ -113,14 +113,25 @@ function needsWebSourceCode(appCode: string) {
   );
 }
 
+/** 组装上游 HTTP SSO 头（单次写入，避免 undici 合并重复头） */
+export function buildDfcUpstreamSsoHeaders(sso: {
+  token: string;
+  tokenHeader: string;
+  cookieHeader?: string;
+}): Record<string, string> {
+  const headers: Record<string, string> = {};
+  applySsoHeaders(headers, sso);
+  return headers;
+}
+
 function applySsoHeaders(
   headers: Record<string, string>,
   sso: { token: string; tokenHeader: string; cookieHeader?: string },
 ) {
-  // 对齐 mars_web_business（Souche-Security-Token）与 H5（souche-security-token）
-  headers["Souche-Security-Token"] = sso.token;
-  headers["souche-security-token"] = sso.token;
-  headers[sso.tokenHeader] = sso.token;
+  // Node undici 会把大小写不同的同名头合并成 "a, a"；双写会导致 CRM 10001。
+  // 只写一次标准头即可（Mars / H5 均识别 Souche-Security-Token）。
+  const headerName = sso.tokenHeader?.trim() || "Souche-Security-Token";
+  headers[headerName] = sso.token;
   headers.Cookie =
     sso.cookieHeader?.trim() || `_security_token=${sso.token}`;
 }

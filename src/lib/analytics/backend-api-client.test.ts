@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSuggestedSqlForEndpoint } from "@/lib/analytics/backend-api-client";
+import {
+  buildDfcUpstreamSsoHeaders,
+  buildSuggestedSqlForEndpoint,
+} from "@/lib/analytics/backend-api-client";
 import type { DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
 
 describe("buildSuggestedSqlForEndpoint", () => {
@@ -28,5 +31,20 @@ describe("buildSuggestedSqlForEndpoint", () => {
     expect(sql).toContain("`super_mario`.`customer`");
     expect(sql).toContain("ANwbnMyLF0");
     expect(sql).not.toMatch(/shop_code\s*=/);
+  });
+});
+
+describe("buildDfcUpstreamSsoHeaders", () => {
+  it("writes Souche-Security-Token only once (undici merges case variants)", () => {
+    const headers = buildDfcUpstreamSsoHeaders({
+      token: "22_demo_token",
+      tokenHeader: "Souche-Security-Token",
+    });
+    const soucheKeys = Object.keys(headers).filter((key) =>
+      key.toLowerCase() === "souche-security-token",
+    );
+    expect(soucheKeys).toHaveLength(1);
+    expect(headers[soucheKeys[0]!]).toBe("22_demo_token");
+    expect(headers.Cookie).toBe("_security_token=22_demo_token");
   });
 });
