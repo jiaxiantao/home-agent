@@ -62,7 +62,7 @@ export function AgentComposer({
     <div className="shrink-0 border-t border-white/[0.05] bg-[#0a0a0c]/90 px-1 pt-3 pb-1 backdrop-blur-md">
       {!hasConversation ? (
         <div className="mb-2.5 flex flex-wrap gap-1">
-          {quickPrompts.slice(0, 6).map((item) => (
+          {quickPrompts.slice(0, 8).map((item) => (
             <button
               key={item.id}
               type="button"

@@ -15,6 +15,12 @@ export const agentQuickPrompts: AgentQuickPrompt[] = [
     prompt: "我想知道客户手机号为 13166990795 的客户信息",
   },
   {
+    id: "car-by-plate",
+    tool: "propose_sql",
+    label: "查车辆",
+    prompt: "我想知道车牌号为 皖JV066M 的车辆信息",
+  },
+  {
     id: "car-count",
     tool: "propose_sql",
     label: "车源总数",

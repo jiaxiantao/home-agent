@@ -64,7 +64,7 @@
 
 接口目录见 `config/dfc-api-catalog.json`、`docs/dfc-backend-apis.md` 与 `docs/dfc-backend-repos.md`。
 
-页面提供「查客户」「车源总数」「状态分布」等一键模板。
+页面提供「查客户」「查车辆」「车源总数」「状态分布」等一键模板。
 
 右侧还有：
 

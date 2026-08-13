@@ -59,7 +59,7 @@ export function AgentConversation({
       <section className="flex min-h-[280px] flex-col items-center justify-center px-4 py-16 text-center">
         <p className="text-[13px] font-medium text-brand-soft">用自然语言问数</p>
         <p className="mt-2 max-w-md text-[12px] leading-6 text-zinc-500">
-          例如：「客户手机号为 13166990795 的客户信息」「正式车源一共有多少辆」。也可按微信号查客户。Agent 会自动选库、调接口或生成 SQL。
+          例如：「客户手机号为 13166990795 的客户信息」「车牌号为 皖JV066M 的车辆信息」。也可按微信号查客户。Agent 会自动选库、调接口或生成 SQL。
         </p>
       </section>
     );

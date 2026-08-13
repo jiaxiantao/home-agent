@@ -34,6 +34,7 @@ export const teamTemplateSeed: TeamTemplateSeed[] = [
   { category: "车牛用户", label: "用户与CRM区别", prompt: "cheniu_user 和 super_mario.customer 分别是什么业务？各查什么场景？" },
 
   // —— 车源 ——
+  { category: "车源", label: "车牌查车辆", prompt: "我想知道车牌号为 皖JV066M 的车辆信息" },
   { category: "车源", label: "正式车源总量", prompt: "大风车正式车源一共有多少辆？" },
   { category: "车源", label: "状态分布", prompt: "统计各状态的正式车源数量分布" },
   { category: "车源", label: "今日上架", prompt: "统计今天上架的正式车源数量（test_type=0）" },
