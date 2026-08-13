@@ -5,7 +5,12 @@ import {
   seedMysqlTeamTemplateCategories,
   updateMysqlTeamTemplateCategory,
 } from "@/lib/history/team-template-categories-mysql";
-import { isAppMysqlConfigured } from "@/lib/app-mysql/client";
+import { executeAppMysql, isAppMysqlConfigured } from "@/lib/app-mysql/client";
+import {
+  isMyFavoritesCategory,
+  MY_FAVORITES_CATEGORY,
+  MY_FAVORITES_CATEGORY_ID,
+} from "@/lib/history/team-template-constants";
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
 import { PRODUCT_SLUG } from "@/lib/product";
 
@@ -16,6 +21,7 @@ export type TeamTemplateCategory = {
   sortOrder: number;
   createdAt: string;
   templateCount?: number;
+  protected?: boolean;
 };
 
 const REDIS_KEY = `${PRODUCT_SLUG}:team-template-categories`;
@@ -25,9 +31,29 @@ const globalStore = globalThis as typeof globalThis & {
   __dfcDataAgentTeamTemplateCategories?: TeamTemplateCategory[];
 };
 
+function myFavoritesCategoryEntry(): TeamTemplateCategory {
+  return {
+    id: MY_FAVORITES_CATEGORY_ID,
+    name: MY_FAVORITES_CATEGORY,
+    description: "个人收藏的问法，不可删除",
+    sortOrder: 0,
+    createdAt: "1970-01-01T00:00:00.000Z",
+    templateCount: 0,
+    protected: true,
+  };
+}
+
+function withProtectedFlags(entries: TeamTemplateCategory[]) {
+  return entries.map((item) => ({
+    ...item,
+    protected: isMyFavoritesCategory(item),
+  }));
+}
+
 function getMemoryList() {
   if (!globalStore.__dfcDataAgentTeamTemplateCategories) {
     globalStore.__dfcDataAgentTeamTemplateCategories = [
+      myFavoritesCategoryEntry(),
       {
         id: "cat_default",
         name: "自定义",
@@ -75,12 +101,36 @@ async function writeCategories(entries: TeamTemplateCategory[]) {
   return sorted;
 }
 
+export async function ensureMyFavoritesCategory() {
+  if (isAppMysqlConfigured()) {
+    await executeAppMysql(
+      `INSERT IGNORE INTO team_template_categories (id, name, description, sort_order)
+       VALUES (?, ?, ?, ?)`,
+      [
+        MY_FAVORITES_CATEGORY_ID,
+        MY_FAVORITES_CATEGORY,
+        "个人收藏的问法，不可删除",
+        0,
+      ],
+    );
+    return;
+  }
+
+  const current = await readCategories();
+  if (current.some((item) => isMyFavoritesCategory(item))) {
+    return;
+  }
+
+  await writeCategories([myFavoritesCategoryEntry(), ...current]);
+}
+
 export async function listTeamTemplateCategories() {
-  return readCategories();
+  await ensureMyFavoritesCategory();
+  return withProtectedFlags(await readCategories());
 }
 
 export async function listTeamTemplateCategoryNames() {
-  const categories = await readCategories();
+  const categories = await listTeamTemplateCategories();
   return categories.map((item) => item.name);
 }
 
@@ -103,6 +153,9 @@ export async function createTeamTemplateCategory(input: {
   const name = input.name.trim().slice(0, 40);
   if (!name) {
     throw new Error("分类名称不能为空");
+  }
+  if (isMyFavoritesCategory(name)) {
+    throw new Error("「我的收藏」为固定分类，无法新建同名分类");
   }
 
   if (isAppMysqlConfigured()) {
@@ -127,6 +180,26 @@ export async function createTeamTemplateCategory(input: {
   return entry;
 }
 
+function assertCategoryNameChangeAllowed(
+  existing: TeamTemplateCategory,
+  nextName?: string,
+) {
+  if (
+    isMyFavoritesCategory(existing) &&
+    nextName &&
+    nextName !== existing.name
+  ) {
+    throw new Error("「我的收藏」为固定分类，无法改名");
+  }
+  if (
+    nextName &&
+    isMyFavoritesCategory(nextName) &&
+    existing.id !== MY_FAVORITES_CATEGORY_ID
+  ) {
+    throw new Error("「我的收藏」为固定分类，无法改成该名称");
+  }
+}
+
 export async function updateTeamTemplateCategory(
   id: string,
   input: {
@@ -136,6 +209,12 @@ export async function updateTeamTemplateCategory(
   },
 ) {
   if (isAppMysqlConfigured()) {
+    const current = await listMysqlTeamTemplateCategories();
+    const existing = current.find((item) => item.id === id);
+    if (!existing) {
+      return null;
+    }
+    assertCategoryNameChangeAllowed(existing, input.name);
     return updateMysqlTeamTemplateCategory(id, input);
   }
 
@@ -146,6 +225,7 @@ export async function updateTeamTemplateCategory(
   }
 
   const existing = current[index]!;
+  assertCategoryNameChangeAllowed(existing, input.name);
   const name = (input.name ?? existing.name).trim().slice(0, 40);
   if (!name) {
     throw new Error("分类名称不能为空");
@@ -171,7 +251,16 @@ export async function updateTeamTemplateCategory(
 }
 
 export async function deleteTeamTemplateCategory(id: string) {
+  if (isMyFavoritesCategory(id)) {
+    throw new Error("「我的收藏」为固定分类，无法删除");
+  }
+
   if (isAppMysqlConfigured()) {
+    const current = await listMysqlTeamTemplateCategories();
+    const target = current.find((item) => item.id === id);
+    if (target && isMyFavoritesCategory(target)) {
+      throw new Error("「我的收藏」为固定分类，无法删除");
+    }
     return deleteMysqlTeamTemplateCategory(id);
   }
 
@@ -179,6 +268,9 @@ export async function deleteTeamTemplateCategory(id: string) {
   const target = current.find((item) => item.id === id);
   if (!target) {
     return false;
+  }
+  if (isMyFavoritesCategory(target)) {
+    throw new Error("「我的收藏」为固定分类，无法删除");
   }
 
   const templateStore = globalThis as typeof globalThis & {
@@ -202,13 +294,17 @@ export async function deleteTeamTemplateCategory(id: string) {
 }
 
 export async function seedTeamTemplateCategories(names: string[]) {
+  await ensureMyFavoritesCategory();
+
+  const filteredNames = names.filter((name) => !isMyFavoritesCategory(name));
+
   if (isAppMysqlConfigured()) {
-    return seedMysqlTeamTemplateCategories(names);
+    return seedMysqlTeamTemplateCategories(filteredNames);
   }
 
   const current = await readCategories();
   const existingNames = new Set(current.map((item) => item.name));
-  const toAdd = names
+  const toAdd = filteredNames
     .map((name) => name.trim().slice(0, 40))
     .filter((name) => name && !existingNames.has(name));
 

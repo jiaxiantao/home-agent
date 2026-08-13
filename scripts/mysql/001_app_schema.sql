@@ -7,18 +7,8 @@ CREATE TABLE IF NOT EXISTS team_templates (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   sort_order INT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
-  UNIQUE KEY uk_team_templates_prompt (prompt(191)),
-  KEY idx_team_templates_category (category, sort_order)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS favorites (
-  id VARCHAR(64) NOT NULL,
-  user_id VARCHAR(64) NOT NULL,
-  label VARCHAR(40) NOT NULL,
-  prompt VARCHAR(2000) NOT NULL,
-  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  PRIMARY KEY (id),
-  KEY idx_favorites_user (user_id, created_at)
+  KEY idx_team_templates_category (category, sort_order),
+  KEY idx_team_templates_owner_prompt (created_by, prompt(191))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS query_history (

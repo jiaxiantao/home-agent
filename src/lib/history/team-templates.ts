@@ -8,10 +8,15 @@ import {
 import { createStableTeamTemplateId, createTeamTemplateId } from "@/lib/history/team-template-id";
 import { getTeamTemplateUsageMap } from "@/lib/history/team-template-usage";
 import {
+  ensureMyFavoritesCategory,
   listTeamTemplateCategories,
   listTeamTemplateCategoryNames,
   resolveTeamTemplateCategoryName,
 } from "@/lib/history/team-template-categories";
+import {
+  isMyFavoritesCategory,
+  MY_FAVORITES_CATEGORY,
+} from "@/lib/history/team-template-constants";
 import {
   buildTeamTemplateCategoryTabs,
   mergeTemplatesForCategoryTabs,
@@ -31,6 +36,7 @@ export type TeamTemplate = {
   builtin?: boolean;
   useCount?: number;
   lastUsedAt?: string | null;
+  favorited?: boolean;
 };
 
 export type TeamTemplateSort = "popular" | "category";
@@ -125,7 +131,11 @@ async function readCustom(): Promise<TeamTemplate[]> {
 }
 
 async function writeCustom(entries: TeamTemplate[]) {
-  const trimmed = entries.slice(0, MAX_CUSTOM);
+  const favorites = entries.filter((item) => isMyFavoritesCategory(item.category));
+  const others = entries
+    .filter((item) => !isMyFavoritesCategory(item.category))
+    .slice(0, MAX_CUSTOM);
+  const trimmed = [...favorites, ...others];
 
   if (isRedisConfigured()) {
     const client = await getRedisClient();
@@ -143,7 +153,11 @@ async function writeCustom(entries: TeamTemplate[]) {
 
 function mergeWithBuiltins(custom: TeamTemplate[]) {
   const customIds = new Set(custom.map((item) => item.id));
-  const customPrompts = new Set(custom.map((item) => item.prompt));
+  const customPrompts = new Set(
+    custom
+      .filter((item) => !isMyFavoritesCategory(item.category))
+      .map((item) => item.prompt),
+  );
   const builtins = builtinTemplates().filter(
     (item) => !customIds.has(item.id) && !customPrompts.has(item.prompt),
   );
@@ -151,11 +165,71 @@ function mergeWithBuiltins(custom: TeamTemplate[]) {
   return [...custom, ...builtins];
 }
 
-export async function listTeamTemplates(options?: { sort?: TeamTemplateSort }) {
+export function visibleTeamTemplatesForViewer(
+  items: TeamTemplate[],
+  viewerUserId: string,
+) {
+  return items.filter((item) => {
+    if (isMyFavoritesCategory(item.category)) {
+      return item.createdBy === viewerUserId;
+    }
+    return true;
+  });
+}
+
+export function withFavoriteFlags(items: TeamTemplate[], viewerUserId: string) {
+  const favPrompts = new Set(
+    items
+      .filter(
+        (item) =>
+          isMyFavoritesCategory(item.category) && item.createdBy === viewerUserId,
+      )
+      .map((item) => item.prompt),
+  );
+
+  return items.map((item) => ({
+    ...item,
+    favorited: isMyFavoritesCategory(item.category)
+      ? item.createdBy === viewerUserId
+      : favPrompts.has(item.prompt),
+  }));
+}
+
+export function filterTeamTemplatesForCategory(
+  items: TeamTemplate[],
+  category?: string,
+) {
+  const selected = category?.trim() ?? "";
+  if (!selected || selected === "全部") {
+    return items.filter((item) => !isMyFavoritesCategory(item.category));
+  }
+  if (isMyFavoritesCategory(selected)) {
+    return items.filter((item) => isMyFavoritesCategory(item.category));
+  }
+  return items.filter((item) => (item.category ?? "通用") === selected);
+}
+
+export function isOwnFavoriteTemplate(item: TeamTemplate, userId: string) {
+  return isMyFavoritesCategory(item.category) && item.createdBy === userId;
+}
+
+export async function listTeamTemplates(options?: {
+  sort?: TeamTemplateSort;
+  viewerUserId?: string;
+}) {
   const custom = await readCustom();
   const merged = mergeWithBuiltins(custom);
   const enriched = await enrichWithUsage(merged);
-  return sortTemplates(enriched, options?.sort ?? "category");
+  let items = sortTemplates(enriched, options?.sort ?? "category");
+
+  if (options?.viewerUserId) {
+    items = withFavoriteFlags(
+      visibleTeamTemplatesForViewer(items, options.viewerUserId),
+      options.viewerUserId,
+    );
+  }
+
+  return items;
 }
 
 export async function listTeamTemplateCategoryTabs(): Promise<
@@ -166,10 +240,13 @@ export async function listTeamTemplateCategoryTabs(): Promise<
     readCustom(),
   ]);
   const templates = await enrichWithUsage(mergeWithBuiltins(custom));
+  const publicTemplates = templates.filter(
+    (item) => !isMyFavoritesCategory(item.category),
+  );
 
   return buildTeamTemplateCategoryTabs({
-    categories,
-    templates: mergeTemplatesForCategoryTabs(templates),
+    categories: categories.filter((item) => !isMyFavoritesCategory(item)),
+    templates: mergeTemplatesForCategoryTabs(publicTemplates),
   });
 }
 
@@ -189,6 +266,7 @@ export type TeamTemplateListQuery = {
   category?: string;
   page?: number;
   pageSize?: number;
+  viewerUserId?: string;
 };
 
 export type TeamTemplateListResult = {
@@ -206,18 +284,16 @@ export async function listTeamTemplatesPage(
   const pageSize = Math.min(50, Math.max(1, options.pageSize ?? 10));
   const sort = options.sort ?? "popular";
 
-  const all = await listTeamTemplates({ sort });
+  const all = await listTeamTemplates({
+    sort,
+    viewerUserId: options.viewerUserId,
+  });
   const categories = await listTeamTemplateCategoryNames();
 
   const keyword = options.q?.trim().toLowerCase() ?? "";
   const category = options.category?.trim() ?? "";
 
-  let filtered = all;
-  if (category && category !== "全部") {
-    filtered = filtered.filter(
-      (item) => (item.category ?? "通用") === category,
-    );
-  }
+  let filtered = filterTeamTemplatesForCategory(all, category);
   if (keyword) {
     filtered = filtered.filter((item) => {
       const itemCategory = item.category ?? "通用";
@@ -249,6 +325,10 @@ export async function createTeamTemplate(input: {
     throw new Error("label 与 prompt 不能为空");
   }
 
+  if (isMyFavoritesCategory(input.category)) {
+    throw new Error("请使用收藏操作将问法加入「我的收藏」");
+  }
+
   const categoryName =
     (await resolveTeamTemplateCategoryName(input.category)) ?? "自定义";
 
@@ -257,7 +337,10 @@ export async function createTeamTemplate(input: {
   }
 
   const current = await readCustom();
-  const duplicate = current.find((item) => item.prompt === prompt);
+  const duplicate = current.find(
+    (item) =>
+      item.prompt === prompt && !isMyFavoritesCategory(item.category),
+  );
 
   if (duplicate) {
     return duplicate;
@@ -284,11 +367,19 @@ export async function updateTeamTemplate(
     category?: string;
   },
 ) {
+  if (isMyFavoritesCategory(input.category)) {
+    throw new Error("请使用收藏操作将问法加入「我的收藏」");
+  }
+
   const resolvedCategory = input.category
     ? await resolveTeamTemplateCategoryName(input.category)
     : undefined;
 
   if (isAppMysqlConfigured()) {
+    const existingMysql = await getTeamTemplateById(id);
+    if (existingMysql && isMyFavoritesCategory(existingMysql.category)) {
+      throw new Error("收藏问法请通过取消收藏管理，不能直接编辑");
+    }
     return upsertMysqlTeamTemplate(id, {
       label: input.label,
       prompt: input.prompt,
@@ -309,6 +400,10 @@ export async function updateTeamTemplate(
 
   if (!existing) {
     return null;
+  }
+
+  if (isMyFavoritesCategory(existing.category)) {
+    throw new Error("收藏问法请通过取消收藏管理，不能直接编辑");
   }
 
   const label = input.label?.trim().slice(0, 40) ?? existing.label;
@@ -344,6 +439,68 @@ export async function updateTeamTemplate(
 }
 
 export { recordTeamTemplateUse } from "@/lib/history/team-template-usage";
+
+export async function toggleTeamTemplateFavorite(
+  userId: string,
+  sourceId: string,
+): Promise<{ favorited: boolean; template?: TeamTemplate }> {
+  const trimmedUserId = userId.trim();
+  const trimmedSourceId = sourceId.trim();
+  if (!trimmedUserId || !trimmedSourceId) {
+    throw new Error("缺少收藏参数");
+  }
+
+  await ensureMyFavoritesCategory();
+
+  const all = mergeWithBuiltins(await readCustom());
+  const source = all.find((item) => item.id === trimmedSourceId);
+  if (!source) {
+    throw new Error("模板不存在");
+  }
+
+  if (isOwnFavoriteTemplate(source, trimmedUserId)) {
+    await deleteTeamTemplate(source.id);
+    return { favorited: false };
+  }
+
+  const favoriteId = createStableTeamTemplateId(
+    `fav:${trimmedUserId}:${trimmedSourceId}`,
+  );
+  const current = await readCustom();
+  const existing = current.find(
+    (item) =>
+      isOwnFavoriteTemplate(item, trimmedUserId) &&
+      (item.id === favoriteId || item.prompt === source.prompt),
+  );
+
+  if (existing) {
+    await deleteTeamTemplate(existing.id);
+    return { favorited: false };
+  }
+
+  const entry: TeamTemplate = {
+    id: favoriteId,
+    label: source.label,
+    prompt: source.prompt,
+    category: MY_FAVORITES_CATEGORY,
+    createdAt: new Date().toISOString(),
+    createdBy: trimmedUserId,
+  };
+
+  if (isAppMysqlConfigured()) {
+    const created = await createMysqlTeamTemplate({
+      id: favoriteId,
+      label: entry.label,
+      prompt: entry.prompt,
+      createdBy: trimmedUserId,
+      category: MY_FAVORITES_CATEGORY,
+    });
+    return { favorited: true, template: created };
+  }
+
+  await writeCustom([entry, ...current]);
+  return { favorited: true, template: entry };
+}
 
 export async function deleteTeamTemplate(id: string) {
   if (isAppMysqlConfigured()) {

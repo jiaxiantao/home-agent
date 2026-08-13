@@ -11,7 +11,7 @@
 - [x] 审计持久化（内存/Redis + `/api/audit` 管理员查询）
 - [x] K8s 部署清单（`deploy/k8s/`）
 - [x] NL→SQL 黄金用例回归（规则规划器）
-- [x] 收藏问法（`/api/favorites`）
+- [x] 收藏问法（团队模板固定分类「我的收藏」）
 - [x] 审计 HTTP sink（`AUDIT_HTTP_URL`）
 - [x] 多环境分析库切换（test/prepub profiles）
 - [x] 团队公共问法模板（`/api/templates`）

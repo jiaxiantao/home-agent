@@ -67,9 +67,10 @@ TRUSTED_PROXY_ONLY=1
 - 服务端：`GET /api/history`（按用户隔离，Redis/内存，最多 100 条）
 - 前端侧边栏优先展示服务端历史，失败时回退本地 localStorage
 
-## 收藏问法
+## 我的收藏
 
-- `GET/POST/DELETE /api/favorites`：按用户持久化常用自然语言问法
+- 收藏问法是团队模板的固定分类「我的收藏」，仅当前用户可见
+- `POST /api/templates { action: "favorite", id }`：把团队模板复制到当前用户的「我的收藏」或取消收藏
 
 ## 多环境分析库
 

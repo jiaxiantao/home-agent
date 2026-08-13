@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AgentComposer } from "@/components/agent-composer";
 import { AgentConversation } from "@/components/agent-conversation";
-import { AgentFavoritesPanel } from "@/components/agent-favorites-panel";
 import { AgentTeamTemplatesPanel } from "@/components/agent-team-templates-panel";
 import { AgentHistoryPanel } from "@/components/agent-history-panel";
 import { AgentMockBanner } from "@/components/agent-mock-banner";
@@ -251,8 +250,6 @@ export function AgentOrchestratorDemo({
         }`}
       >
         <AgentTeamTemplatesPanel onSelect={fillPrompt} />
-
-        <AgentFavoritesPanel currentPrompt={message} onSelect={fillPrompt} />
 
         <AgentHistoryPanel
           refreshToken={conversation.length + (stats?.totalMs ?? 0)}

@@ -8,10 +8,12 @@ import {
   createTeamTemplate,
   deleteTeamTemplate,
   getTeamTemplateById,
+  isOwnFavoriteTemplate,
   listTeamTemplateCategoryTabs,
   listTeamTemplates,
   listTeamTemplatesPage,
   recordTeamTemplateUse,
+  toggleTeamTemplateFavorite,
   updateTeamTemplate,
 } from "@/lib/history/team-templates";
 import { resolveAuthUserFromHeaders } from "@/lib/security/auth";
@@ -79,7 +81,10 @@ export async function GET(request: Request) {
     url.searchParams.has("page") || url.searchParams.has("pageSize");
 
   if (!hasPagination) {
-    const templates = await listTeamTemplates({ sort });
+    const templates = await listTeamTemplates({
+      sort,
+      viewerUserId: user.userId,
+    });
     const categories = await listTeamTemplateCategoryNames();
 
     return NextResponse.json({
@@ -102,6 +107,7 @@ export async function GET(request: Request) {
     pageSize,
     q,
     category,
+    viewerUserId: user.userId,
   });
 
   return NextResponse.json({
@@ -130,7 +136,7 @@ export async function POST(request: Request) {
   try {
     const body = z
       .object({
-        action: z.literal("use").optional(),
+        action: z.enum(["use", "favorite"]).optional(),
         id: z.string().min(1).optional(),
         label: z.string().min(1).max(40).optional(),
         prompt: z.string().min(1).max(2000).optional(),
@@ -144,6 +150,14 @@ export async function POST(request: Request) {
       }
       await recordTeamTemplateUse(body.id);
       return NextResponse.json({ ok: true });
+    }
+
+    if (body.action === "favorite") {
+      if (!body.id) {
+        return NextResponse.json({ error: "Missing id" }, { status: 400 });
+      }
+      const result = await toggleTeamTemplateFavorite(user.userId, body.id);
+      return NextResponse.json(result);
     }
 
     if (!canManageTemplates(user.userId)) {
@@ -226,17 +240,30 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const id = new URL(request.url).searchParams.get("id")?.trim();
+
+  if (!id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  const template = await getTeamTemplateById(id);
+  if (!template) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (isOwnFavoriteTemplate(template, user.userId)) {
+    const removed = await deleteTeamTemplate(id);
+    if (!removed) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   if (!canManageTemplates(user.userId)) {
     return NextResponse.json(
       { error: "仅管理员可删除团队模板" },
       { status: 403 },
     );
-  }
-
-  const id = new URL(request.url).searchParams.get("id")?.trim();
-
-  if (!id) {
-    return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
   const removed = await deleteTeamTemplate(id);

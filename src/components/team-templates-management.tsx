@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DarkSelect } from "@/components/dark-select";
+import { TemplateFavoriteButton } from "@/components/template-favorite-button";
+import { MY_FAVORITES_CATEGORY } from "@/lib/history/team-template-constants";
 
 type TeamTemplateItem = {
   id: string;
@@ -15,6 +17,7 @@ type TeamTemplateItem = {
   builtin?: boolean;
   useCount?: number;
   lastUsedAt?: string | null;
+  favorited?: boolean;
 };
 
 type Draft = {
@@ -244,6 +247,12 @@ export function TeamTemplatesManagement() {
 
   const [deleteTarget, setDeleteTarget] = useState<TeamTemplateItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [favoritingId, setFavoritingId] = useState<string | null>(null);
+
+  const editableCategories = useMemo(
+    () => managedCategories.filter((item) => item !== MY_FAVORITES_CATEGORY),
+    [managedCategories],
+  );
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -317,7 +326,7 @@ export function TeamTemplatesManagement() {
     setEditingId(null);
     setDraft({
       ...emptyDraft(),
-      category: managedCategories[0] ?? "自定义",
+      category: editableCategories[0] ?? "自定义",
     });
     setModalOpen(true);
   }
@@ -373,6 +382,22 @@ export function TeamTemplatesManagement() {
     }
   }
 
+  async function handleFavorite(item: TeamTemplateItem) {
+    setFavoritingId(item.id);
+    try {
+      const response = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "favorite", id: item.id }),
+      });
+      if (response.ok) {
+        await refresh();
+      }
+    } finally {
+      setFavoritingId(null);
+    }
+  }
+
   async function handleDelete() {
     if (!deleteTarget) {
       return;
@@ -402,7 +427,7 @@ export function TeamTemplatesManagement() {
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-white">团队模板</h1>
         <p className="mt-1 text-sm text-slate-500">
-          管理团队常用问法，按触发次数排序；全员可在数据智能体侧边栏一键选用。
+          管理团队常用问法；点击星标可将问法放入个人「我的收藏」。
         </p>
       </div>
 
@@ -538,24 +563,31 @@ export function TeamTemplatesManagement() {
                     <span className="text-[11px] text-slate-600">
                       创建 {formatDateTime(item.createdAt)}
                     </span>
-                    {canManage ? (
-                      <div className="mt-1 flex items-center gap-3 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(item)}
-                          className="text-slate-400 transition hover:text-white"
-                        >
-                          编辑
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(item)}
-                          className="text-slate-500 transition hover:text-rose-300"
-                        >
-                          删除
-                        </button>
-                      </div>
-                    ) : null}
+                    <div className="mt-1 flex items-center gap-3 text-xs">
+                      <TemplateFavoriteButton
+                        favorited={item.favorited}
+                        disabled={favoritingId === item.id}
+                        onToggle={() => void handleFavorite(item)}
+                      />
+                      {canManage && item.category !== MY_FAVORITES_CATEGORY ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(item)}
+                            className="text-slate-400 transition hover:text-white"
+                          >
+                            编辑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(item)}
+                            className="text-slate-500 transition hover:text-rose-300"
+                          >
+                            删除
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 </li>
             ))}
@@ -622,7 +654,11 @@ export function TeamTemplatesManagement() {
         title={editingId ? "编辑模板" : "新建模板"}
         draft={draft}
         saving={saving}
-        categories={managedCategories.length ? managedCategories : categories}
+        categories={
+          editableCategories.length
+            ? editableCategories
+            : categories.filter((item) => item !== MY_FAVORITES_CATEGORY)
+        }
         onChange={setDraft}
         onClose={closeModal}
         onSave={() => void handleSave()}

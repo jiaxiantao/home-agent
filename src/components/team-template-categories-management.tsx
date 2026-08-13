@@ -10,6 +10,7 @@ type CategoryItem = {
   sortOrder: number;
   createdAt: string;
   templateCount?: number;
+  protected?: boolean;
 };
 
 type Draft = {
@@ -280,7 +281,7 @@ export function TeamTemplateCategoriesManagement() {
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-white">分类管理</h1>
         <p className="mt-1 text-sm text-slate-500">
-          维护团队模板分类；新建模板时从下列分类中选择。
+          维护团队模板分类。「我的收藏」为固定分类，用于个人收藏问法。
         </p>
       </div>
 
@@ -358,6 +359,11 @@ export function TeamTemplateCategoriesManagement() {
                     <span className="rounded-full border border-brand/20 bg-brand/10 px-2 py-0.5 text-[10px] text-brand-soft">
                       {item.templateCount ?? 0} 条模板
                     </span>
+                    {item.protected ? (
+                      <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-200">
+                        固定分类
+                      </span>
+                    ) : null}
                   </div>
                   {item.description ? (
                     <p className="mt-1 text-xs text-slate-500">{item.description}</p>
@@ -367,7 +373,7 @@ export function TeamTemplateCategoriesManagement() {
                   </p>
                 </div>
 
-                {canManage ? (
+                {canManage && !item.protected ? (
                   <div className="flex items-center gap-3 text-xs">
                     <button
                       type="button"
@@ -387,6 +393,8 @@ export function TeamTemplateCategoriesManagement() {
                       删除
                     </button>
                   </div>
+                ) : item.protected ? (
+                  <p className="text-[11px] text-slate-600">不可删除</p>
                 ) : null}
               </li>
             ))}

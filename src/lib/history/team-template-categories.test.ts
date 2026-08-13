@@ -57,4 +57,21 @@ describe("team template categories", () => {
     });
     expect(updated?.name).toBe("新分类");
   });
+
+  it("keeps 我的收藏 as a protected category", async () => {
+    clearTeamTemplateCategoriesForTest();
+    const listed = await listTeamTemplateCategories();
+    const favorite = listed.find((item) => item.name === "我的收藏");
+    expect(favorite?.protected).toBe(true);
+
+    await expect(
+      createTeamTemplateCategory({ name: "我的收藏" }),
+    ).rejects.toThrow("固定分类");
+    await expect(deleteTeamTemplateCategory(favorite!.id)).rejects.toThrow(
+      "无法删除",
+    );
+    await expect(
+      updateTeamTemplateCategory(favorite!.id, { name: "别的名字" }),
+    ).rejects.toThrow("无法改名");
+  });
 });

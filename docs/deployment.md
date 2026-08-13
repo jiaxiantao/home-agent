@@ -40,8 +40,7 @@ curl -s "$(kubectl -n dfc-data-agent get svc dfc-data-agent -o jsonpath='{.spec.
 |------|------|
 | `POST /api/agent` | 问数 SSE |
 | `GET /api/history` | 当前用户查询历史 |
-| `GET /api/favorites` | 个人收藏问法 |
-| `GET /api/templates` | 团队问法模板（管理员可发布） |
+| `GET /api/templates` | 团队问法模板；星标收藏到「我的收藏」 |
 | `GET /api/audit` | 管理员审计查询 |
 | `GET /api/health` | 就绪探针 |
 

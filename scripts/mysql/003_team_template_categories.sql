@@ -8,3 +8,6 @@ CREATE TABLE IF NOT EXISTS team_template_categories (
   UNIQUE KEY uk_team_template_categories_name (name),
   KEY idx_team_template_categories_sort (sort_order, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO team_template_categories (id, name, description, sort_order)
+VALUES ('cat_my_favorites', '我的收藏', '个人收藏的问法，不可删除', 0);

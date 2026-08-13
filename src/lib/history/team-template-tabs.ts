@@ -2,6 +2,7 @@ import type { TeamTemplate } from "@/lib/history/team-templates";
 import type { TeamTemplateCategory } from "@/lib/history/team-template-categories";
 import { teamTemplateSeed } from "@/lib/history/team-template-catalog";
 import { createStableTeamTemplateId } from "@/lib/history/team-template-id";
+import { MY_FAVORITES_CATEGORY } from "@/lib/history/team-template-constants";
 
 export type TeamTemplateCategoryTab = {
   category: string;
@@ -100,12 +101,17 @@ export function buildTeamTemplateCategoryTabs(input: {
   limit?: number;
 }): TeamTemplateCategoryTab[] {
   const templates = input.templates.filter(
-    (item) => item.category && item.category !== "内置",
+    (item) =>
+      item.category &&
+      item.category !== "内置" &&
+      item.category !== MY_FAVORITES_CATEGORY,
   );
   const limit = input.limit ?? MAX_COMPOSER_CATEGORY_TABS;
 
   const fromCatalog = (input.categories ?? [])
-    .filter((item) => item.name !== "内置")
+    .filter(
+      (item) => item.name !== "内置" && item.name !== MY_FAVORITES_CATEGORY,
+    )
     .map((item) => ({ name: item.name, sortOrder: item.sortOrder }));
 
   const names = fromCatalog.length

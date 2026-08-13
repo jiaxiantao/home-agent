@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DarkSelect } from "@/components/dark-select";
+import { TemplateFavoriteButton } from "@/components/template-favorite-button";
 
 type TeamTemplateItem = {
   id: string;
@@ -14,6 +15,7 @@ type TeamTemplateItem = {
   builtin?: boolean;
   useCount?: number;
   lastUsedAt?: string | null;
+  favorited?: boolean;
 };
 
 const PAGE_SIZE = 10;
@@ -34,6 +36,7 @@ export function AgentTeamTemplatesPanel({
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("全部");
+  const [favoritingId, setFavoritingId] = useState<string | null>(null);
 
   const listRef = useRef<HTMLUListElement>(null);
   const requestIdRef = useRef(0);
@@ -126,6 +129,23 @@ export function AgentTeamTemplatesPanel({
     }
   }
 
+  async function handleFavorite(item: TeamTemplateItem) {
+    setFavoritingId(item.id);
+    try {
+      const response = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "favorite", id: item.id }),
+      });
+      if (!response.ok) {
+        return;
+      }
+      await loadPage(1, false);
+    } finally {
+      setFavoritingId(null);
+    }
+  }
+
   async function handleSelect(item: TeamTemplateItem) {
     void fetch("/api/templates", {
       method: "POST",
@@ -151,7 +171,7 @@ export function AgentTeamTemplatesPanel({
         <span className="font-mono text-[10px] text-zinc-600">{total} 条</span>
       </div>
       <p className="mt-1 shrink-0 text-[10px] text-zinc-600">
-        按热度排序；点击即计入触发次数
+        按热度排序；星标可收藏到「我的收藏」
       </p>
 
       <div className="mt-3 shrink-0 space-y-2">
@@ -191,29 +211,36 @@ export function AgentTeamTemplatesPanel({
               key={item.id}
               className="rounded-lg border border-white/5 bg-white/[0.02] p-2"
             >
-              <button
-                type="button"
-                onClick={() => void handleSelect(item)}
-                className="w-full text-left"
-              >
-                <div className="flex items-center gap-1.5">
-                  <p className="text-xs text-slate-200">{item.label}</p>
-                  <span className="font-mono text-[9px] text-brand-soft/80">
-                    {item.useCount ?? 0}
-                  </span>
-                  <span className="text-[9px] text-slate-600">
-                    {item.category ?? "通用"}
-                  </span>
-                  {item.builtin ? (
-                    <span className="text-[9px] uppercase tracking-wide text-slate-600">
-                      内置
+              <div className="flex items-start gap-1">
+                <button
+                  type="button"
+                  onClick={() => void handleSelect(item)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs text-slate-200">{item.label}</p>
+                    <span className="font-mono text-[9px] text-brand-soft/80">
+                      {item.useCount ?? 0}
                     </span>
-                  ) : null}
-                </div>
-                <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">
-                  {item.prompt}
-                </p>
-              </button>
+                    <span className="text-[9px] text-slate-600">
+                      {item.category ?? "通用"}
+                    </span>
+                    {item.builtin ? (
+                      <span className="text-[9px] uppercase tracking-wide text-slate-600">
+                        内置
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">
+                    {item.prompt}
+                  </p>
+                </button>
+                <TemplateFavoriteButton
+                  favorited={item.favorited}
+                  disabled={favoritingId === item.id}
+                  onToggle={() => void handleFavorite(item)}
+                />
+              </div>
             </li>
           ))}
           {loadingMore || loading ? (
