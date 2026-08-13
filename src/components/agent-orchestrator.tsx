@@ -46,7 +46,7 @@ export function AgentOrchestratorDemo({
     stats,
     pendingRunId,
     conversation,
-    loadHistoryQuestion,
+    threadId,
     restoreThread,
     llmProvider,
     setLlmProvider,
@@ -256,10 +256,7 @@ export function AgentOrchestratorDemo({
 
         <AgentHistoryPanel
           refreshToken={conversation.length + (stats?.totalMs ?? 0)}
-          onSelect={(entry) => {
-            loadHistoryQuestion(entry.question);
-            fillPrompt(entry.question);
-          }}
+          currentThreadId={threadId}
         />
 
         <div className="ui-panel p-3 text-[11px] leading-5 text-zinc-500">
