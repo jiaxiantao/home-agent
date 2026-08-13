@@ -23,8 +23,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "next dev --webpack",
-    "dev:clean": "rm -rf .next && next dev --webpack",
+    "dev": "next dev",
+    "dev:clean": "rm -rf .next && next dev",
     "build": "next build",
     "start": "node .next/standalone/server.js",
     "start:ci": "next start -p 3000",

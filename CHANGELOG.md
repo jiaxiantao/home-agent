@@ -6,7 +6,7 @@
 
 ### Fixed
 
-- 本地 `pnpm dev` 因 Turbopack HMR panic（Next.js package not found）导致浏览器整页循环刷新；开发模式改用 webpack。
+- 本地 `pnpm dev` 因 Turbopack HMR panic（Next.js package not found）导致浏览器整页循环刷新；固定 `turbopack.root` 为项目目录。
 
 ### Changed
 
