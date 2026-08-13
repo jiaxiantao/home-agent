@@ -293,7 +293,7 @@ export async function* streamLlmAgentNode(
   | { kind: "delta"; text: string; delta: string }
   | { kind: "done"; update: Partial<DfcAgentStateType> }
 > {
-  const model = createChatModel(provider).bindTools(createLangChainTools());
+  const model = createChatModel(provider).bindTools(await createLangChainTools());
   const stream = await model.stream([
     new SystemMessage(buildAgentSystemPrompt(state.userMessage)),
     ...state.messages,

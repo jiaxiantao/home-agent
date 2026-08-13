@@ -2,7 +2,7 @@ import type { A2UISurface } from "@/lib/a2ui/types";
 import type { ChartSpec } from "@/lib/analytics/chart-spec";
 import type { QueryResult } from "@/lib/analytics/run-query";
 
-export type AgentToolName =
+export type BuiltinAgentToolName =
   | "list_project_databases"
   | "list_databases"
   | "list_tables"
@@ -22,6 +22,9 @@ export type AgentToolName =
   | "propose_sql"
   | "execute_sql"
   | "build_chart";
+
+/** 内置工具名，或管理页新增的自定义 HTTP 工具名 */
+export type AgentToolName = BuiltinAgentToolName | (string & {});
 
 export type AgentPlan =
   | {

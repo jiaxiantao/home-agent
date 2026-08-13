@@ -27,6 +27,8 @@ import { assertReadOnlySql } from "@/lib/analytics/sql-guard";
 import { sanitizeAgentSql } from "@/lib/analytics/sql-sanitize";
 import { assertAllowedDatabases } from "@/lib/security/database-allowlist";
 import { assertAllowedTables } from "@/lib/security/table-allowlist";
+import { getManagedToolByName } from "@/lib/agent/managed-tools";
+import { invokeManagedHttpTool } from "@/lib/agent/managed-http-tool";
 import {
   runCallBackendApiTool,
   runRouteApiTool,
@@ -503,8 +505,13 @@ export async function runAgentTool(
         data,
       };
     }
-    default:
-      return { output: "未知工具" };
+    default: {
+      const custom = await getManagedToolByName(tool);
+      if (custom?.kind === "http" && custom.enabled && custom.http) {
+        return invokeManagedHttpTool(custom, args);
+      }
+      return { output: `未知工具：${tool}` };
+    }
   }
 }
 

@@ -2,7 +2,7 @@ import type { AgentToolName } from "@/lib/agent/types";
 
 export type UserRole = "analyst" | "admin";
 
-const ADMIN_ONLY_TOOLS: AgentToolName[] = ["sample_table_rows"];
+const ADMIN_ONLY_TOOLS = new Set<string>(["sample_table_rows"]);
 
 export function resolveUserRole(userId: string): UserRole {
   const admins = (process.env.AUTH_ADMIN_USER_IDS ?? "")
@@ -14,7 +14,7 @@ export function resolveUserRole(userId: string): UserRole {
 }
 
 export function isToolAllowedForUser(tool: AgentToolName, userId?: string) {
-  if (!ADMIN_ONLY_TOOLS.includes(tool)) {
+  if (!ADMIN_ONLY_TOOLS.has(tool)) {
     return true;
   }
 

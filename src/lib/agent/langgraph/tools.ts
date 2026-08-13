@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
-import { agentToolCatalog } from "@/lib/agent/tool-catalog";
+import { getActiveAgentToolCatalog } from "@/lib/agent/managed-tools";
 import { runAgentTool } from "@/lib/agent/tools";
 import type { AgentToolName } from "@/lib/agent/types";
 
@@ -62,7 +62,7 @@ const toolSchemas: Partial<Record<AgentToolName, z.ZodType>> = {
   }),
 };
 
-function wrapAgentTool(name: AgentToolName, description: string) {
+function wrapAgentTool(name: string, description: string) {
   return tool(
     async (input) => {
       const result = await runAgentTool(name, input as Record<string, unknown>);
@@ -80,8 +80,9 @@ function wrapAgentTool(name: AgentToolName, description: string) {
 }
 
 /** LangChain StructuredTool 列表（不含 execute_sql，由 HITL 后执行） */
-export function createLangChainTools() {
-  return agentToolCatalog
+export async function createLangChainTools() {
+  const catalog = await getActiveAgentToolCatalog();
+  return catalog
     .filter((entry) => entry.name !== "execute_sql")
     .map((entry) =>
       wrapAgentTool(

@@ -7,7 +7,10 @@ import { SiteHealthBadge } from "@/components/site-health-badge";
 import { BRAND_LOGO_PATH, PRODUCT_NAME_EN } from "@/lib/product";
 import { getDfcMarsAccountUrl } from "@/lib/security/sso-config";
 
-const navItems = [{ href: "/agents", label: "问数助手" }];
+const navItems = [
+  { href: "/agents", label: "问数助手" },
+  { href: "/tools", label: "工具管理" },
+];
 
 const AVATAR_PALETTES = [
   "from-orange-400/90 to-orange-600/90",

@@ -51,9 +51,8 @@ export function pairToolCallsWithMessages(
 }
 
 export function createToolsNodeHandler(sso?: SsoCredentials | null) {
-  const toolNode = new ToolNode(createLangChainTools());
-
   return async (state: DfcAgentStateType): Promise<Partial<DfcAgentStateType>> => {
+    const toolNode = new ToolNode(await createLangChainTools());
     const invoke = async () => toolNode.invoke(state);
     const result = sso
       ? await runWithSsoRequestContext(sso, invoke)

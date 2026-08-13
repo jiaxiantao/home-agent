@@ -1,11 +1,13 @@
-import type { AgentToolName } from "@/lib/agent/types";
+import type { BuiltinAgentToolName } from "@/lib/agent/types";
 
-export const agentToolCatalog: Array<{
-  name: AgentToolName;
+export type AgentToolCatalogItem = {
+  name: BuiltinAgentToolName;
   label: string;
   description: string;
   args: Record<string, string>;
-}> = [
+};
+
+export const agentToolCatalog: AgentToolCatalogItem[] = [
   {
     name: "list_project_databases",
     label: "项目库登记",
@@ -146,3 +148,9 @@ export const agentToolCatalog: Array<{
     args: { columns: "string[]", rows: "object[]", chartType: "bar|line|pie" },
   },
 ];
+
+export const builtinAgentToolNames = new Set<string>(
+  agentToolCatalog.map((item) => item.name),
+);
+
+export const CORE_AGENT_TOOLS = new Set<string>(["propose_sql", "execute_sql"]);
