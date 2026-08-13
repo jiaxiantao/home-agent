@@ -1,6 +1,6 @@
 # DFC Data Agent · 大风车数据分析助手
 
-[![CI](https://github.com/jiaxiantao/home-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/jiaxiantao/home-agent/actions/workflows/ci.yml)
+[![CI](https://git.souche-inc.com/dfc-ai/dfc-data-agent/badges/master/pipeline.svg)](https://git.souche-inc.com/dfc-ai/dfc-data-agent/-/pipelines)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 **大风车（DFC）数据分析助手**：用户用自然语言描述要查的数据，Agent **自动规划**数据库、表与查询条件，生成只读 SQL，用户确认后出数（表格/图表）。无需手动选库选表。
@@ -136,4 +136,4 @@ docker compose up --build
 
 ## 仓库
 
-https://github.com/jiaxiantao/home-agent
+https://git.souche-inc.com/dfc-ai/dfc-data-agent

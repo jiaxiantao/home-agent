@@ -8,14 +8,14 @@ const REDIS_KEY = `${PRODUCT_SLUG}:audit:events`;
 const TTL_SECONDS = 14 * 24 * 60 * 60;
 
 const globalStore = globalThis as typeof globalThis & {
-  __homeAgentAuditBuffer?: AuditRecord[];
+  __dfcDataAgentAuditBuffer?: AuditRecord[];
 };
 
 const memoryBuffer =
-  globalStore.__homeAgentAuditBuffer ?? ([] as AuditRecord[]);
+  globalStore.__dfcDataAgentAuditBuffer ?? ([] as AuditRecord[]);
 
-if (!globalStore.__homeAgentAuditBuffer) {
-  globalStore.__homeAgentAuditBuffer = memoryBuffer;
+if (!globalStore.__dfcDataAgentAuditBuffer) {
+  globalStore.__dfcDataAgentAuditBuffer = memoryBuffer;
 }
 
 async function postAuditHttpSink(record: AuditRecord) {

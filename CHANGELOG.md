@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 仓库地址改为搜车 GitLab `dfc-ai/dfc-data-agent`，MCP client 名与内存 store 键同步更名。
+
 ## [0.4.5] - 2026-08-11
 
 ### Added
@@ -45,7 +49,7 @@
 
 ### Fixed
 
-- 站点顶栏仍显示 `HOME AGENT`，已改为 `DFC Data Agent`。
+- 站点顶栏仍显示旧品牌名，已改为 `DFC Data Agent`。
 
 ## [0.4.0] - 2026-08-11
 

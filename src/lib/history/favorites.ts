@@ -15,14 +15,14 @@ const TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const REDIS_PREFIX = `${PRODUCT_SLUG}:favorites:`;
 
 const globalStore = globalThis as typeof globalThis & {
-  __homeAgentFavorites?: Map<string, FavoritePrompt[]>;
+  __dfcDataAgentFavorites?: Map<string, FavoritePrompt[]>;
 };
 
 const memoryStore =
-  globalStore.__homeAgentFavorites ?? new Map<string, FavoritePrompt[]>();
+  globalStore.__dfcDataAgentFavorites ?? new Map<string, FavoritePrompt[]>();
 
-if (!globalStore.__homeAgentFavorites) {
-  globalStore.__homeAgentFavorites = memoryStore;
+if (!globalStore.__dfcDataAgentFavorites) {
+  globalStore.__dfcDataAgentFavorites = memoryStore;
 }
 
 function redisKey(userId: string) {

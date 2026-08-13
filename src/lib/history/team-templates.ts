@@ -41,11 +41,11 @@ const TTL_MS = 180 * 24 * 60 * 60 * 1000;
 const REDIS_KEY = `${PRODUCT_SLUG}:team-templates`;
 
 const globalStore = globalThis as typeof globalThis & {
-  __homeAgentTeamTemplates?: TeamTemplate[];
+  __dfcDataAgentTeamTemplates?: TeamTemplate[];
 };
 
-if (!globalStore.__homeAgentTeamTemplates) {
-  globalStore.__homeAgentTeamTemplates = [];
+if (!globalStore.__dfcDataAgentTeamTemplates) {
+  globalStore.__dfcDataAgentTeamTemplates = [];
 }
 
 function builtinTemplates(): TeamTemplate[] {
@@ -121,7 +121,7 @@ async function readCustom(): Promise<TeamTemplate[]> {
     }
   }
 
-  return [...(globalStore.__homeAgentTeamTemplates ?? [])];
+  return [...(globalStore.__dfcDataAgentTeamTemplates ?? [])];
 }
 
 async function writeCustom(entries: TeamTemplate[]) {
@@ -132,12 +132,12 @@ async function writeCustom(entries: TeamTemplate[]) {
 
     if (client) {
       await client.set(REDIS_KEY, JSON.stringify(trimmed), { PX: TTL_MS });
-      globalStore.__homeAgentTeamTemplates = trimmed;
+      globalStore.__dfcDataAgentTeamTemplates = trimmed;
       return trimmed;
     }
   }
 
-  globalStore.__homeAgentTeamTemplates = trimmed;
+  globalStore.__dfcDataAgentTeamTemplates = trimmed;
   return trimmed;
 }
 
@@ -363,5 +363,5 @@ export async function deleteTeamTemplate(id: string) {
 
 /** 测试用 */
 export function clearTeamTemplatesForTest() {
-  globalStore.__homeAgentTeamTemplates = [];
+  globalStore.__dfcDataAgentTeamTemplates = [];
 }

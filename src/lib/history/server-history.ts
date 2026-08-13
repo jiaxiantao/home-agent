@@ -23,14 +23,14 @@ const TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const REDIS_PREFIX = `${PRODUCT_SLUG}:history:`;
 
 const globalStore = globalThis as typeof globalThis & {
-  __homeAgentHistory?: Map<string, ServerHistoryEntry[]>;
+  __dfcDataAgentHistory?: Map<string, ServerHistoryEntry[]>;
 };
 
 const memoryStore =
-  globalStore.__homeAgentHistory ?? new Map<string, ServerHistoryEntry[]>();
+  globalStore.__dfcDataAgentHistory ?? new Map<string, ServerHistoryEntry[]>();
 
-if (!globalStore.__homeAgentHistory) {
-  globalStore.__homeAgentHistory = memoryStore;
+if (!globalStore.__dfcDataAgentHistory) {
+  globalStore.__dfcDataAgentHistory = memoryStore;
 }
 
 function redisKey(userId: string) {

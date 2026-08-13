@@ -16,14 +16,14 @@ export type AgentThread = {
 };
 
 const globalThreads = globalThis as typeof globalThis & {
-  __homeAgentThreads?: Map<string, AgentThread>;
+  __dfcDataAgentThreads?: Map<string, AgentThread>;
 };
 
 const memoryThreads =
-  globalThreads.__homeAgentThreads ?? new Map<string, AgentThread>();
+  globalThreads.__dfcDataAgentThreads ?? new Map<string, AgentThread>();
 
-if (!globalThreads.__homeAgentThreads) {
-  globalThreads.__homeAgentThreads = memoryThreads;
+if (!globalThreads.__dfcDataAgentThreads) {
+  globalThreads.__dfcDataAgentThreads = memoryThreads;
 }
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;

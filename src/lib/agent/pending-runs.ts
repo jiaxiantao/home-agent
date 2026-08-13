@@ -18,15 +18,15 @@ export type PendingSqlRun = {
 };
 
 const globalForPending = globalThis as typeof globalThis & {
-  __homeAgentPendingSqlRuns?: Map<string, PendingSqlRun>;
+  __dfcDataAgentPendingSqlRuns?: Map<string, PendingSqlRun>;
 };
 
 const pendingRuns =
-  globalForPending.__homeAgentPendingSqlRuns ??
+  globalForPending.__dfcDataAgentPendingSqlRuns ??
   new Map<string, PendingSqlRun>();
 
-if (!globalForPending.__homeAgentPendingSqlRuns) {
-  globalForPending.__homeAgentPendingSqlRuns = pendingRuns;
+if (!globalForPending.__dfcDataAgentPendingSqlRuns) {
+  globalForPending.__dfcDataAgentPendingSqlRuns = pendingRuns;
 }
 
 const TTL_MS = 30 * 60 * 1000;

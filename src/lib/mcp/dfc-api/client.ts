@@ -33,7 +33,7 @@ function buildChildEnv(): Record<string, string> {
 async function connectInProcessClient(): Promise<Client> {
   const server = createDfcApiMcpServer();
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "home-agent", version: "0.4.5" });
+  const client = new Client({ name: "dfc-data-agent", version: "0.4.5" });
   await Promise.all([
     server.connect(serverTransport),
     client.connect(clientTransport),
@@ -62,7 +62,7 @@ async function connectStdioClient(): Promise<Client> {
     });
   }
 
-  const client = new Client({ name: "home-agent", version: "0.4.5" });
+  const client = new Client({ name: "dfc-data-agent", version: "0.4.5" });
   await client.connect(transport);
   return client;
 }

@@ -35,7 +35,7 @@ pnpm mcp:dfc-api
     "dfc-api": {
       "command": "pnpm",
       "args": ["mcp:dfc-api"],
-      "cwd": "/absolute/path/to/home-agent"
+      "cwd": "/absolute/path/to/dfc-data-agent"
     }
   }
 }
