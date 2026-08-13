@@ -1,38 +1,14 @@
--- 收藏问法改为团队模板固定分类「我的收藏」，不再使用独立 favorites 表。
+-- 收藏问法改为团队模板固定分类「我的收藏」：按用户记录星标，不再复制问法行。
 
 DROP TABLE IF EXISTS favorites;
 
-SET @has_uk := (
-  SELECT COUNT(*)
-  FROM information_schema.statistics
-  WHERE table_schema = DATABASE()
-    AND table_name = 'team_templates'
-    AND index_name = 'uk_team_templates_prompt'
-);
-SET @sql := IF(
-  @has_uk > 0,
-  'ALTER TABLE team_templates DROP INDEX uk_team_templates_prompt',
-  'SELECT 1'
-);
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @has_idx := (
-  SELECT COUNT(*)
-  FROM information_schema.statistics
-  WHERE table_schema = DATABASE()
-    AND table_name = 'team_templates'
-    AND index_name = 'idx_team_templates_owner_prompt'
-);
-SET @sql := IF(
-  @has_idx = 0,
-  'ALTER TABLE team_templates ADD KEY idx_team_templates_owner_prompt (created_by, prompt(191))',
-  'SELECT 1'
-);
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
+CREATE TABLE IF NOT EXISTS team_template_favorites (
+  user_id VARCHAR(64) NOT NULL,
+  template_id VARCHAR(64) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (user_id, template_id),
+  KEY idx_team_template_favorites_user (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO team_template_categories (id, name, description, sort_order)
 VALUES ('cat_my_favorites', '我的收藏', '个人收藏的问法，不可删除', 0);

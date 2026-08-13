@@ -70,7 +70,7 @@ TRUSTED_PROXY_ONLY=1
 ## 我的收藏
 
 - 收藏问法是团队模板的固定分类「我的收藏」，仅当前用户可见
-- `POST /api/templates { action: "favorite", id }`：把团队模板复制到当前用户的「我的收藏」或取消收藏
+- `POST /api/templates { action: "favorite", id }`：把团队模板加入当前用户的「我的收藏」或取消收藏
 
 ## 多环境分析库
 

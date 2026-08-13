@@ -14,9 +14,11 @@ import {
   resolveTeamTemplateCategoryName,
 } from "@/lib/history/team-template-categories";
 import {
-  isMyFavoritesCategory,
-  MY_FAVORITES_CATEGORY,
-} from "@/lib/history/team-template-constants";
+  listFavoriteTemplateIds,
+  removeFavoriteLinksForTemplate,
+  toggleFavoriteTemplate,
+} from "@/lib/history/team-template-favorites";
+import { isMyFavoritesCategory } from "@/lib/history/team-template-constants";
 import {
   buildTeamTemplateCategoryTabs,
   mergeTemplatesForCategoryTabs,
@@ -131,11 +133,7 @@ async function readCustom(): Promise<TeamTemplate[]> {
 }
 
 async function writeCustom(entries: TeamTemplate[]) {
-  const favorites = entries.filter((item) => isMyFavoritesCategory(item.category));
-  const others = entries
-    .filter((item) => !isMyFavoritesCategory(item.category))
-    .slice(0, MAX_CUSTOM);
-  const trimmed = [...favorites, ...others];
+  const trimmed = entries.slice(0, MAX_CUSTOM);
 
   if (isRedisConfigured()) {
     const client = await getRedisClient();
@@ -153,11 +151,7 @@ async function writeCustom(entries: TeamTemplate[]) {
 
 function mergeWithBuiltins(custom: TeamTemplate[]) {
   const customIds = new Set(custom.map((item) => item.id));
-  const customPrompts = new Set(
-    custom
-      .filter((item) => !isMyFavoritesCategory(item.category))
-      .map((item) => item.prompt),
-  );
+  const customPrompts = new Set(custom.map((item) => item.prompt));
   const builtins = builtinTemplates().filter(
     (item) => !customIds.has(item.id) && !customPrompts.has(item.prompt),
   );
@@ -165,52 +159,27 @@ function mergeWithBuiltins(custom: TeamTemplate[]) {
   return [...custom, ...builtins];
 }
 
-export function visibleTeamTemplatesForViewer(
-  items: TeamTemplate[],
-  viewerUserId: string,
-) {
-  return items.filter((item) => {
-    if (isMyFavoritesCategory(item.category)) {
-      return item.createdBy === viewerUserId;
-    }
-    return true;
-  });
-}
-
-export function withFavoriteFlags(items: TeamTemplate[], viewerUserId: string) {
-  const favPrompts = new Set(
-    items
-      .filter(
-        (item) =>
-          isMyFavoritesCategory(item.category) && item.createdBy === viewerUserId,
-      )
-      .map((item) => item.prompt),
-  );
-
+export function withFavoriteFlags(items: TeamTemplate[], favoriteIds: Set<string>) {
   return items.map((item) => ({
     ...item,
-    favorited: isMyFavoritesCategory(item.category)
-      ? item.createdBy === viewerUserId
-      : favPrompts.has(item.prompt),
+    favorited: favoriteIds.has(item.id),
   }));
 }
 
 export function filterTeamTemplatesForCategory(
   items: TeamTemplate[],
   category?: string,
+  favoriteIds?: Set<string>,
 ) {
   const selected = category?.trim() ?? "";
   if (!selected || selected === "全部") {
-    return items.filter((item) => !isMyFavoritesCategory(item.category));
+    return items;
   }
   if (isMyFavoritesCategory(selected)) {
-    return items.filter((item) => isMyFavoritesCategory(item.category));
+    const ids = favoriteIds ?? new Set<string>();
+    return items.filter((item) => ids.has(item.id));
   }
   return items.filter((item) => (item.category ?? "通用") === selected);
-}
-
-export function isOwnFavoriteTemplate(item: TeamTemplate, userId: string) {
-  return isMyFavoritesCategory(item.category) && item.createdBy === userId;
 }
 
 export async function listTeamTemplates(options?: {
@@ -223,10 +192,8 @@ export async function listTeamTemplates(options?: {
   let items = sortTemplates(enriched, options?.sort ?? "category");
 
   if (options?.viewerUserId) {
-    items = withFavoriteFlags(
-      visibleTeamTemplatesForViewer(items, options.viewerUserId),
-      options.viewerUserId,
-    );
+    const favoriteIds = new Set(await listFavoriteTemplateIds(options.viewerUserId));
+    items = withFavoriteFlags(items, favoriteIds);
   }
 
   return items;
@@ -284,16 +251,19 @@ export async function listTeamTemplatesPage(
   const pageSize = Math.min(50, Math.max(1, options.pageSize ?? 10));
   const sort = options.sort ?? "popular";
 
-  const all = await listTeamTemplates({
-    sort,
-    viewerUserId: options.viewerUserId,
-  });
+  const favoriteIds = options.viewerUserId
+    ? new Set(await listFavoriteTemplateIds(options.viewerUserId))
+    : new Set<string>();
+  const all = withFavoriteFlags(
+    await listTeamTemplates({ sort }),
+    favoriteIds,
+  );
   const categories = await listTeamTemplateCategoryNames();
 
   const keyword = options.q?.trim().toLowerCase() ?? "";
   const category = options.category?.trim() ?? "";
 
-  let filtered = filterTeamTemplatesForCategory(all, category);
+  let filtered = filterTeamTemplatesForCategory(all, category, favoriteIds);
   if (keyword) {
     filtered = filtered.filter((item) => {
       const itemCategory = item.category ?? "通用";
@@ -337,10 +307,7 @@ export async function createTeamTemplate(input: {
   }
 
   const current = await readCustom();
-  const duplicate = current.find(
-    (item) =>
-      item.prompt === prompt && !isMyFavoritesCategory(item.category),
-  );
+  const duplicate = current.find((item) => item.prompt === prompt);
 
   if (duplicate) {
     return duplicate;
@@ -452,59 +419,24 @@ export async function toggleTeamTemplateFavorite(
 
   await ensureMyFavoritesCategory();
 
-  const all = mergeWithBuiltins(await readCustom());
-  const source = all.find((item) => item.id === trimmedSourceId);
+  const source = (await listTeamTemplates()).find(
+    (item) => item.id === trimmedSourceId,
+  );
   if (!source) {
     throw new Error("模板不存在");
   }
 
-  if (isOwnFavoriteTemplate(source, trimmedUserId)) {
-    await deleteTeamTemplate(source.id);
-    return { favorited: false };
-  }
-
-  const favoriteId = createStableTeamTemplateId(
-    `fav:${trimmedUserId}:${trimmedSourceId}`,
-  );
-  const current = await readCustom();
-  const existing = current.find(
-    (item) =>
-      isOwnFavoriteTemplate(item, trimmedUserId) &&
-      (item.id === favoriteId || item.prompt === source.prompt),
-  );
-
-  if (existing) {
-    await deleteTeamTemplate(existing.id);
-    return { favorited: false };
-  }
-
-  const entry: TeamTemplate = {
-    id: favoriteId,
-    label: source.label,
-    prompt: source.prompt,
-    category: MY_FAVORITES_CATEGORY,
-    createdAt: new Date().toISOString(),
-    createdBy: trimmedUserId,
-  };
-
-  if (isAppMysqlConfigured()) {
-    const created = await createMysqlTeamTemplate({
-      id: favoriteId,
-      label: entry.label,
-      prompt: entry.prompt,
-      createdBy: trimmedUserId,
-      category: MY_FAVORITES_CATEGORY,
-    });
-    return { favorited: true, template: created };
-  }
-
-  await writeCustom([entry, ...current]);
-  return { favorited: true, template: entry };
+  const favorited = await toggleFavoriteTemplate(trimmedUserId, source.id);
+  return { favorited, template: { ...source, favorited } };
 }
 
 export async function deleteTeamTemplate(id: string) {
   if (isAppMysqlConfigured()) {
-    return deleteMysqlTeamTemplate(id);
+    const removed = await deleteMysqlTeamTemplate(id);
+    if (removed) {
+      await removeFavoriteLinksForTemplate(id);
+    }
+    return removed;
   }
 
   const current = await readCustom();
@@ -515,6 +447,7 @@ export async function deleteTeamTemplate(id: string) {
   }
 
   await writeCustom(next);
+  await removeFavoriteLinksForTemplate(id);
   return true;
 }
 

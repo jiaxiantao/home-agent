@@ -8,7 +8,6 @@ import {
   createTeamTemplate,
   deleteTeamTemplate,
   getTeamTemplateById,
-  isOwnFavoriteTemplate,
   listTeamTemplateCategoryTabs,
   listTeamTemplates,
   listTeamTemplatesPage,
@@ -240,30 +239,17 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const id = new URL(request.url).searchParams.get("id")?.trim();
-
-  if (!id) {
-    return NextResponse.json({ error: "Missing id" }, { status: 400 });
-  }
-
-  const template = await getTeamTemplateById(id);
-  if (!template) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  if (isOwnFavoriteTemplate(template, user.userId)) {
-    const removed = await deleteTeamTemplate(id);
-    if (!removed) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    return NextResponse.json({ ok: true });
-  }
-
   if (!canManageTemplates(user.userId)) {
     return NextResponse.json(
       { error: "仅管理员可删除团队模板" },
       { status: 403 },
     );
+  }
+
+  const id = new URL(request.url).searchParams.get("id")?.trim();
+
+  if (!id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
   const removed = await deleteTeamTemplate(id);

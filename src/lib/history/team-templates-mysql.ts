@@ -1,9 +1,5 @@
 import type { TeamTemplate } from "@/lib/history/team-templates";
 import { createTeamTemplateId } from "@/lib/history/team-template-id";
-import {
-  isMyFavoritesCategory,
-  MY_FAVORITES_CATEGORY,
-} from "@/lib/history/team-template-constants";
 import { executeAppMysql, queryAppMysql } from "@/lib/app-mysql/client";
 import type { RowDataPacket } from "mysql2/promise";
 
@@ -38,7 +34,6 @@ export async function listMysqlTeamTemplates() {
 }
 
 export async function createMysqlTeamTemplate(input: {
-  id?: string;
   label: string;
   prompt: string;
   createdBy: string;
@@ -48,31 +43,16 @@ export async function createMysqlTeamTemplate(input: {
   const prompt = input.prompt.trim().slice(0, 2000);
   const category = (input.category ?? "自定义").trim().slice(0, 40) || "自定义";
 
-  if (isMyFavoritesCategory(category)) {
-    const existingFavorite = await queryAppMysql<TeamTemplateRow>(
-      `SELECT id, label, prompt, category, created_by, created_at, sort_order
-       FROM team_templates
-       WHERE created_by = ? AND category = ? AND prompt = ?
-       LIMIT 1`,
-      [input.createdBy, MY_FAVORITES_CATEGORY, prompt],
-    );
-    if (existingFavorite[0]) {
-      return mapRow(existingFavorite[0]);
-    }
-  } else {
-    const existing = await queryAppMysql<TeamTemplateRow>(
-      `SELECT id, label, prompt, category, created_by, created_at, sort_order
-       FROM team_templates
-       WHERE prompt = ? AND category <> ?
-       LIMIT 1`,
-      [prompt, MY_FAVORITES_CATEGORY],
-    );
-    if (existing[0]) {
-      return mapRow(existing[0]);
-    }
+  const existing = await queryAppMysql<TeamTemplateRow>(
+    `SELECT id, label, prompt, category, created_by, created_at, sort_order
+     FROM team_templates WHERE prompt = ? LIMIT 1`,
+    [prompt],
+  );
+  if (existing[0]) {
+    return mapRow(existing[0]);
   }
 
-  const id = input.id ?? createTeamTemplateId();
+  const id = createTeamTemplateId();
   await executeAppMysql(
     `INSERT INTO team_templates (id, label, prompt, category, created_by, sort_order)
      VALUES (?, ?, ?, ?, ?, 0)`,

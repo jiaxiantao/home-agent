@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { clearTeamTemplateCategoriesForTest } from "@/lib/history/team-template-categories";
+import { clearFavoriteTemplatesForTest } from "@/lib/history/team-template-favorites";
 import {
   clearTeamTemplatesForTest,
   createTeamTemplate,
@@ -14,6 +15,7 @@ describe("team templates", () => {
   afterEach(() => {
     clearTeamTemplatesForTest();
     clearTeamTemplateCategoriesForTest();
+    clearFavoriteTemplatesForTest();
   });
 
   it("lists builtins and custom templates", async () => {
@@ -52,7 +54,7 @@ describe("team templates", () => {
     expect(await deleteTeamTemplate(first.id)).toBe(true);
   });
 
-  it("copies a template into the viewer's 我的收藏", async () => {
+  it("stars a template into the viewer's 我的收藏", async () => {
     const created = await createTeamTemplate({
       label: "周报口径",
       prompt: "按城市统计本周正式车源新增量-收藏",
@@ -61,15 +63,16 @@ describe("team templates", () => {
 
     const favorited = await toggleTeamTemplateFavorite("u1", created.id);
     expect(favorited.favorited).toBe(true);
-    expect(favorited.template?.category).toBe("我的收藏");
-    expect(favorited.template?.createdBy).toBe("u1");
+    expect(favorited.template?.id).toBe(created.id);
+    expect(favorited.template?.favorited).toBe(true);
 
     const mine = await listTeamTemplatesPage({
       category: "我的收藏",
       viewerUserId: "u1",
     });
     expect(mine.items).toHaveLength(1);
-    expect(mine.items[0]?.prompt).toBe(created.prompt);
+    expect(mine.items[0]?.id).toBe(created.id);
+    expect(mine.items[0]?.favorited).toBe(true);
 
     const other = await listTeamTemplatesPage({
       category: "我的收藏",
@@ -81,7 +84,6 @@ describe("team templates", () => {
     expect(
       all.items.some((item) => item.id === created.id && item.favorited),
     ).toBe(true);
-    expect(all.items.some((item) => item.category === "我的收藏")).toBe(false);
 
     const again = await toggleTeamTemplateFavorite("u1", created.id);
     expect(again.favorited).toBe(false);
