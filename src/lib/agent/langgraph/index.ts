@@ -28,6 +28,7 @@ import {
   shouldUseTools,
 } from "@/lib/agent/langgraph/nodes/plan-or-act";
 import { synthesizeAnswerAfterQuery } from "@/lib/agent/langgraph/nodes/finalize";
+import { suggestFollowUpQuestions } from "@/lib/agent/follow-ups";
 import {
   doneEvent,
   emitTerminalError,
@@ -123,12 +124,63 @@ function findExecuteSqlResult(prior: AgentToolResult[]) {
   return entry?.data as ExecuteSqlData | undefined;
 }
 
+async function withFollowUps(input: {
+  message: string;
+  answer: string;
+  conversation: ThreadTurn[];
+  mock?: boolean;
+  followUps?: string[];
+}): Promise<{
+  answer: string;
+  mock?: boolean;
+  followUps: string[];
+  apiResult?: BackendApiCallResult;
+  sqlResult?: ExecuteSqlData;
+}> {
+  if (input.followUps?.length) {
+    return {
+      answer: input.answer,
+      mock: input.mock,
+      followUps: input.followUps,
+    };
+  }
+  const suggested = await suggestFollowUpQuestions({
+    message: input.message,
+    answer: input.answer,
+    conversation: input.conversation,
+  });
+  return {
+    answer: input.answer,
+    mock: input.mock,
+    followUps: suggested.followUps,
+  };
+}
+
+function answerEvent(input: {
+  text: string;
+  mock?: boolean;
+  followUps?: string[];
+}): AgentTraceEvent {
+  return {
+    type: "answer",
+    text: input.text,
+    mock: input.mock,
+    ...(input.followUps?.length ? { followUps: input.followUps } : {}),
+  };
+}
+
 async function buildFinalAnswerFromState(input: {
   state: DfcAgentStateType;
   message: string;
   conversation: ThreadTurn[];
   fallback: string;
-}) {
+}): Promise<{
+  answer: string;
+  mock?: boolean;
+  followUps: string[];
+  apiResult?: BackendApiCallResult;
+  sqlResult?: ExecuteSqlData;
+}> {
   const apiResult = findBackendApiResult(input.state.priorToolResults);
   if (apiResult?.status === "success" && apiResult.table?.rows.length) {
     const summary = summarizeBackendApiResult(apiResult);
@@ -141,6 +193,7 @@ async function buildFinalAnswerFromState(input: {
     return {
       answer: synthesized.text || formatBackendApiAnswer(apiResult),
       mock: synthesized.mock,
+      followUps: synthesized.followUps,
       apiResult,
     };
   }
@@ -157,6 +210,7 @@ async function buildFinalAnswerFromState(input: {
     return {
       answer: synthesized.text || input.fallback,
       mock: synthesized.mock,
+      followUps: synthesized.followUps,
       sqlResult,
     };
   }
@@ -167,10 +221,20 @@ async function buildFinalAnswerFromState(input: {
     input.conversation,
   );
   if (mockPlan.action === "answer" && mockPlan.answer.trim()) {
-    return { answer: mockPlan.answer, mock: true };
+    return withFollowUps({
+      message: input.message,
+      answer: mockPlan.answer,
+      conversation: input.conversation,
+      mock: true,
+    });
   }
 
-  return { answer: input.fallback, mock: input.state.mock ?? false };
+  return withFollowUps({
+    message: input.message,
+    answer: input.fallback,
+    conversation: input.conversation,
+    mock: input.state.mock ?? false,
+  });
 }
 
 async function appendAssistantThreadMessage(
@@ -450,11 +514,11 @@ async function* resumeConfirmedSql(
       });
     }
 
-    yield {
-      type: "answer",
+    yield answerEvent({
       text: answerText,
       mock: synthesized.mock ?? pending.mock,
-    };
+      followUps: synthesized.followUps,
+    });
     yield doneEvent(startedAt, steps, toolCalls);
   } catch (error) {
     const message = error instanceof Error ? error.message : "SQL 执行失败";
@@ -632,20 +696,38 @@ export async function* runDfcAgentLoop(
     if (route === "__end__") {
       if (steps >= maxSteps && state.priorToolResults.length) {
         const answer = buildAgentExhaustedAnswer(state.priorToolResults, maxSteps);
+        const withSuggestions = await withFollowUps({
+          message,
+          answer,
+          conversation,
+          mock: lastMock,
+        });
         yield {
           type: "plan",
-          plan: { action: "answer", answer, reasoning: "已达步数上限" },
+          plan: {
+            action: "answer",
+            answer: withSuggestions.answer,
+            reasoning: "已达步数上限",
+          },
         };
         yield stepMetricEvent({ step: steps, planMs, startedAt });
-        await appendAssistantThreadMessage(thread.threadId, userId, answer);
+        await appendAssistantThreadMessage(
+          thread.threadId,
+          userId,
+          withSuggestions.answer,
+        );
         await createServerHistory({
           userId,
           threadId: thread.threadId,
           question: message,
           status: "done",
-          answer,
+          answer: withSuggestions.answer,
         });
-        yield { type: "answer", text: answer, mock: lastMock };
+        yield answerEvent({
+          text: withSuggestions.answer,
+          mock: withSuggestions.mock,
+          followUps: withSuggestions.followUps,
+        });
         yield doneEvent(startedAt, steps, toolCalls);
         return;
       }
@@ -695,11 +777,11 @@ export async function* runDfcAgentLoop(
         status: "done",
         answer,
       });
-      yield {
-        type: "answer",
+      yield answerEvent({
         text: answer,
         mock: finalized.mock ?? lastMock,
-      };
+        followUps: finalized.followUps,
+      });
       yield doneEvent(startedAt, steps, toolCalls);
       return;
     }
@@ -856,18 +938,32 @@ export async function* runDfcAgentLoop(
           }
 
           await appendAssistantThreadMessage(thread.threadId, userId, answer);
-          yield {
-            type: "answer",
+          yield answerEvent({
             text: answer,
             mock: finalized.mock ?? lastMock,
-          };
+            followUps: finalized.followUps,
+          });
           yield doneEvent(startedAt, steps, toolCalls);
           return;
         }
 
         if (state.finalAnswer) {
-          await appendAssistantThreadMessage(thread.threadId, userId, state.finalAnswer);
-          yield { type: "answer", text: state.finalAnswer, mock: lastMock };
+          const withSuggestions = await withFollowUps({
+            message,
+            answer: state.finalAnswer,
+            conversation,
+            mock: lastMock,
+          });
+          await appendAssistantThreadMessage(
+            thread.threadId,
+            userId,
+            withSuggestions.answer,
+          );
+          yield answerEvent({
+            text: withSuggestions.answer,
+            mock: withSuggestions.mock,
+            followUps: withSuggestions.followUps,
+          });
           yield doneEvent(startedAt, steps, toolCalls);
           return;
         }
@@ -892,8 +988,22 @@ export async function* runDfcAgentLoop(
         ? `已达最大步数（${maxSteps}）。\n${state.priorToolResults.map((item) => `${item.tool}: ${item.output}`).join("\n")}`
         : `已达最大步数（${maxSteps}），请缩小问题范围后重试。`);
 
-  await appendAssistantThreadMessage(thread.threadId, userId, exhausted);
-  yield { type: "answer", text: exhausted, mock: lastMock };
+  const exhaustedWithSuggestions = await withFollowUps({
+    message,
+    answer: exhausted,
+    conversation,
+    mock: lastMock,
+  });
+  await appendAssistantThreadMessage(
+    thread.threadId,
+    userId,
+    exhaustedWithSuggestions.answer,
+  );
+  yield answerEvent({
+    text: exhaustedWithSuggestions.answer,
+    mock: exhaustedWithSuggestions.mock,
+    followUps: exhaustedWithSuggestions.followUps,
+  });
   yield doneEvent(startedAt, steps, toolCalls);
 }
 

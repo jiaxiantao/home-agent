@@ -60,6 +60,8 @@ export type ConversationTurn = {
   question: string;
   surfaces: A2UISurface[];
   finalAnswer: string;
+  /** 本轮结束后大模型/规则推荐的追问 */
+  followUps?: string[];
   stats: AgentRunStats | null;
   isMock: boolean;
   status: "running" | "awaiting" | "done" | "error" | "cancelled";
@@ -432,6 +434,7 @@ export function useAgentStream() {
         setIsMock(Boolean(payload.mock));
         updateTurn({
           finalAnswer: payload.text,
+          followUps: payload.followUps?.length ? payload.followUps : undefined,
           isMock: Boolean(payload.mock),
           status: "done",
         });

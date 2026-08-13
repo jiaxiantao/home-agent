@@ -18,6 +18,7 @@ export function AgentComposer({
   onLlmProviderChange,
   quickPrompts,
   onQuickPrompt,
+  followUps = [],
   inputRef,
 }: {
   value: string;
@@ -31,9 +32,14 @@ export function AgentComposer({
   onLlmProviderChange: (provider: LlmProvider) => void;
   quickPrompts: Array<{ id: string; label: string; prompt: string }>;
   onQuickPrompt: (prompt: string, runImmediately?: boolean) => void;
+  /** 当前会话本轮推荐追问（来自大模型） */
+  followUps?: string[];
   inputRef?: RefObject<HTMLTextAreaElement | null>;
 }) {
   const localRef = useRef<HTMLTextAreaElement>(null);
+  const followUpPlaceholder = followUps[0]
+    ? `继续追问，例如：${followUps[0]}`
+    : "继续追问…";
 
   useEffect(() => {
     const el = localRef.current;
@@ -69,6 +75,22 @@ export function AgentComposer({
             </button>
           ))}
         </div>
+      ) : followUps.length ? (
+        <div className="mb-2.5 flex flex-wrap gap-1">
+          {followUps.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              disabled={running}
+              onClick={() => onQuickPrompt(prompt)}
+              onDoubleClick={() => onQuickPrompt(prompt, true)}
+              title="点击填入，双击立即发送"
+              className="max-w-full truncate rounded-full px-2.5 py-1 text-[11px] text-zinc-500 transition hover:bg-brand/10 hover:text-brand-soft disabled:opacity-40"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
       ) : null}
 
       <div
@@ -93,7 +115,7 @@ export function AgentComposer({
           rows={1}
           placeholder={
             hasConversation
-              ? "继续追问，例如：那按城市分布呢？"
+              ? followUpPlaceholder
               : "用自然语言提问，例如：客户 id 为 xxx 的客户信息"
           }
           className="max-h-40 w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-[13px] leading-6 text-zinc-100 outline-none placeholder:text-zinc-600"

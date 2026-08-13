@@ -19,9 +19,7 @@ export function AgentOrchestratorDemo({
 }: {
   initialMessage?: string;
 }) {
-  const [message, setMessage] = useState(
-    initialMessage ?? "我想知道客户 id 为 ANwbnMyLF0 的客户信息",
-  );
+  const [message, setMessage] = useState(initialMessage ?? "");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -102,6 +100,10 @@ export function AgentOrchestratorDemo({
   }
 
   const hasConversation = conversation.length > 0;
+  const lastDoneTurn = [...conversation]
+    .reverse()
+    .find((turn) => turn.status === "done" && turn.followUps?.length);
+  const followUps = lastDoneTurn?.followUps ?? [];
 
   return (
     <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
@@ -154,6 +156,7 @@ export function AgentOrchestratorDemo({
             onLlmProviderChange={setLlmProvider}
             quickPrompts={agentQuickPrompts}
             onQuickPrompt={handleQuickPrompt}
+            followUps={followUps}
             inputRef={textareaRef}
           />
         </div>
@@ -164,10 +167,7 @@ export function AgentOrchestratorDemo({
           sidebarOpen ? "block" : "hidden lg:block"
         }`}
       >
-        <AgentTeamTemplatesPanel
-          currentPrompt={message}
-          onSelect={fillPrompt}
-        />
+        <AgentTeamTemplatesPanel onSelect={fillPrompt} />
 
         <AgentFavoritesPanel currentPrompt={message} onSelect={fillPrompt} />
 

@@ -97,7 +97,7 @@ export type AgentTraceEvent =
       sql: string;
       explanation: string;
     }
-  | { type: "answer"; text: string; mock?: boolean }
+  | { type: "answer"; text: string; mock?: boolean; followUps?: string[] }
   | { type: "thread"; threadId: string }
   | { type: "planner_mode"; mock: boolean; label?: string }
   | {
