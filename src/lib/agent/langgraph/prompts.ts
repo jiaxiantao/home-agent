@@ -29,6 +29,7 @@ ${formatBusinessGlossaryForPrompt(question)}
 - 「用户 id 为 xxx 的用户信息」→ matador.cheniu_user（user_id / dfc_user_id）
 - 「客户管理跟进记录」→ super_mario.customer（CRM 客户档案）
 - 「会员有多少」→ danube_member.membership_personal_information
+- 「车牌号为 xxx 的车辆信息」→ matador.car.license_number（test_type = 0）。不要用 cheniu.site_sync_car / 维保查询表。search_schema 参数名是 keyword（也可用 query）。无匹配车牌 HTTP 接口时直接 propose_sql，不要被 score 很低的 query* 接口带偏。
 
 禁止在无问题语义支撑时默认使用 matador；语义不明确时先 route_api / search_api / route_question / search_schema(acrossDatabases)。
 

@@ -74,6 +74,16 @@ function requireString(args: Record<string, unknown>, key: string, label: string
   return value;
 }
 
+function readFirstString(args: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = readOptionalString(args, key);
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export async function runAgentTool(
   tool: AgentToolName,
   args: Record<string, unknown>,
@@ -230,7 +240,10 @@ export async function runAgentTool(
       };
     }
     case "search_schema": {
-      const keyword = requireString(args, "keyword", "search_schema");
+      const keyword = readFirstString(args, ["keyword", "query", "q", "search", "term"]);
+      if (!keyword) {
+        throw new Error("search_schema 需要 keyword 参数");
+      }
       const database = readOptionalString(args, "database");
       const acrossRaw = readOptionalString(args, "acrossDatabases");
       const acrossDatabases =
@@ -281,9 +294,7 @@ export async function runAgentTool(
     }
     case "route_api": {
       const question =
-        readOptionalString(args, "question") ||
-        readOptionalString(args, "message") ||
-        "";
+        readFirstString(args, ["question", "query", "message", "q"]) || "";
       if (!question) {
         throw new Error("route_api 需要 question 参数");
       }
@@ -295,9 +306,7 @@ export async function runAgentTool(
     }
     case "search_api": {
       const keyword =
-        readOptionalString(args, "keyword") ||
-        readOptionalString(args, "question") ||
-        "";
+        readFirstString(args, ["keyword", "question", "query", "q"]) || "";
       if (!keyword) {
         throw new Error("search_api 需要 keyword 或 question 参数");
       }
@@ -340,9 +349,7 @@ export async function runAgentTool(
     }
     case "route_question": {
       const question =
-        readOptionalString(args, "question") ||
-        readOptionalString(args, "message") ||
-        "";
+        readFirstString(args, ["question", "query", "message", "q"]) || "";
       if (!question) {
         throw new Error("route_question 需要 question 参数");
       }

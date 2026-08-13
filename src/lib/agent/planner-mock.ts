@@ -2,6 +2,7 @@ import type { AgentPlan, AgentToolResult } from "@/lib/agent/types";
 import { getRegistryDatabaseNames } from "@/lib/analytics/project-databases";
 import { getPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
 import {
+  extractLicensePlate,
   extractLookupId,
   extractQuestionSearchTerms,
   suggestedTablesForQuestion,
@@ -229,7 +230,7 @@ export function buildMockPlan(
 
   const wantsAnalytics =
     !isSchemaQuestion &&
-    /车源|订单|求购|线索|成交|分布|趋势|统计|多少|总量|operate_report|分析|sql|查询|会员|金融|贷款|合同|联盟|服务市场|找车源|二手车|客户|用户信息|用户id|客户id|user_id/i.test(
+    /车源|车牌|车辆|订单|求购|线索|成交|分布|趋势|统计|多少|总量|operate_report|分析|sql|查询|会员|金融|贷款|合同|联盟|服务市场|找车源|二手车|客户|用户信息|用户id|客户id|user_id/i.test(
       normalized,
     );
 
@@ -393,7 +394,21 @@ export function buildMockPlan(
 
   if (wantsAnalytics && !hasTool(prior, "propose_sql") && !hasTool(prior, "execute_sql")) {
     const phone = extractPhoneFromQuestion(normalized);
+    const plate = extractLicensePlate(normalized);
     const apiFirst = isApiFirstQuestion(normalized);
+
+    if (plate && /车牌|车辆|车源|查车/.test(normalized) && !apiFirst) {
+      const escaped = plate.replace(/'/g, "''");
+      return {
+        action: "tool",
+        tool: "propose_sql",
+        args: {
+          sql: `SELECT car_id, brand_name, series_name, model_name, license_number, vin, first_license_plate_date, display_mileage, car_province_name, car_city_name, car_body_color_name, gearbox_name, sale_price, car_status, car_type, dfc_shop_name, up_shelf_date, date_create FROM \`matador\`.\`car\` WHERE license_number = '${escaped}' AND test_type = 0 LIMIT 20`,
+          explanation: `按车牌号 ${plate} 查询车辆主表 matador.car（正式数据 test_type = 0）`,
+        },
+        reasoning: "车牌查车：matador.car.license_number",
+      };
+    }
 
     if (apiFirst && !hasTool(prior, "route_api")) {
       return {

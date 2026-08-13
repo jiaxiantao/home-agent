@@ -61,13 +61,17 @@ export function extractApiParams(question: string): ApiRouteParams {
     )?.[1] ??
     question.match(/\brecordId\s*=\s*['"`]?([a-zA-Z0-9_-]+)/i)?.[1];
 
+  const isCrmQuestion = /客户|CRM|跟进|门店客户/.test(question);
   return {
     phone: phone || wechat,
     wechat,
     recordId,
-    shopCode: process.env.DFC_API_DEFAULT_SHOP_CODE?.trim() || undefined,
-    objCode:
-      process.env.DFC_API_DEFAULT_CUSTOMER_OBJ_CODE?.trim() || "customer",
+    shopCode: isCrmQuestion
+      ? process.env.DFC_API_DEFAULT_SHOP_CODE?.trim() || undefined
+      : undefined,
+    objCode: isCrmQuestion
+      ? process.env.DFC_API_DEFAULT_CUSTOMER_OBJ_CODE?.trim() || "customer"
+      : undefined,
   };
 }
 
@@ -95,7 +99,7 @@ function inferEntityFilters(question: string): string[] | null {
   if (/客户|CRM|跟进|门店客户/.test(question)) entities.add("crm_customer");
   if (/车牛用户|dfc_user|cheniu/.test(question)) entities.add("cheniu_user");
   if (/会员|vip/i.test(question)) entities.add("member");
-  if (/车源|库存车|kartrider/.test(question)) entities.add("car");
+  if (/车牌|车辆信息|车源|库存车|在售|kartrider/.test(question)) entities.add("car");
   if (/订单|成交/.test(question)) entities.add("order");
   if (/合同/.test(question)) entities.add("contract");
   if (/线索/.test(question)) entities.add("lead");
@@ -172,6 +176,7 @@ function scoreEndpoint(
   if (endpoint.kind === "http" && endpoint.http) score += 1;
   if (!endpoint.readOnly) score -= 6;
 
+  if (reasons.length === 0 && score < 10) return null;
   if (score <= 0) return null;
 
   const httpCallable =
@@ -248,7 +253,17 @@ export function pickBestApiForQuestion(question: string): ApiRouteMatch | undefi
 
   const params = extractApiParams(question);
   const top = ranked[0];
-  if (!top || top.score < 4) return undefined;
+  if (!top || top.score < 8) return undefined;
+
+  if (/车牌|牌照|license.?number|license.?plate/i.test(question) && !paramsHasPhone(params)) {
+    const plateHit = ranked.find((item) =>
+      item.reasons.some((reason) => reason.includes("curated")) ||
+      /plate|license|车牌/i.test(
+        `${item.endpoint.title} ${item.endpoint.keywords.join(" ")} ${item.endpoint.http?.path ?? ""}`,
+      ),
+    );
+    return plateHit && plateHit.score >= 8 ? plateHit : undefined;
+  }
 
   if (params.recordId) {
     const crmInfo = ranked.find(

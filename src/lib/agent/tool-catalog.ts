@@ -67,11 +67,12 @@ export const agentToolCatalog: Array<{
   {
     name: "search_schema",
     label: "搜索元数据",
-    description: "按关键词搜索表名/字段名/注释；可跨业务库",
+    description: "按关键词搜索表名/字段名/注释；参数名 keyword（可用 query 别名）；可跨业务库",
     args: {
       database: "string?",
       acrossDatabases: "boolean?",
       keyword: "string",
+      query: "string?",
       scope: "all|tables|columns?",
       limit: "number?",
     },
@@ -80,7 +81,7 @@ export const agentToolCatalog: Array<{
     name: "route_question",
     label: "问题路由",
     description: "根据自然语言自动推断候选数据库与表，并跨库搜索元数据",
-    args: { question: "string", limitPerTerm: "number?" },
+    args: { question: "string", query: "string?", limitPerTerm: "number?" },
   },
   {
     name: "route_api",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  extractApiParams,
   extractPhoneFromQuestion,
   extractWechatFromQuestion,
   isApiFirstQuestion,
@@ -56,6 +57,13 @@ describe("api-catalog", () => {
 
   it("marks aggregate questions as not api-first", () => {
     expect(isApiFirstQuestion("统计正式车源有多少")).toBe(false);
+  });
+
+  it("does not force CRM objCode or junk query APIs for plate lookup", () => {
+    const q = "查询车牌号为皖JV066M的车辆信息";
+    expect(extractApiParams(q).objCode).toBeUndefined();
+    expect(pickBestApiForQuestion(q)).toBeUndefined();
+    expect(isApiFirstQuestion(q)).toBe(false);
   });
 
   it("ranks multiple candidates for member phone", () => {

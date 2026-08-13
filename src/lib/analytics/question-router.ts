@@ -157,6 +157,13 @@ export const questionRouteRules: RouteKeywordRule[] = [
     reason: "消息推送语义",
   },
   {
+    pattern: /车牌|牌照|license.?plate|license.?number|车辆信息|查\(?:一?下\)?车/,
+    databases: ["matador"],
+    searchTerms: ["license_number", "plate", "car"],
+    suggestedTables: [{ database: "matador", table: "car" }],
+    reason: "按车牌查车辆信息",
+  },
+  {
     pattern: /车辆管理|crazy.?kartrider/,
     databases: ["crazy_kartrider", "matador"],
     searchTerms: ["vehicle", "car", "manage"],
@@ -230,13 +237,24 @@ export const questionRouteRules: RouteKeywordRule[] = [
     reason: "订单成交语义",
   },
   {
-    pattern: /车源|在售|库存车辆|正式车|car_status|operate_report|运营日报|pv|uv/,
+    pattern: /车源|在售|库存车辆|正式车|车辆|car_status|operate_report|运营日报|pv|uv/,
     databases: ["matador"],
     searchTerms: ["car", "operate", "report"],
     suggestedTables: [{ database: "matador", table: "car" }],
     reason: "核心车源/运营语义",
   },
 ];
+
+const LICENSE_PLATE_RE =
+  /[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼][A-HJ-NP-Z][A-HJ-NP-Z0-9]{4,6}/;
+
+/** 从自然语言中提取车牌号 */
+export function extractLicensePlate(question: string): string | undefined {
+  const explicit = question.match(
+    /(?:车牌|牌照|license)\s*(?:号|号码)?\s*(?:为|是|=|：|:)?\s*['"`]?([京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼][A-HJ-NP-Z][A-HJ-NP-Z0-9]{4,6})/i,
+  );
+  return explicit?.[1] ?? question.match(LICENSE_PLATE_RE)?.[0];
+}
 
 /** 从自然语言中提取「按 ID 查详情」的业务 ID */
 export function extractLookupId(question: string): string | undefined {

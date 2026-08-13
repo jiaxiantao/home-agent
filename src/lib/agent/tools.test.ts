@@ -41,6 +41,24 @@ describe("runAgentTool", () => {
     });
   });
 
+  it("accepts search_schema query alias and requires a keyword", async () => {
+    await expect(runAgentTool("search_schema", {})).rejects.toThrow(/keyword/);
+    try {
+      await runAgentTool("search_schema", { query: "车牌号" });
+    } catch (error) {
+      expect(String(error)).not.toMatch(/需要 keyword/);
+      expect(String(error)).not.toMatch(/route_question 需要 question/);
+    }
+  });
+
+  it("accepts route_question query alias", async () => {
+    try {
+      await runAgentTool("route_question", { query: "查询车牌号为皖JV066M的车辆信息" });
+    } catch (error) {
+      expect(String(error)).not.toMatch(/需要 question/);
+    }
+  });
+
   it("search_api finds CRM endpoints by keyword", async () => {
     const result = await runAgentTool("search_api", {
       keyword: "客户手机号 queryCustomerDetailsByContact",

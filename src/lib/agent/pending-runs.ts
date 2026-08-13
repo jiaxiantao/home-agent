@@ -47,88 +47,87 @@ function pruneExpiredMemory() {
   }
 }
 
-async function readFromRedis(runId: string) {
-  const client = await getRedisClient();
+function isFresh(run: PendingSqlRun | null | undefined): run is PendingSqlRun {
+  return run != null && Date.now() - run.createdAt <= TTL_MS;
+}
 
-  if (!client) {
+async function readFromRedis(runId: string) {
+  try {
+    const client = await getRedisClient();
+    if (!client) {
+      return null;
+    }
+    const raw = await client.get(redisKey(runId));
+    return raw ? (JSON.parse(raw) as PendingSqlRun) : null;
+  } catch {
     return null;
   }
-
-  const raw = await client.get(redisKey(runId));
-  return raw ? (JSON.parse(raw) as PendingSqlRun) : null;
 }
 
 async function writeToRedis(run: PendingSqlRun) {
   const client = await getRedisClient();
-
   if (!client) {
     return false;
   }
-
   await client.set(redisKey(run.runId), JSON.stringify(run), {
     PX: TTL_MS,
   });
-
   return true;
 }
 
 async function deleteFromRedis(runId: string) {
-  const client = await getRedisClient();
-
-  if (!client) {
+  try {
+    const client = await getRedisClient();
+    if (!client) {
+      return false;
+    }
+    await client.del(redisKey(runId));
+    return true;
+  } catch {
     return false;
   }
-
-  await client.del(redisKey(runId));
-  return true;
 }
 
 export async function savePendingSqlRun(run: PendingSqlRun) {
   pruneExpiredMemory();
+  pendingRuns.set(run.runId, run);
 
-  if (isRedisConfigured()) {
-    const saved = await writeToRedis(run);
-
-    if (saved) {
-      return;
-    }
+  if (!isRedisConfigured()) {
+    return;
   }
 
-  pendingRuns.set(run.runId, run);
+  try {
+    await writeToRedis(run);
+  } catch {
+    // keep memory copy so confirm still works on this worker
+  }
 }
 
 export async function getPendingSqlRun(runId: string) {
   pruneExpiredMemory();
 
   if (isRedisConfigured()) {
-    const run = await readFromRedis(runId);
-
-    if (run) {
-      return run;
+    const redisRun = await readFromRedis(runId);
+    if (isFresh(redisRun)) {
+      pendingRuns.set(runId, redisRun);
+      return redisRun;
     }
   }
 
-  return pendingRuns.get(runId) ?? null;
+  const memoryRun = pendingRuns.get(runId) ?? null;
+  return isFresh(memoryRun) ? memoryRun : null;
 }
 
 export async function takePendingSqlRun(runId: string) {
-  pruneExpiredMemory();
+  const run = await getPendingSqlRun(runId);
+  if (!run) {
+    return null;
+  }
 
+  pendingRuns.delete(runId);
   if (isRedisConfigured()) {
-    const run = await readFromRedis(runId);
-
-    if (run) {
-      await deleteFromRedis(runId);
-      return run;
-    }
+    await deleteFromRedis(runId);
   }
-
-  const run = pendingRuns.get(runId) ?? null;
-
-  if (run) {
-    pendingRuns.delete(runId);
-  }
-
   return run;
 }
 

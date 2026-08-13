@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  extractLicensePlate,
   extractLookupId,
   extractQuestionSearchTerms,
   rankDatabasesForQuestion,
@@ -76,6 +77,25 @@ describe("customer / user lookup routing", () => {
     const tables = suggestedTablesForQuestion("客户 id 为 xxx 的信息");
     expect(tables.some((t) => t.database === "super_mario")).toBe(true);
     expect(tables.some((t) => t.database === "matador")).toBe(true);
+  });
+});
+
+describe("plate lookup routing", () => {
+  it("extracts mainland license plates", () => {
+    expect(extractLicensePlate("查询车牌号为皖JV066M的车辆信息")).toBe("皖JV066M");
+    expect(extractLicensePlate("帮我查一下浙A12345")).toBe("浙A12345");
+  });
+
+  it("routes plate questions to matador.car", () => {
+    const q = "查询车牌号为皖JV066M的车辆信息";
+    expect(rankDatabasesForQuestion(q)[0]?.database).toBe("matador");
+    expect(suggestedTablesForQuestion(q)[0]).toMatchObject({
+      database: "matador",
+      table: "car",
+    });
+    expect(extractQuestionSearchTerms(q)).toEqual(
+      expect.arrayContaining(["license_number", "plate", "car"]),
+    );
   });
 });
 

@@ -49,10 +49,10 @@ export const dfcBusinessEntities: BusinessEntity[] = [
     disambiguation: "问「会员等级 / 会员权益 / 积分」时用 danube_member，不是 matador 用户表",
   },
   {
-    terms: ["正式车源", "在售车辆", "库存车", "车源"],
+    terms: ["正式车源", "在售车辆", "库存车", "车源", "车辆信息", "车牌", "车牌号"],
     database: "matador",
     table: "car",
-    idColumns: ["car_id", "id"],
+    idColumns: ["car_id", "id", "license_number", "vin"],
     description: "大风车核心车源主表",
     filters: ["test_type = 0"],
     disambiguation: "统计正式车源必须 test_type = 0",

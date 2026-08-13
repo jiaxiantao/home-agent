@@ -7,6 +7,50 @@ import type { AgentToolName } from "@/lib/agent/types";
 
 const jsonSchema = z.record(z.string(), z.unknown());
 
+const toolSchemas: Partial<Record<AgentToolName, z.ZodType>> = {
+  search_schema: z.object({
+    keyword: z.string().optional().describe("搜索关键词"),
+    query: z.string().optional().describe("keyword 别名"),
+    q: z.string().optional(),
+    search: z.string().optional(),
+    term: z.string().optional(),
+    database: z.string().optional(),
+    acrossDatabases: z.union([z.boolean(), z.string()]).optional(),
+    scope: z.string().optional(),
+    limit: z.number().optional(),
+  }),
+  route_question: z.object({
+    question: z.string().optional(),
+    query: z.string().optional().describe("question 别名"),
+    message: z.string().optional(),
+    q: z.string().optional(),
+    limitPerTerm: z.number().optional(),
+  }),
+  describe_table: z.object({
+    table: z.string(),
+    database: z.string().optional(),
+  }),
+  route_api: z.object({
+    question: z.string().optional(),
+    query: z.string().optional(),
+    message: z.string().optional(),
+    endpointId: z.string().optional(),
+  }),
+  search_api: z.object({
+    keyword: z.string().optional(),
+    question: z.string().optional(),
+    query: z.string().optional(),
+    appCode: z.string().optional(),
+    entity: z.string().optional(),
+    readOnlyOnly: z.boolean().optional(),
+    limit: z.number().optional(),
+  }),
+  propose_sql: z.object({
+    sql: z.string(),
+    explanation: z.string().optional(),
+  }),
+};
+
 function wrapAgentTool(name: AgentToolName, description: string) {
   return tool(
     async (input) => {
@@ -19,7 +63,7 @@ function wrapAgentTool(name: AgentToolName, description: string) {
     {
       name,
       description,
-      schema: jsonSchema,
+      schema: toolSchemas[name] ?? jsonSchema,
     },
   );
 }

@@ -20,7 +20,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
     name: "car",
     database: "matador",
     domain: "car",
-    description: "车源主表：库存车辆信息",
+    description: "车源主表：库存/在售车辆信息，含车牌号 license_number",
     columns: [
       { name: "id", type: "bigint", description: "自增主键" },
       { name: "car_id", type: "varchar", description: "车源业务 ID" },
@@ -28,6 +28,8 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
       { name: "brand_name", type: "varchar", description: "品牌名" },
       { name: "series_name", type: "varchar", description: "车系名" },
       { name: "model_name", type: "varchar", description: "车型名" },
+      { name: "license_number", type: "varchar", description: "车牌号" },
+      { name: "vin", type: "varchar", description: "车架号 VIN" },
       { name: "car_status", type: "int", description: "车源状态（如 1=在售）" },
       { name: "car_type", type: "int", description: "车源类型" },
       { name: "car_source", type: "int", description: "车源来源" },
@@ -40,6 +42,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
     ],
     notes: [
       "统计正式车源时常用 test_type = 0",
+      "按车牌查车用 license_number，并加 test_type = 0",
       "在售常用 car_status = 1（具体枚举以业务为准）",
     ],
   },

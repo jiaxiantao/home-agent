@@ -63,6 +63,17 @@ describe("buildMockPlan", () => {
     }
   });
 
+  it("proposes matador.car sql for plate lookup", () => {
+    const plan = buildMockPlan("查询车牌号为皖JV066M的车辆信息", []);
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("propose_sql");
+      expect(String(plan.args.sql)).toMatch(/`matador`\.`car`/i);
+      expect(String(plan.args.sql)).toMatch(/license_number = '皖JV066M'/);
+      expect(String(plan.args.sql)).toMatch(/test_type = 0/);
+    }
+  });
+
   it("routes customer recordId questions to backend API first", () => {
     const plan = buildMockPlan("我想知道客户 id 为 demo_user_001 的用户信息", []);
     expect(plan.action).toBe("tool");
