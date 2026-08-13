@@ -208,7 +208,7 @@ export function AgentSessionsManagement() {
 
         <Link
           href="/agents?new=1"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-slate-100"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-hover"
         >
           新对话
         </Link>
