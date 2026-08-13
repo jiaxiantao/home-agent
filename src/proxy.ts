@@ -82,6 +82,7 @@ export const config = {
     "/api/agent",
     "/api/auth/me",
     "/api/history",
+    "/api/agent-threads",
     "/api/audit",
     "/api/favorites",
     "/api/templates",
