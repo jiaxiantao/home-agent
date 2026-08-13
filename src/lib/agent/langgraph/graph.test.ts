@@ -32,7 +32,7 @@ describe("langgraph graph", () => {
     process.env.LLM_DISABLED = "1";
 
     const state = createGraphInput("分析库有哪些核心表和字段说明？");
-    const update = await routePlannerNode(state);
+    const update = await mockPlanNode(state);
 
     expect(update.mock).toBe(true);
     expect(shouldUseTools({ ...state, ...update })).toBe("tools");
@@ -44,6 +44,18 @@ describe("langgraph graph", () => {
     };
     const last = merged.messages.at(-1);
     expect(last instanceof AIMessage && last.tool_calls?.[0]?.name).toBe("list_schema");
+  });
+
+  it("fails closed when LLM is disabled instead of using the rule planner", async () => {
+    process.env.LLM_DISABLED = "1";
+
+    const state = createGraphInput("帮我查询车牌号为皖JV066M的车辆信息");
+    const update = await routePlannerNode(state);
+
+    expect(update.shouldEnd).toBe(true);
+    expect(update.mock).not.toBe(true);
+    expect(String(update.finalAnswer)).toMatch(/LLM/);
+    expect(shouldUseTools({ ...state, ...update })).toBe("__end__");
   });
 
   it("mock planner routes aggregate questions through route_question first", async () => {
@@ -248,7 +260,7 @@ describe("langgraph graph", () => {
     );
   });
 
-  it("run loop pauses on sql confirmation for analytics questions", async () => {
+  it("run loop errors when LLM is disabled instead of proposing SQL", async () => {
     process.env.LLM_DISABLED = "1";
 
     const events = [];
@@ -256,24 +268,10 @@ describe("langgraph graph", () => {
       events.push(event);
     }
 
-    expect(events.some((event) => event.type === "awaiting_input")).toBe(true);
-    expect(events.some((event) => event.type === "planner_mode" && event.mock)).toBe(
-      true,
-    );
-  });
-
-  it("emits plan progress before the first tool call", async () => {
-    process.env.LLM_DISABLED = "1";
-
-    const events = [];
-    for await (const event of runDfcAgentLoop("大风车正式车源一共有多少辆？")) {
-      events.push(event);
-    }
-
-    const types = events.map((event) => event.type);
-    const progressAt = types.indexOf("plan_stream");
-    const toolAt = types.indexOf("tool_call");
-    expect(progressAt).toBeGreaterThanOrEqual(0);
-    expect(toolAt).toBeGreaterThan(progressAt);
+    expect(events.some((event) => event.type === "error")).toBe(true);
+    expect(events.some((event) => event.type === "done")).toBe(true);
+    expect(events.some((event) => event.type === "awaiting_input")).toBe(false);
+    const error = events.find((event) => event.type === "error");
+    expect(error?.type === "error" && error.message).toMatch(/LLM/);
   });
 });

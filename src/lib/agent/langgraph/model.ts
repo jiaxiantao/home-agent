@@ -1,18 +1,36 @@
 import { ChatOpenAI } from "@langchain/openai";
 
-import { getLlmConfig, isLlmConfigured } from "@/lib/llm-config";
+import {
+  describeLlmFailure,
+  getLlmConfig,
+  getLlmConfigForProvider,
+  isLlmProviderConfigured,
+} from "@/lib/llm-config";
+import { getRequestLlmProvider } from "@/lib/llm-provider-context";
+import {
+  resolveDefaultLlmProvider,
+  type LlmProvider,
+} from "@/lib/llm-providers-catalog";
 
-export function isLangGraphLlmEnabled() {
+export { describeLlmFailure };
+
+export function resolveLlmProvider(provider?: LlmProvider) {
+  return provider ?? getRequestLlmProvider() ?? resolveDefaultLlmProvider();
+}
+
+export function isLangGraphLlmEnabled(provider?: LlmProvider) {
   const flag = process.env.LLM_DISABLED?.toLowerCase();
   if (flag === "1" || flag === "true" || flag === "yes") {
     return false;
   }
-  return isLlmConfigured();
+  return isLlmProviderConfigured(resolveLlmProvider(provider));
 }
 
-/** Ollama / OpenAI 兼容 ChatModel，由 LLM_PROVIDER 切换 */
-export function createChatModel() {
-  const { baseURL, apiKey, model } = getLlmConfig();
+/** Ollama / OpenAI 兼容 ChatModel，由请求级 provider 或 LLM_PROVIDER 切换 */
+export function createChatModel(provider?: LlmProvider) {
+  const { baseURL, apiKey, model } = getLlmConfigForProvider(
+    resolveLlmProvider(provider),
+  );
   return new ChatOpenAI({
     model,
     apiKey,

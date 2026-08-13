@@ -76,7 +76,7 @@ ollama pull qwen3
 ollama serve
 ```
 
-未配置 LLM 或设置 `LLM_DISABLED=1` 时使用规则规划器（适合 CI）。
+未配置 LLM 或设置 `LLM_DISABLED=1` 时问数会直接报错，不再回退规则规划器。
 
 ### 常用命令
 
@@ -109,7 +109,7 @@ pnpm test:e2e
 - `AUTH_MODE` / `AUTH_TOKEN` — 企业内网鉴权（见 [docs/security.md](./docs/security.md)）
 - `REDIS_URL` — 多实例待确认 SQL 持久化
 - `OLLAMA_MODEL=qwen3` — 默认模型
-- `LLM_DISABLED=1` — 规则规划器
+- `LLM_DISABLED=1` — 关闭 LLM，问数直接报错
 - `AGENT_MAX_STEPS` — 循环最大步数
 
 ## 企业内网部署

@@ -79,6 +79,8 @@ import {
 } from "@/lib/security/rbac";
 import type { SsoCredentials } from "@/lib/security/sso-credentials";
 import { getSsoRequestContext } from "@/lib/security/sso-context";
+import { resolveLlmProvider } from "@/lib/agent/langgraph/model";
+import type { LlmProvider } from "@/lib/llm-providers-catalog";
 
 export type RunDfcAgentLoopOptions = {
   signal?: AbortSignal;
@@ -87,6 +89,8 @@ export type RunDfcAgentLoopOptions = {
   threadId?: string;
   /** 显式传入请求 SSO，避免 LangGraph/ToolNode 异步边界丢失 ALS */
   sso?: SsoCredentials | null;
+  /** 显式传入请求模型，避免心跳/工具异步边界丢失 ALS */
+  llmProvider?: LlmProvider;
 };
 
 
@@ -639,6 +643,7 @@ export async function* runDfcAgentLoop(
   }
 
   const startedAt = performance.now();
+  const llmProvider = resolveLlmProvider(options.llmProvider);
   const userId = options.audit?.user.userId ?? "unknown";
   const thread = await ensureThread(options.threadId, userId);
   yield { type: "thread", threadId: thread.threadId };
@@ -685,10 +690,15 @@ export async function* runDfcAgentLoop(
     let agentUpdate: Partial<DfcAgentStateType> = {};
     type PlannerWait =
       | { kind: "delta"; event: AgentTraceEvent }
-      | { kind: "done"; update: Partial<DfcAgentStateType> };
+      | { kind: "done"; update: Partial<DfcAgentStateType> }
+      | { kind: "fail"; message: string };
 
     async function* plannerWaitStream(): AsyncGenerator<PlannerWait> {
-      for await (const planEvent of streamRoutePlannerNode(state, conversation)) {
+      for await (const planEvent of streamRoutePlannerNode(
+        state,
+        conversation,
+        llmProvider,
+      )) {
         if (planEvent.kind === "delta") {
           yield {
             kind: "delta",
@@ -698,6 +708,8 @@ export async function* runDfcAgentLoop(
               delta: planEvent.delta,
             }),
           };
+        } else if (planEvent.kind === "fail") {
+          yield { kind: "fail", message: planEvent.message };
         } else {
           yield { kind: "done", update: planEvent.update };
         }
@@ -717,6 +729,18 @@ export async function* runDfcAgentLoop(
       }),
     )) {
       assertNotAborted(options.signal);
+      if (item.kind === "fail") {
+        yield { type: "trace", phase: "plan", message: item.message };
+        await createServerHistory({
+          userId,
+          threadId: thread.threadId,
+          question: message,
+          status: "error",
+          answer: item.message,
+        });
+        yield* emitTerminalError(item.message, startedAt, steps, toolCalls);
+        return;
+      }
       if (item.kind === "done") {
         agentUpdate = item.update;
         break;

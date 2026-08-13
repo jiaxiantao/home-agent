@@ -11,15 +11,15 @@ import { getAgentMaxSteps } from "@/lib/agent/config";
 import { buildMockPlan } from "@/lib/agent/planner-mock";
 import type { ThreadTurn } from "@/lib/agent/planner";
 import type { AgentToolResult } from "@/lib/agent/types";
-import { createChatModel, isLangGraphLlmEnabled } from "@/lib/agent/langgraph/model";
+import {
+  createChatModel,
+  describeLlmFailure,
+  isLangGraphLlmEnabled,
+} from "@/lib/agent/langgraph/model";
+import type { LlmProvider } from "@/lib/llm-providers-catalog";
 import { buildAgentSystemPrompt } from "@/lib/agent/langgraph/prompts";
 import type { DfcAgentStateType } from "@/lib/agent/langgraph/state";
 import { createLangChainTools } from "@/lib/agent/langgraph/tools";
-
-function isLlmRequired() {
-  const flag = process.env.LLM_REQUIRE?.toLowerCase();
-  return flag === "1" || flag === "true" || flag === "yes";
-}
 
 function planToMessages(
   plan: ReturnType<typeof buildMockPlan>,
@@ -72,22 +72,43 @@ export async function mockPlanNode(
   };
 }
 
+function llmUnavailableUpdate(error?: unknown, provider?: LlmProvider) {
+  return {
+    mock: false,
+    shouldEnd: true,
+    finalAnswer: describeLlmFailure(error, provider),
+    messages: [],
+  };
+}
+
 export async function llmAgentNode(
   state: DfcAgentStateType,
   conversation: ThreadTurn[] = [],
+  provider?: LlmProvider,
 ): Promise<Partial<DfcAgentStateType>> {
-  let update: Partial<DfcAgentStateType> = {};
-  for await (const event of streamLlmAgentNode(state)) {
-    if (event.kind === "done") {
-      update = event.update;
+  if (!isLangGraphLlmEnabled(provider)) {
+    return llmUnavailableUpdate(undefined, provider);
+  }
+
+  try {
+    let update: Partial<DfcAgentStateType> = {};
+    for await (const event of streamLlmAgentNode(state, provider)) {
+      if (event.kind === "done") {
+        update = event.update;
+      }
     }
-  }
 
-  if (needsRuleBasedFallback(update, state, conversation)) {
-    return { mock: true, ...(await mockPlanNode(state, conversation)) };
-  }
+    if (needsRuleBasedFallback(update, state, conversation)) {
+      return llmUnavailableUpdate(
+        new Error("模型未返回可用规划（无工具调用且无文本）"),
+        provider,
+      );
+    }
 
-  return update;
+    return update;
+  } catch (error) {
+    return llmUnavailableUpdate(error, provider);
+  }
 }
 
 function extractMessageChunkText(chunk: AIMessageChunk) {
@@ -267,13 +288,12 @@ function buildAgentUpdateFromResponse(
 
 export async function* streamLlmAgentNode(
   state: DfcAgentStateType,
+  provider?: LlmProvider,
 ): AsyncGenerator<
   | { kind: "delta"; text: string; delta: string }
   | { kind: "done"; update: Partial<DfcAgentStateType> }
 > {
-  const model = createChatModel().bindTools(createLangChainTools(), {
-    tool_choice: "auto",
-  });
+  const model = createChatModel(provider).bindTools(createLangChainTools());
   const stream = await model.stream([
     new SystemMessage(buildAgentSystemPrompt(state.userMessage)),
     ...state.messages,
@@ -300,34 +320,20 @@ export async function* streamLlmAgentNode(
 export async function* streamRoutePlannerNode(
   state: DfcAgentStateType,
   conversation: ThreadTurn[] = [],
+  provider?: LlmProvider,
 ): AsyncGenerator<
   | { kind: "delta"; text: string; delta: string }
   | { kind: "done"; update: Partial<DfcAgentStateType> }
+  | { kind: "fail"; message: string }
 > {
-  if (!isLangGraphLlmEnabled()) {
-    if (isLlmRequired()) {
-      yield {
-        kind: "done",
-        update: {
-          mock: true,
-          shouldEnd: true,
-          finalAnswer:
-            "LLM 规划器不可用：未配置 LLM。请联系管理员检查 Ollama/API 配置，或暂时关闭 LLM_REQUIRE。",
-          messages: [],
-        },
-      };
-      return;
-    }
-
-    yield { kind: "delta", text: "规则规划器分析中…", delta: "规则规划器分析中…" };
-    const update = await mockPlanNode(state, conversation);
-    yield { kind: "done", update: { mock: true, ...update } };
+  if (!isLangGraphLlmEnabled(provider)) {
+    yield { kind: "fail", message: describeLlmFailure(undefined, provider) };
     return;
   }
 
   try {
     let llmUpdate: Partial<DfcAgentStateType> = {};
-    for await (const event of streamLlmAgentNode(state)) {
+    for await (const event of streamLlmAgentNode(state, provider)) {
       if (event.kind === "delta") {
         yield event;
       } else {
@@ -337,65 +343,27 @@ export async function* streamRoutePlannerNode(
 
     if (needsRuleBasedFallback(llmUpdate, state, conversation)) {
       yield {
-        kind: "delta",
-        text: "LLM 未返回可用规划，回退规则规划器…",
-        delta: "LLM 未返回可用规划，回退规则规划器…",
+        kind: "fail",
+        message: describeLlmFailure(
+          new Error("模型未返回可用规划（无工具调用且无文本）"),
+          provider,
+        ),
       };
-      const mockUpdate = await mockPlanNode(state, conversation);
-      yield { kind: "done", update: { mock: true, ...mockUpdate } };
       return;
     }
 
     yield { kind: "done", update: llmUpdate };
-  } catch {
-    if (isLlmRequired()) {
-      yield {
-        kind: "done",
-        update: {
-          mock: true,
-          shouldEnd: true,
-          finalAnswer: "LLM 规划器不可用：调用失败。",
-          messages: [],
-        },
-      };
-      return;
-    }
-    yield { kind: "delta", text: "LLM 不可用，回退规则规划…", delta: "LLM 不可用，回退规则规划…" };
-    const update = await mockPlanNode(state, conversation);
-    yield { kind: "done", update: { mock: true, ...update } };
+  } catch (error) {
+    yield { kind: "fail", message: describeLlmFailure(error, provider) };
   }
 }
 
 export async function routePlannerNode(
   state: DfcAgentStateType,
   conversation: ThreadTurn[] = [],
+  provider?: LlmProvider,
 ): Promise<Partial<DfcAgentStateType>> {
-  if (!isLangGraphLlmEnabled()) {
-    if (isLlmRequired()) {
-      return {
-        mock: true,
-        shouldEnd: true,
-        finalAnswer:
-          "LLM 规划器不可用：未配置 LLM。请联系管理员检查 Ollama/API 配置，或暂时关闭 LLM_REQUIRE。",
-        messages: [],
-      };
-    }
-    return mockPlanNode(state, conversation);
-  }
-
-  try {
-    return await llmAgentNode(state, conversation);
-  } catch {
-    if (isLlmRequired()) {
-      return {
-        mock: true,
-        shouldEnd: true,
-        finalAnswer: "LLM 规划器不可用：调用失败。",
-        messages: [],
-      };
-    }
-    return mockPlanNode(state, conversation);
-  }
+  return llmAgentNode(state, conversation, provider);
 }
 
 export function postToolsNode(state: DfcAgentStateType): Partial<DfcAgentStateType> {

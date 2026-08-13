@@ -81,6 +81,31 @@ function isLlmExplicitlyDisabled() {
   return flag === "1" || flag === "true" || flag === "yes";
 }
 
+export function describeLlmFailure(error?: unknown, providerInput?: LlmProvider) {
+  if (isLlmExplicitlyDisabled()) {
+    return "LLM 已关闭（LLM_DISABLED=1）。请去掉该配置后重试，或在输入框选择可用的云端模型。";
+  }
+
+  try {
+    const config = getLlmConfigForProvider(providerInput);
+    const hint =
+      config.provider === "ollama"
+        ? `请确认本地 Ollama 已启动（${config.baseURL}），或切换到 DeepSeek / 硅基等云端模型。`
+        : `请确认 ${config.provider.toUpperCase()}_API_KEY 有效，且 ${config.baseURL} 可达。`;
+
+    if (!error) {
+      return `${config.label}（${config.model}）不可用。${hint}`;
+    }
+
+    const detail = error instanceof Error ? error.message : String(error);
+    return `${config.label}（${config.model}）调用失败：${detail}。${hint}`;
+  } catch (configError) {
+    const detail =
+      configError instanceof Error ? configError.message : String(configError);
+    return `LLM 未配置：${detail}。请在 .env 填写对应 API Key，并在输入框选择已配置的模型。`;
+  }
+}
+
 export function isLlmProviderConfigured(provider: LlmProvider) {
   if (isLlmExplicitlyDisabled()) {
     return false;

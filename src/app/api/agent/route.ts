@@ -128,6 +128,7 @@ export async function POST(request: Request) {
                       audit,
                       threadId: body.threadId,
                       sso: ssoCredentials,
+                      llmProvider: parseLlmProvider(body.llmProvider),
                     },
                   )) {
                     send(trace.type, trace);

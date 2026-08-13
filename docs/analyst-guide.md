@@ -79,7 +79,7 @@
 
 ## 规则模式提示
 
-若顶部出现黄色「规则规划器」提示，表示当前未启用 LLM 或调用失败（`LLM_DISABLED=1`、未配置 API Key、或模型不可达）。已选中且可用的 DeepSeek / 硅基 / 本地模型会全程规划，不会仅因问数题就切回规则。
+LLM 未启用或调用失败时会直接报错（不再回退规则规划器）。请检查输入框所选模型、`.env` 中对应 API Key，以及本地 Ollama 是否已启动。
 
 运行时基于 **LangChain + LangGraph**；管理员可通过 `LLM_PROVIDER=ollama|openai` 切换本地 Ollama 与云端 OpenAI 兼容 API（见 `.env.example`）。
 

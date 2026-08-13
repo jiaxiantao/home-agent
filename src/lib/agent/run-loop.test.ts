@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { runAgentLoop } from "@/lib/agent/run-loop";
+import { createRunId, savePendingSqlRun } from "@/lib/agent/pending-runs";
 
 describe("runAgentLoop", () => {
   const originalLlmDisabled = process.env.LLM_DISABLED;
@@ -20,58 +21,36 @@ describe("runAgentLoop", () => {
     }
   });
 
-  it("lists schema for table catalog questions", async () => {
+  it("returns an error when LLM is disabled instead of using the rule planner", async () => {
     process.env.LLM_DISABLED = "1";
 
     const events = [];
-    for await (const event of runAgentLoop("分析库有哪些核心表和字段说明？")) {
+    for await (const event of runAgentLoop("帮我查询车牌号为皖JV066M的车辆信息")) {
       events.push(event);
     }
 
-    expect(events.some((event) => event.type === "tool_call")).toBe(true);
-    const toolCall = events.find((event) => event.type === "tool_call");
-    expect(toolCall?.type).toBe("tool_call");
-    if (toolCall?.type === "tool_call") {
-      expect(toolCall.tool).toBe("list_schema");
-    }
-  });
-
-  it("pauses for SQL confirmation on analytics questions", async () => {
-    process.env.LLM_DISABLED = "1";
-
-    const events = [];
-    for await (const event of runAgentLoop("大风车正式车源一共有多少辆？")) {
-      events.push(event);
-    }
-
-    expect(events.some((event) => event.type === "awaiting_input")).toBe(true);
-    expect(events.some((event) => event.type === "a2ui")).toBe(true);
-    expect(events.some((event) => event.type === "done")).toBe(false);
-
-    const awaiting = events.find((event) => event.type === "awaiting_input");
-    expect(awaiting?.type).toBe("awaiting_input");
-    if (awaiting?.type === "awaiting_input") {
-      expect(awaiting.sql.toLowerCase()).toContain("select");
-    }
+    expect(events.some((event) => event.type === "error")).toBe(true);
+    expect(events.some((event) => event.type === "done")).toBe(true);
+    expect(events.some((event) => event.type === "tool_call")).toBe(false);
+    const error = events.find((event) => event.type === "error");
+    expect(error?.type === "error" && error.message).toMatch(/LLM/);
   });
 
   it("cancels pending sql on resume", async () => {
-    process.env.LLM_DISABLED = "1";
-
-    const events = [];
-    for await (const event of runAgentLoop("统计各状态的正式车源数量分布")) {
-      events.push(event);
-    }
-
-    const awaiting = events.find((event) => event.type === "awaiting_input");
-    expect(awaiting?.type).toBe("awaiting_input");
-    if (awaiting?.type !== "awaiting_input") {
-      return;
-    }
+    const runId = createRunId();
+    await savePendingSqlRun({
+      runId,
+      message: "统计各状态的正式车源数量分布",
+      prior: [],
+      sql: "SELECT car_status, COUNT(*) AS cnt FROM `matador`.`car` WHERE test_type = 0 GROUP BY car_status LIMIT 50",
+      explanation: "test",
+      createdAt: Date.now(),
+      userId: "unknown",
+    });
 
     const resumeEvents = [];
     for await (const event of runAgentLoop("", {
-      resume: { actionId: "cancel_sql", payload: { runId: awaiting.runId } },
+      resume: { actionId: "cancel_sql", payload: { runId } },
     })) {
       resumeEvents.push(event);
     }
@@ -85,25 +64,23 @@ describe("runAgentLoop", () => {
   });
 
   it("keeps pending and requeues when edited sql fails validation", async () => {
-    process.env.LLM_DISABLED = "1";
-
-    const events = [];
-    for await (const event of runAgentLoop("大风车正式车源一共有多少辆？")) {
-      events.push(event);
-    }
-
-    const awaiting = events.find((event) => event.type === "awaiting_input");
-    expect(awaiting?.type).toBe("awaiting_input");
-    if (awaiting?.type !== "awaiting_input") {
-      return;
-    }
+    const runId = createRunId();
+    await savePendingSqlRun({
+      runId,
+      message: "大风车正式车源一共有多少辆？",
+      prior: [],
+      sql: "SELECT COUNT(*) AS car_count FROM `matador`.`car` WHERE test_type = 0",
+      explanation: "test",
+      createdAt: Date.now(),
+      userId: "unknown",
+    });
 
     const resumeEvents = [];
     for await (const event of runAgentLoop("", {
       resume: {
         actionId: "confirm_sql",
         payload: {
-          runId: awaiting.runId,
+          runId,
           sql: "DROP TABLE car",
         },
       },
@@ -118,12 +95,10 @@ describe("runAgentLoop", () => {
     expect(resumeEvents.some((event) => event.type === "done")).toBe(false);
 
     const { peekPendingSqlRunForTest } = await import("@/lib/agent/run-loop");
-    expect(await peekPendingSqlRunForTest(awaiting.runId)).not.toBeNull();
+    expect(await peekPendingSqlRunForTest(runId)).not.toBeNull();
   });
 
   it("emits done after terminal errors", async () => {
-    process.env.LLM_DISABLED = "1";
-
     const resumeEvents = [];
     for await (const event of runAgentLoop("", {
       resume: {
@@ -136,25 +111,6 @@ describe("runAgentLoop", () => {
 
     expect(resumeEvents.some((event) => event.type === "error")).toBe(true);
     expect(resumeEvents.some((event) => event.type === "done")).toBe(true);
-  });
-
-  it("synthesizes an answer when max steps are exhausted", async () => {
-    process.env.LLM_DISABLED = "1";
-    process.env.AGENT_MAX_STEPS = "1";
-
-    const events = [];
-    for await (const event of runAgentLoop("分析库有哪些核心表和字段？")) {
-      events.push(event);
-    }
-
-    const answer = events.find((event) => event.type === "answer");
-    expect(answer).toBeDefined();
-    expect(answer?.type).toBe("answer");
-    if (answer?.type === "answer") {
-      expect(answer.text).toContain("已达最大步数（1）");
-      expect(answer.text).toContain("list_schema:");
-    }
-    expect(events.filter((event) => event.type === "plan")).toHaveLength(1);
   });
 
   it("stops when the request is aborted", async () => {
