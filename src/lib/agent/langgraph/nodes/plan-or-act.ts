@@ -15,6 +15,7 @@ import { createChatModel, isLangGraphLlmEnabled } from "@/lib/agent/langgraph/mo
 import { buildAgentSystemPrompt } from "@/lib/agent/langgraph/prompts";
 import type { DfcAgentStateType } from "@/lib/agent/langgraph/state";
 import { createLangChainTools } from "@/lib/agent/langgraph/tools";
+import { isApiFirstQuestion } from "@/lib/analytics/api-catalog";
 
 function isLlmRequired() {
   const flag = process.env.LLM_REQUIRE?.toLowerCase();
@@ -74,6 +75,7 @@ export async function mockPlanNode(
 
 export async function llmAgentNode(
   state: DfcAgentStateType,
+  conversation: ThreadTurn[] = [],
 ): Promise<Partial<DfcAgentStateType>> {
   let update: Partial<DfcAgentStateType> = {};
   for await (const event of streamLlmAgentNode(state)) {
@@ -81,6 +83,11 @@ export async function llmAgentNode(
       update = event.update;
     }
   }
+
+  if (needsRuleBasedFallback(update, state, conversation)) {
+    return { mock: true, ...(await mockPlanNode(state, conversation)) };
+  }
+
   return update;
 }
 
@@ -104,19 +111,89 @@ function extractMessageChunkText(chunk: AIMessageChunk) {
   return "";
 }
 
+function looksLikeDataQuestion(message: string) {
+  return (
+    isApiFirstQuestion(message) ||
+    /客户|车源|订单|会员|用户|查询|统计|多少|分布|表|数据库|id|ID/i.test(message)
+  );
+}
+
+function extractAiText(response: AIMessage) {
+  if (typeof response.content === "string") {
+    return response.content.trim();
+  }
+  if (Array.isArray(response.content)) {
+    return response.content
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+        if (part && typeof part === "object" && "text" in part) {
+          return String(part.text ?? "");
+        }
+        return "";
+      })
+      .join("")
+      .trim();
+  }
+  return "";
+}
+
+export function needsRuleBasedFallback(
+  update: Partial<DfcAgentStateType>,
+  state: DfcAgentStateType,
+  conversation: ThreadTurn[] = [],
+): boolean {
+  const lastAi = update.messages?.at(-1);
+  if (lastAi instanceof AIMessage && lastAi.tool_calls?.length) {
+    return false;
+  }
+
+  if (state.priorToolResults.length > 0) {
+    return shouldContinueWithMockPlanner(state, conversation);
+  }
+
+  const text = String(
+    update.finalAnswer ??
+      (lastAi instanceof AIMessage ? extractAiText(lastAi) : ""),
+  ).trim();
+
+  if (looksLikeDataQuestion(state.userMessage)) {
+    return true;
+  }
+
+  return !text;
+}
+
+export function shouldContinueWithMockPlanner(
+  state: DfcAgentStateType,
+  conversation: ThreadTurn[] = [],
+) {
+  if (state.priorToolResults.length === 0) {
+    return false;
+  }
+
+  if (state.stepCount >= getAgentMaxSteps()) {
+    return false;
+  }
+
+  const plan = buildMockPlan(state.userMessage, state.priorToolResults, conversation);
+  return plan.action === "tool" || plan.action === "answer";
+}
+
 function buildAgentUpdateFromResponse(
   state: DfcAgentStateType,
   response: AIMessage,
 ): Partial<DfcAgentStateType> {
+  const contentText = extractAiText(response);
+  const hasTools = Boolean(response.tool_calls?.length);
+
   return {
     mock: false,
     stepCount: state.stepCount + 1,
     messages: [response],
-    finalAnswer:
-      !response.tool_calls?.length && typeof response.content === "string"
-        ? response.content
-        : null,
-    shouldEnd: !response.tool_calls?.length,
+    finalAnswer: !hasTools && contentText ? contentText : null,
+    shouldEnd: !hasTools && Boolean(contentText),
   };
 }
 
@@ -180,7 +257,39 @@ export async function* streamRoutePlannerNode(
   }
 
   try {
-    yield* streamLlmAgentNode(state);
+    // 仅在已处于规则规划路径时续跑 mock，避免 LLM 成功出工具后被强制切回规则规划器
+    if (state.mock && shouldContinueWithMockPlanner(state, conversation)) {
+      yield {
+        kind: "delta",
+        text: "根据上一步结果继续执行…",
+        delta: "根据上一步结果继续执行…",
+      };
+      const mockUpdate = await mockPlanNode(state, conversation);
+      yield { kind: "done", update: { mock: true, ...mockUpdate } };
+      return;
+    }
+
+    let llmUpdate: Partial<DfcAgentStateType> = {};
+    for await (const event of streamLlmAgentNode(state)) {
+      if (event.kind === "delta") {
+        yield event;
+      } else {
+        llmUpdate = event.update;
+      }
+    }
+
+    if (needsRuleBasedFallback(llmUpdate, state, conversation)) {
+      yield {
+        kind: "delta",
+        text: "LLM 未产生有效工具调用，回退规则规划器…",
+        delta: "LLM 未产生有效工具调用，回退规则规划器…",
+      };
+      const mockUpdate = await mockPlanNode(state, conversation);
+      yield { kind: "done", update: { mock: true, ...mockUpdate } };
+      return;
+    }
+
+    yield { kind: "done", update: llmUpdate };
   } catch {
     if (isLlmRequired()) {
       yield {
@@ -218,7 +327,7 @@ export async function routePlannerNode(
   }
 
   try {
-    return await llmAgentNode(state);
+    return await llmAgentNode(state, conversation);
   } catch {
     if (isLlmRequired()) {
       return {
@@ -268,14 +377,18 @@ function buildExhaustedFromPrior(prior: AgentToolResult[], maxSteps: number) {
   return `已达最大步数（${maxSteps}）。基于已有工具结果：\n${context}\n\n请缩小问题范围后重试。`;
 }
 
-export function shouldUseTools(state: DfcAgentStateType): "tools" | "post_tools" | "__end__" {
-  if (state.shouldEnd) {
-    return "__end__";
-  }
+export function buildAgentExhaustedAnswer(prior: AgentToolResult[], maxSteps: number) {
+  return buildExhaustedFromPrior(prior, maxSteps);
+}
 
+export function shouldUseTools(state: DfcAgentStateType): "tools" | "post_tools" | "__end__" {
   const lastMessage = state.messages.at(-1);
   if (lastMessage instanceof AIMessage && lastMessage.tool_calls?.length) {
     return "tools";
+  }
+
+  if (state.shouldEnd && state.finalAnswer?.trim()) {
+    return "__end__";
   }
 
   return "__end__";

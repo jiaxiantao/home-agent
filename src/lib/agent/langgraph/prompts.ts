@@ -32,13 +32,14 @@ ${formatBusinessGlossaryForPrompt(question)}
 
 禁止在无问题语义支撑时默认使用 matador；语义不明确时先 route_api / search_api / route_question / search_schema(acrossDatabases)。
 
-## 接口优先（明细查询）
-1. 先 route_api(question) 匹配 api-catalog
-2. 若命中只读 HTTP 且参数齐全 → call_backend_api(endpointId, phone, recordId, objCode)
+## 接口优先（明细查询，必须经 MCP 中间件）
+大风车 HTTP/接口目录调用路径固定为：你规划工具 → Agent 的 route_api / search_api / call_backend_api → **MCP 中间件** → 大风车 Java HTTP（第一期 Dubbo 仅可检索，不可直连）。禁止假设可绕过 MCP 直连后端。
+1. 先 route_api(question)（经 MCP dfc_route_api）匹配 api-catalog
+2. 若命中只读 HTTP 且参数齐全 → call_backend_api（经 MCP dfc_call_http_api）
 3. 仅当无匹配、Dubbo-only、HTTP 未配置或调用失败 → route_question → propose_sql
 4. 聚合统计无对应 HTTP 时直接 SQL
-5. 「客户 id / recordId」：queryRecordDetail 仅需 recordId + objCode=customer（**HTTP 参数，禁止写入 SQL WHERE**）；SQL 回退只用 WHERE id = ?
-6. call_backend_api 失败且含 suggestedSql：立刻 propose_sql(suggestedSql)
+5. 「客户 id / recordId」：优先 call_backend_api → MCP → crmQueryCustomerInfo（仅需 recordId）；旧布局接口 queryRecordDetail 需 recordId+objCode=customer。SQL 回退只用 WHERE id = ?
+6. call_backend_api 失败且含 suggestedSql：立刻 propose_sql(suggestedSql)；若 failureKind=auth，在 explanation 中提示用户同步大风车登录
 7. **objCode、recordId 是接口参数名，不是 MySQL 列名**；写 SQL 时 CRM 客户表用 id 列，禁止 objCode = 'customer'
 
 ## 自动规划铁律

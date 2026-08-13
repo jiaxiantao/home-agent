@@ -5,8 +5,10 @@ import { compileDfcAgentGraph, createGraphInput } from "@/lib/agent/langgraph/gr
 import {
   afterToolsRoute,
   mockPlanNode,
+  needsRuleBasedFallback,
   postToolsNode,
   routePlannerNode,
+  shouldContinueWithMockPlanner,
   shouldUseTools,
 } from "@/lib/agent/langgraph/nodes/plan-or-act";
 import { runDfcAgentLoop } from "@/lib/agent/langgraph";
@@ -87,6 +89,123 @@ describe("langgraph graph", () => {
     const update = postToolsNode(withPrior);
     expect(update.pendingSql?.sql).toBe("SELECT 1");
     expect(afterToolsRoute({ ...withPrior, ...update })).toBe("__end__");
+  });
+
+  it("mock planner routes customer recordId to route_api", async () => {
+    process.env.LLM_DISABLED = "1";
+
+    const question = "我想知道客户 id 为 ANwbnMyLF0 的客户信息";
+    const state = createGraphInput(question);
+    const update = await mockPlanNode(state);
+
+    const merged = {
+      ...state,
+      ...update,
+      messages: [...state.messages, ...(update.messages ?? [])],
+    };
+    const last = merged.messages.at(-1);
+    expect(last instanceof AIMessage && last.tool_calls?.[0]?.name).toBe("route_api");
+  });
+
+  it("needs rule fallback when LLM returns empty on data question", () => {
+    const question = "我想知道客户 id 为 ANwbnMyLF0 的客户信息";
+    const state = createGraphInput(question);
+    const emptyLlmUpdate = {
+      mock: false,
+      stepCount: 1,
+      messages: [new AIMessage({ content: "" })],
+      finalAnswer: null,
+      shouldEnd: false,
+    };
+
+    expect(needsRuleBasedFallback(emptyLlmUpdate, state)).toBe(true);
+  });
+
+  it("continues with mock planner after route_api when already on mock path", () => {
+    const question = "我想知道客户 id 为 ANwbnMyLF0 的客户信息";
+    const state = {
+      ...createGraphInput(question),
+      mock: true,
+      priorToolResults: [
+        {
+          tool: "route_api" as const,
+          args: { question },
+          output: "接口路由",
+          data: {
+            bestMatch: {
+              endpoint: {
+                id: "super-mario:http:GET:/customer/customerDetail/queryRecordDetail:queryRecordDetail",
+              },
+              httpCallable: true,
+              extractedParams: { recordId: "ANwbnMyLF0", objCode: "customer" },
+            },
+          },
+        },
+      ],
+    };
+
+    expect(shouldContinueWithMockPlanner(state)).toBe(true);
+  });
+
+  it("does not force mock continuation when prior tools came from LLM", () => {
+    const question = "我想知道客户 id 为 ANwbnMyLF0 的客户信息";
+    const state = {
+      ...createGraphInput(question),
+      mock: false,
+      priorToolResults: [
+        {
+          tool: "route_api" as const,
+          args: { question },
+          output: "接口路由",
+          data: {
+            bestMatch: {
+              endpoint: {
+                id: "super-mario:http:GET:/customer/customerDetail/queryRecordDetail:queryRecordDetail",
+              },
+              httpCallable: true,
+              extractedParams: { recordId: "ANwbnMyLF0", objCode: "customer" },
+            },
+          },
+        },
+      ],
+    };
+
+    // shouldContinueWithMockPlanner 仍可为 true（规则知道下一步），但 stream 仅在 state.mock 时短接
+    expect(state.mock).toBe(false);
+    expect(shouldContinueWithMockPlanner(state)).toBe(true);
+  });
+  it("mock planner proposes call_backend_api after route_api", async () => {
+    const question = "我想知道客户 id 为 ANwbnMyLF0 的客户信息";
+    const state = {
+      ...createGraphInput(question),
+      priorToolResults: [
+        {
+          tool: "route_api" as const,
+          args: { question },
+          output: "接口路由",
+          data: {
+            bestMatch: {
+              endpoint: {
+                id: "super-mario:http:GET:/customer/customerDetail/queryRecordDetail:queryRecordDetail",
+              },
+              httpCallable: true,
+              extractedParams: { recordId: "ANwbnMyLF0", objCode: "customer" },
+            },
+          },
+        },
+      ],
+    };
+
+    const update = await mockPlanNode(state);
+    const merged = {
+      ...state,
+      ...update,
+      messages: [...state.messages, ...(update.messages ?? [])],
+    };
+    const last = merged.messages.at(-1);
+    expect(last instanceof AIMessage && last.tool_calls?.[0]?.name).toBe(
+      "call_backend_api",
+    );
   });
 
   it("run loop pauses on sql confirmation for analytics questions", async () => {

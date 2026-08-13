@@ -49,10 +49,15 @@
 - `AUTH_MODE=sso` — 使用大风车 SSO 登录态（推荐内网/外网部署）
 - `SSO_LOGIN_URL` — 未登录时跳转的大风车 Mars 入口（默认测试外网 dashboard）
 - `DFC_API_ENABLED=1`
-- `DFC_API_SUPER_MARIO_BASE_URL` / `DFC_API_MATADOR_BASE_URL` 等（见 `.env.example`）
-- 可选 `DFC_API_SERVICE_CHAIN`（多环境）
+- `DFC_API_SUPER_MARIO_BASE_URL=http://super-mario.stable.dasouche.net`（与 `web-app-mars-h5-customer` 测试配置一致；须 `*.dasouche.net`，勿用线上 `*.souche.com`）
+- `DFC_API_MATADOR_BASE_URL=http://matador.dasouche.net`
+- 可选 `DFC_API_SERVICE_CHAIN`（多环境；前端默认注释）
+- 本地无同域 Cookie 时配置 `DFC_API_DEV_SSO_TOKEN`（Mars **测试外网**登录后从 `_security_token` 复制）
 
-**SSO 说明**：接口调用需要 `_security_token` / `Souche-Security-Token` 登录态。未登录时会引导前往 [大风车 Mars 登录](https://f2e.dasouche.net/projects/jupiter-f2e/mars_web_business/index.html#/app/dashboard)。问数助手需部署在与 SSO Cookie 同域或子域，或由 SSO 网关注入请求头。
+**CRM 客户详情（对齐前后端）**：
+- 主接口：`GET /v1/customerAction/crmQueryCustomerInfo.json?recordId=`
+- 鉴权头：同时带 `Souche-Security-Token` + `souche-security-token`，Cookie `_security_token`，CRM 另加 `_source_code=WEB`
+- 经 **MCP → HTTP**；缺 SSO 返回 `failureKind=auth`
 
 未配置 `DFC_API_*` 时 Agent 仍会识别推荐接口，并自动用等价 SQL 回退（如 `super_mario.customer` 按 `phone` 查询）。
 

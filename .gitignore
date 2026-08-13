@@ -54,3 +54,4 @@ next-env.d.ts
 !docs/security.md
 !docs/deployment.md
 !docs/analyst-guide.md
+!docs/mcp-dfc-api.md

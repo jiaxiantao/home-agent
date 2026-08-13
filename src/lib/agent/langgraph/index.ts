@@ -1,7 +1,15 @@
 import { AIMessage } from "@langchain/core/messages";
 
+import {
+  formatBackendApiAnswer,
+  summarizeBackendApiResult,
+  summarizeSqlResult,
+} from "@/lib/agent/answer-format";
+import { buildMockPlan } from "@/lib/agent/planner-mock";
+import type { ThreadTurn } from "@/lib/agent/planner";
 import { buildQueryResultSurface, buildSqlConfirmSurface } from "@/lib/a2ui/types";
 import { buildChartSpecFromRows } from "@/lib/analytics/chart-spec";
+import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
 import { assertReadOnlySql } from "@/lib/analytics/sql-guard";
 import {
   fixSqlFromExecutionError,
@@ -14,6 +22,7 @@ import { createGraphInput } from "@/lib/agent/langgraph/graph";
 import { createToolsNodeHandler } from "@/lib/agent/langgraph/graph-runner";
 import {
   afterToolsRoute,
+  buildAgentExhaustedAnswer,
   postToolsNode,
   streamRoutePlannerNode,
   shouldUseTools,
@@ -63,13 +72,18 @@ import {
   isToolAllowedForUser,
   toolAccessDeniedMessage,
 } from "@/lib/security/rbac";
+import type { SsoCredentials } from "@/lib/security/sso-credentials";
+import { getSsoRequestContext } from "@/lib/security/sso-context";
 
 export type RunDfcAgentLoopOptions = {
   signal?: AbortSignal;
   resume?: AgentResumeAction;
   audit?: AuditContext;
   threadId?: string;
+  /** 显式传入请求 SSO，避免 LangGraph/ToolNode 异步边界丢失 ALS */
+  sso?: SsoCredentials | null;
 };
+
 
 function assertNotAborted(signal?: AbortSignal) {
   if (!signal?.aborted) {
@@ -96,14 +110,67 @@ function validateExecutableSql(rawSql: string) {
 }
 
 function summarizeQuery(result: ExecuteSqlData) {
-  if (result.rowCount === 0) {
-    return "查询成功，但没有返回数据行。";
+  return summarizeSqlResult(result);
+}
+
+function findBackendApiResult(prior: AgentToolResult[]) {
+  const entry = [...prior].reverse().find((item) => item.tool === "call_backend_api");
+  return entry?.data as BackendApiCallResult | undefined;
+}
+
+function findExecuteSqlResult(prior: AgentToolResult[]) {
+  const entry = [...prior].reverse().find((item) => item.tool === "execute_sql");
+  return entry?.data as ExecuteSqlData | undefined;
+}
+
+async function buildFinalAnswerFromState(input: {
+  state: DfcAgentStateType;
+  message: string;
+  conversation: ThreadTurn[];
+  fallback: string;
+}) {
+  const apiResult = findBackendApiResult(input.state.priorToolResults);
+  if (apiResult?.status === "success" && apiResult.table?.rows.length) {
+    const summary = summarizeBackendApiResult(apiResult);
+    const synthesized = await synthesizeAnswerAfterQuery({
+      message: input.message,
+      prior: input.state.priorToolResults,
+      conversation: input.conversation,
+      summary,
+    });
+    return {
+      answer: synthesized.text || formatBackendApiAnswer(apiResult),
+      mock: synthesized.mock,
+      apiResult,
+    };
   }
-  if (result.rowCount === 1 && result.columns.length === 1) {
-    const key = result.columns[0]!;
-    return `查询成功：${key} = ${String(result.rows[0]?.[key])}`;
+
+  const sqlResult = findExecuteSqlResult(input.state.priorToolResults);
+  if (sqlResult) {
+    const summary = summarizeSqlResult(sqlResult);
+    const synthesized = await synthesizeAnswerAfterQuery({
+      message: input.message,
+      prior: input.state.priorToolResults,
+      conversation: input.conversation,
+      summary,
+    });
+    return {
+      answer: synthesized.text || input.fallback,
+      mock: synthesized.mock,
+      sqlResult,
+    };
   }
-  return `查询成功，返回 ${result.rowCount} 行${result.truncated ? "（已截断到上限）" : ""}。`;
+
+  const mockPlan = buildMockPlan(
+    input.message,
+    input.state.priorToolResults,
+    input.conversation,
+  );
+  if (mockPlan.action === "answer" && mockPlan.answer.trim()) {
+    return { answer: mockPlan.answer, mock: true };
+  }
+
+  return { answer: input.fallback, mock: input.state.mock ?? false };
 }
 
 async function appendAssistantThreadMessage(
@@ -437,6 +504,45 @@ async function* resumeConfirmedSql(
   }
 }
 
+function resolveTerminalAnswer(state: DfcAgentStateType) {
+  const fromState = state.finalAnswer?.trim();
+  if (fromState && !looksLikePlanningReasoning(fromState, state)) {
+    return fromState;
+  }
+
+  const lastAi = state.messages.findLast((item) => item instanceof AIMessage);
+  if (lastAi instanceof AIMessage && typeof lastAi.content === "string") {
+    const text = lastAi.content.trim();
+    if (text && !looksLikePlanningReasoning(text, state)) {
+      return text;
+    }
+  }
+
+  const apiResult = findBackendApiResult(state.priorToolResults);
+  if (apiResult?.status === "success" && apiResult.table?.rows.length) {
+    return formatBackendApiAnswer(apiResult);
+  }
+
+  if (state.priorToolResults.length) {
+    return state.priorToolResults.map((item) => `${item.tool}: ${item.output}`).join("\n");
+  }
+
+  return "未能完成分析，请重试或换个问法。";
+}
+
+function looksLikePlanningReasoning(text: string, state: DfcAgentStateType) {
+  if (state.priorToolResults.length === 0) {
+    return false;
+  }
+
+  const plan = buildMockPlan(state.userMessage, state.priorToolResults, []);
+  if (plan.action === "tool") {
+    return true;
+  }
+
+  return /^(明细查询|业务问数|调用 super-mario|匹配大风车)/.test(text.trim());
+}
+
 function mergeState(
   state: DfcAgentStateType,
   patch: Partial<DfcAgentStateType>,
@@ -487,7 +593,9 @@ export async function* runDfcAgentLoop(
 
   yield { type: "trace", phase: "start", message: "LangGraph Agent 循环启动" };
 
-  const runTools = createToolsNodeHandler();
+  const runTools = createToolsNodeHandler(
+    options.sso ?? getSsoRequestContext(),
+  );
   let state: DfcAgentStateType = createGraphInput(message, conversation);
   let steps = 0;
   let toolCalls = 0;
@@ -522,15 +630,57 @@ export async function* runDfcAgentLoop(
 
     const route = shouldUseTools(state);
     if (route === "__end__") {
-      const answer =
-        state.finalAnswer ??
-        (typeof state.messages.at(-1)?.content === "string"
-          ? String(state.messages.at(-1)?.content)
-          : "已完成分析。");
+      if (steps >= maxSteps && state.priorToolResults.length) {
+        const answer = buildAgentExhaustedAnswer(state.priorToolResults, maxSteps);
+        yield {
+          type: "plan",
+          plan: { action: "answer", answer, reasoning: "已达步数上限" },
+        };
+        yield stepMetricEvent({ step: steps, planMs, startedAt });
+        await appendAssistantThreadMessage(thread.threadId, userId, answer);
+        await createServerHistory({
+          userId,
+          threadId: thread.threadId,
+          question: message,
+          status: "done",
+          answer,
+        });
+        yield { type: "answer", text: answer, mock: lastMock };
+        yield doneEvent(startedAt, steps, toolCalls);
+        return;
+      }
+
+      yield { type: "trace", phase: "answer", message: "整理最终回答" };
+
+      const fallback = resolveTerminalAnswer(state);
+      const finalized = await buildFinalAnswerFromState({
+        state,
+        message,
+        conversation,
+        fallback,
+      });
+      const answer = finalized.answer;
+
+      if (finalized.apiResult?.table) {
+        yield {
+          type: "a2ui",
+          surface: buildQueryResultSurface({
+            surfaceId: `api_${Date.now().toString(36)}`,
+            sql: `-- 接口: ${finalized.apiResult.endpointId}`,
+            columns: finalized.apiResult.table.columns,
+            rows: finalized.apiResult.table.rows,
+            summary: summarizeBackendApiResult(finalized.apiResult),
+          }),
+        };
+      }
 
       yield {
         type: "plan",
-        plan: { action: "answer", answer, reasoning: "LangGraph 完成" },
+        plan: {
+          action: "answer",
+          answer,
+          reasoning: lastMock ? "规则规划器完成" : "生成最终回答",
+        },
       };
       yield stepMetricEvent({
         step: steps,
@@ -545,7 +695,11 @@ export async function* runDfcAgentLoop(
         status: "done",
         answer,
       });
-      yield { type: "answer", text: answer, mock: lastMock };
+      yield {
+        type: "answer",
+        text: answer,
+        mock: finalized.mock ?? lastMock,
+      };
       yield doneEvent(startedAt, steps, toolCalls);
       return;
     }
@@ -675,6 +829,42 @@ export async function* runDfcAgentLoop(
 
       const next = afterToolsRoute(state);
       if (next === "__end__") {
+        const hasQueryableResults =
+          findBackendApiResult(state.priorToolResults)?.status === "success" ||
+          Boolean(findExecuteSqlResult(state.priorToolResults));
+
+        if (state.finalAnswer && hasQueryableResults) {
+          const finalized = await buildFinalAnswerFromState({
+            state,
+            message,
+            conversation,
+            fallback: state.finalAnswer,
+          });
+          const answer = finalized.answer;
+
+          if (finalized.apiResult?.table) {
+            yield {
+              type: "a2ui",
+              surface: buildQueryResultSurface({
+                surfaceId: `api_${Date.now().toString(36)}`,
+                sql: `-- 接口: ${finalized.apiResult.endpointId}`,
+                columns: finalized.apiResult.table.columns,
+                rows: finalized.apiResult.table.rows,
+                summary: summarizeBackendApiResult(finalized.apiResult),
+              }),
+            };
+          }
+
+          await appendAssistantThreadMessage(thread.threadId, userId, answer);
+          yield {
+            type: "answer",
+            text: answer,
+            mock: finalized.mock ?? lastMock,
+          };
+          yield doneEvent(startedAt, steps, toolCalls);
+          return;
+        }
+
         if (state.finalAnswer) {
           await appendAssistantThreadMessage(thread.threadId, userId, state.finalAnswer);
           yield { type: "answer", text: state.finalAnswer, mock: lastMock };
@@ -696,9 +886,11 @@ export async function* runDfcAgentLoop(
 
   const exhausted =
     state.finalAnswer ??
-    (state.priorToolResults.length
-      ? `已达最大步数（${maxSteps}）。\n${state.priorToolResults.map((item) => `${item.tool}: ${item.output}`).join("\n")}`
-      : `已达最大步数（${maxSteps}），请缩小问题范围后重试。`);
+    (steps >= maxSteps && state.priorToolResults.length
+      ? buildAgentExhaustedAnswer(state.priorToolResults, maxSteps)
+      : state.priorToolResults.length
+        ? `已达最大步数（${maxSteps}）。\n${state.priorToolResults.map((item) => `${item.tool}: ${item.output}`).join("\n")}`
+        : `已达最大步数（${maxSteps}），请缩小问题范围后重试。`);
 
   await appendAssistantThreadMessage(thread.threadId, userId, exhausted);
   yield { type: "answer", text: exhausted, mock: lastMock };

@@ -19,23 +19,19 @@ import {
   introspectTableStats,
 } from "@/lib/analytics/db-introspection";
 import {
-  getDfcApiEndpointById,
-  loadDfcApiCatalog,
-  pickBestApiForQuestion,
-  rankApisForQuestion,
-  searchApis,
-  extractApiParams,
-} from "@/lib/analytics/api-catalog";
-import { callBackendApi } from "@/lib/analytics/backend-api-client";
-import { runAnalyticsQuery } from "@/lib/analytics/run-query";
-import {
   formatSchemaCatalogForPrompt,
   listSchemaSummary,
 } from "@/lib/analytics/schema-catalog";
+import { runAnalyticsQuery } from "@/lib/analytics/run-query";
 import { assertReadOnlySql } from "@/lib/analytics/sql-guard";
 import { sanitizeAgentSql } from "@/lib/analytics/sql-sanitize";
 import { assertAllowedDatabases } from "@/lib/security/database-allowlist";
 import { assertAllowedTables } from "@/lib/security/table-allowlist";
+import {
+  runCallBackendApiTool,
+  runRouteApiTool,
+  runSearchApiTool,
+} from "@/lib/mcp/dfc-api/agent-bridge";
 
 import type {
   AgentToolName,
@@ -292,36 +288,10 @@ export async function runAgentTool(
         throw new Error("route_api 需要 question 参数");
       }
 
-      const endpointId = readOptionalString(args, "endpointId");
-      const params = extractApiParams(question);
-      const ranked = rankApisForQuestion(question, 5);
-      const best =
-        (endpointId
-          ? ranked.find((item) => item.endpoint.id === endpointId)
-          : undefined) ?? pickBestApiForQuestion(question);
-
-      const lines = ranked.map(
-        (item) =>
-          `- [${item.endpoint.id}] score=${item.score} ${item.endpoint.title}（${item.endpoint.appCode}）｜${item.httpCallable ? "可 HTTP" : "Dubbo/SQL"}｜${item.reasons.join("；")}`,
-      );
-
-      return {
-        output: [
-          `接口路由「${question}」`,
-          `提取参数：${JSON.stringify(params)}`,
-          best
-            ? `推荐：${best.endpoint.id} — ${best.endpoint.title}（${best.httpCallable ? "尝试 call_backend_api" : "建议 SQL 回退"}）`
-            : "未命中只读接口，请直接 route_question + propose_sql",
-          "候选接口：",
-          lines.join("\n") || "- （无）",
-        ].join("\n"),
-        data: {
-          question,
-          params,
-          bestMatch: best,
-          candidates: ranked,
-        },
-      };
+      return runRouteApiTool({
+        question,
+        endpointId: readOptionalString(args, "endpointId"),
+      });
     }
     case "search_api": {
       const keyword =
@@ -332,100 +302,41 @@ export async function runAgentTool(
         throw new Error("search_api 需要 keyword 或 question 参数");
       }
 
-      const appCode = readOptionalString(args, "appCode");
-      const entity = readOptionalString(args, "entity");
-      const readOnlyOnly = readOptionalBoolean(args, "readOnlyOnly") !== false;
-      const limit = readOptionalNumber(args, "limit") ?? 15;
-
-      const matches = searchApis({
-        question: keyword,
-        appCode,
-        entity,
-        readOnlyOnly,
-        limit,
+      return runSearchApiTool({
+        keyword,
+        appCode: readOptionalString(args, "appCode"),
+        entity: readOptionalString(args, "entity"),
+        readOnlyOnly: readOptionalBoolean(args, "readOnlyOnly") !== false,
+        limit: readOptionalNumber(args, "limit") ?? 15,
       });
-
-      const stats = loadDfcApiCatalog().length;
-      const lines = matches.map(
-        (item) =>
-          `- [${item.endpoint.id}] score=${item.score} ${item.endpoint.appCode} ${item.endpoint.title}（${item.endpoint.kind}）｜${item.httpCallable ? "可 HTTP" : "Dubbo/SQL"}｜${item.reasons.join("；")}`,
-      );
-
-      return {
-        output: [
-          `接口搜索「${keyword}」全库 ${stats} 条`,
-          appCode ? `应用过滤：${appCode}` : "",
-          entity ? `实体过滤：${entity}` : "",
-          `命中 ${matches.length} 条：`,
-          lines.join("\n") || "- （无）",
-        ]
-          .filter(Boolean)
-          .join("\n"),
-        data: {
-          keyword,
-          appCode,
-          entity,
-          readOnlyOnly,
-          matches,
-        },
-      };
     }
     case "call_backend_api": {
       const endpointId = requireString(args, "endpointId", "call_backend_api");
-      const endpoint = getDfcApiEndpointById(endpointId);
-      if (!endpoint) {
-        throw new Error(`未知 endpointId：${endpointId}`);
-      }
+      const queryRaw = args.query;
+      const bodyRaw = args.body;
+      const query =
+        queryRaw && typeof queryRaw === "object" && !Array.isArray(queryRaw)
+          ? Object.fromEntries(
+              Object.entries(queryRaw as Record<string, unknown>)
+                .filter(([, v]) => v != null && String(v).trim() !== "")
+                .map(([k, v]) => [k, String(v)]),
+            )
+          : undefined;
+      const body =
+        bodyRaw && typeof bodyRaw === "object" && !Array.isArray(bodyRaw)
+          ? (bodyRaw as Record<string, unknown>)
+          : undefined;
 
-      const fromQuestion = extractApiParams(
-        readOptionalString(args, "question") || "",
-      );
-      const params = {
-        ...fromQuestion,
-        phone: readOptionalString(args, "phone") || fromQuestion.phone,
-        recordId: readOptionalString(args, "recordId") || fromQuestion.recordId,
-        shopCode:
-          readOptionalString(args, "shopCode") ||
-          fromQuestion.shopCode ||
-          process.env.DFC_API_DEFAULT_SHOP_CODE?.trim() ||
-          undefined,
-        objCode:
-          readOptionalString(args, "objCode") ||
-          fromQuestion.objCode ||
-          "customer",
-      };
-
-      const result = await callBackendApi(endpoint, params);
-
-      const tablePreview =
-        result.table && result.table.rows.length > 0
-          ? result.table.rows
-              .slice(0, 3)
-              .map((row) => JSON.stringify(row))
-              .join("\n")
-          : "";
-
-      return {
-        output: [
-          `后端接口 ${endpointId}（${endpoint.appCode}）`,
-          result.message,
-          result.request
-            ? `请求：${result.request.method} ${result.request.url}`
-            : "",
-          result.request?.query
-            ? `已自动填充参数：${JSON.stringify(result.request.query)}`
-            : "",
-          tablePreview ? `结果预览：\n${tablePreview}` : "",
-          result.suggestedSql
-            ? `建议立即 propose_sql（勿向用户索参）：\n${result.suggestedSql}`
-            : result.status !== "success" && result.sqlFallback
-              ? `SQL 回退：\`${result.sqlFallback.database}.${result.sqlFallback.table}\` ${result.sqlFallback.hint}`
-              : "",
-        ]
-          .filter(Boolean)
-          .join("\n"),
-        data: result,
-      };
+      return runCallBackendApiTool({
+        endpointId,
+        question: readOptionalString(args, "question"),
+        phone: readOptionalString(args, "phone"),
+        recordId: readOptionalString(args, "recordId"),
+        shopCode: readOptionalString(args, "shopCode"),
+        objCode: readOptionalString(args, "objCode"),
+        query,
+        body,
+      });
     }
     case "route_question": {
       const question =

@@ -39,13 +39,13 @@ ${formatBusinessGlossaryForPrompt(question)}
 
 禁止在无问题语义支撑时默认使用 matador；语义不明确时先 route_api / search_api / route_question / search_schema(acrossDatabases)。
 
-## 接口优先（明细查询）
-大风车后端已有 Dubbo/HTTP 服务封装了业务查询逻辑（权限、门店上下文、字段口径）。**单条/明细类问题**（如按手机号查客户、查用户、查会员）必须：
-1. 先 route_api(question) 匹配 api-catalog
-2. 若命中只读 HTTP 且参数齐全 → call_backend_api(endpointId, phone, recordId, objCode)
+## 接口优先（明细查询，必须经 MCP 中间件）
+大风车 HTTP/接口目录调用路径固定为：你规划工具 → route_api / search_api / call_backend_api → **MCP 中间件** → 大风车 Java HTTP（第一期 Dubbo 仅可检索，不可直连）。禁止假设可绕过 MCP 直连后端。
+1. 先 route_api(question)（经 MCP dfc_route_api）匹配 api-catalog
+2. 若命中只读 HTTP 且参数齐全 → call_backend_api（经 MCP dfc_call_http_api；参数 phone/recordId/objCode）
 3. 仅当：无匹配接口、Dubbo-only、HTTP 未配置 DFC_API_ENABLED、或调用失败 → 再走 route_question → propose_sql
 4. **聚合统计**（COUNT/GROUP BY/趋势/分布）无对应 HTTP 时直接 SQL，不必 call_backend_api
-5. 「客户 id / recordId」查明细：调用 queryRecordDetail，参数仅需 recordId + objCode=customer（**仅 HTTP 参数，禁止写入 SQL**）；SQL 回退用 WHERE id = ?。门店上下文由登录 SSO 提供。**禁止向用户索取 shop_code**。
+5. 「客户 id / recordId」查明细：优先 MCP 调用 crmQueryCustomerInfo（仅需 recordId，对齐 H5）；旧接口 queryRecordDetail 需 recordId + objCode=customer（**仅 HTTP 参数，禁止写入 SQL**）；SQL 回退用 WHERE id = ?。门店上下文由登录 SSO 提供。**禁止向用户索取 shop_code**。
 6. 若 call_backend_api 返回 failureKind=network/not_configured/http，或输出含 suggestedSql：**立刻 propose_sql(suggestedSql)**，不要再追问用户补参数，也不要因为 503/upstream 误判为缺参。
 7. **objCode、recordId 不是数据库列**；生成 SQL 时 CRM 客户表用 id，禁止 AND objCode = 'customer'。
 

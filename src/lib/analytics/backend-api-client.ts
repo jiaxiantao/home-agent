@@ -7,6 +7,7 @@ export type BackendApiFailureKind =
   | "not_configured"
   | "network"
   | "http"
+  | "auth"
   | "skipped";
 
 export type BackendApiCallResult = {
@@ -94,9 +95,63 @@ function isNetworkFailure(status: number, bodyText: string) {
   );
 }
 
+function looksLikeHtmlLoginPage(text: string) {
+  return /<!DOCTYPE html|<html[\s>]|sso\.(?:souche\.com|dasouche\.net)\/login|login\.htm/i.test(
+    text,
+  );
+}
+
+function isAuthRedirect(status: number, location: string | null) {
+  if (![301, 302, 303, 307, 308].includes(status)) return false;
+  if (!location) return true;
+  return /sso\.(?:souche\.com|dasouche\.net)|login\.htm|\/login/i.test(location);
+}
+
+function needsWebSourceCode(appCode: string) {
+  return /^(super-mario|danube-chord|chord|rich-man|glorious-mission|crazyracing-kartrider|danube-chaos|chaos)$/i.test(
+    appCode,
+  );
+}
+
+function applySsoHeaders(
+  headers: Record<string, string>,
+  sso: { token: string; tokenHeader: string; cookieHeader?: string },
+) {
+  // 对齐 mars_web_business（Souche-Security-Token）与 H5（souche-security-token）
+  headers["Souche-Security-Token"] = sso.token;
+  headers["souche-security-token"] = sso.token;
+  headers[sso.tokenHeader] = sso.token;
+  headers.Cookie =
+    sso.cookieHeader?.trim() || `_security_token=${sso.token}`;
+}
+
+function isBusinessAuthFailure(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  const record = payload as Record<string, unknown>;
+  const code = record.code ?? record.errorCode ?? record.errno;
+  if (code == null) return false;
+  const normalized = String(code);
+  return (
+    normalized === "10001" ||
+    normalized === "401" ||
+    normalized === "UNAUTHORIZED" ||
+    /登录超时|未登录|请重新登录/i.test(String(record.msg ?? record.message ?? ""))
+  );
+}
+
+export type CallBackendApiOptions = {
+  /** catalog 无 template 时的通用 query 透传 */
+  extraQuery?: Record<string, string>;
+  /** catalog 无 template 时的通用 JSON body 透传（仅 POST） */
+  extraBody?: Record<string, unknown>;
+  /** 覆盖 DFC_API_SERVICE_CHAIN（MCP 透传） */
+  serviceChain?: string;
+};
+
 function buildRequest(
   endpoint: DfcApiEndpoint,
   params: ApiRouteParams,
+  options?: CallBackendApiOptions,
 ): { url: string; method: string; query?: Record<string, string>; body?: unknown } | null {
   if (!endpoint.http) {
     return null;
@@ -122,6 +177,14 @@ function buildRequest(
     }
   }
 
+  if (options?.extraQuery) {
+    for (const [queryKey, value] of Object.entries(options.extraQuery)) {
+      if (value == null || value === "") continue;
+      url.searchParams.set(queryKey, String(value));
+      query[queryKey] = String(value);
+    }
+  }
+
   let body: unknown;
   if (endpoint.http.bodyTemplate) {
     body = JSON.parse(
@@ -130,6 +193,8 @@ function buildRequest(
         (_, key: string) => String(params[key as keyof ApiRouteParams] ?? ""),
       ),
     );
+  } else if (options?.extraBody && endpoint.http.method === "POST") {
+    body = options.extraBody;
   }
 
   return {
@@ -191,6 +256,7 @@ function withSqlFallback(
 export async function callBackendApi(
   endpoint: DfcApiEndpoint,
   params: ApiRouteParams,
+  options?: CallBackendApiOptions,
 ): Promise<BackendApiCallResult> {
   const sqlFallback = endpoint.sqlFallback;
 
@@ -224,7 +290,7 @@ export async function callBackendApi(
     );
   }
 
-  const request = buildRequest(endpoint, params);
+  const request = buildRequest(endpoint, params, options);
   if (!request) {
     return withSqlFallback(
       {
@@ -299,18 +365,40 @@ export async function callBackendApi(
 
   const sso = getSsoRequestContext() ?? getDevSsoCredentials();
   if (sso) {
-    headers[sso.tokenHeader] = sso.token;
-    if (sso.cookieHeader) {
-      headers.Cookie = sso.cookieHeader;
-    }
+    applySsoHeaders(headers, sso);
   } else {
     const token = process.env.DFC_API_AUTH_TOKEN?.trim();
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+    } else {
+      return withSqlFallback(
+        {
+          status: "error",
+          failureKind: "auth",
+          endpointId: endpoint.id,
+          appCode: endpoint.appCode,
+          request: {
+            method: request.method,
+            url: request.url,
+            query: request.query,
+            body: request.body,
+          },
+          message:
+            "缺少大风车 SSO：请在侧栏「同步大风车登录」写入 _security_token，或配置 DFC_API_DEV_SSO_TOKEN 后再经 MCP 调用 HTTP。参数已齐全，也可 propose_sql 使用 suggestedSql。",
+          sqlFallback,
+        },
+        endpoint,
+        params,
+      );
     }
   }
 
-  const serviceChain = process.env.DFC_API_SERVICE_CHAIN?.trim();
+  if (needsWebSourceCode(endpoint.appCode)) {
+    headers._source_code = "WEB";
+  }
+
+  const serviceChain =
+    options?.serviceChain?.trim() || process.env.DFC_API_SERVICE_CHAIN?.trim();
   if (serviceChain) {
     headers["X-Souche-ServiceChain"] = serviceChain;
   }
@@ -321,13 +409,38 @@ export async function callBackendApi(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+    // 不自动跟随 SSO 登录页重定向，否则会误把 HTML 当成 200 成功
     const response = await fetch(request.url, {
       method: request.method,
       headers,
       body: request.body ? JSON.stringify(request.body) : undefined,
       signal: controller.signal,
+      redirect: "manual",
     });
     clearTimeout(timer);
+
+    const location = response.headers.get("location");
+    if (isAuthRedirect(response.status, location)) {
+      return withSqlFallback(
+        {
+          status: "error",
+          failureKind: "auth",
+          endpointId: endpoint.id,
+          appCode: endpoint.appCode,
+          request: {
+            method: request.method,
+            url: request.url,
+            query: request.query,
+            body: request.body,
+          },
+          message:
+            "大风车 HTTP 返回 SSO 登录跳转：当前 token 无效或未登录。请侧栏重新同步大风车登录 / 更新 DFC_API_DEV_SSO_TOKEN 后重试 MCP 调用。",
+          sqlFallback,
+        },
+        endpoint,
+        params,
+      );
+    }
 
     const text = await response.text();
     let payload: unknown = text;
@@ -335,6 +448,58 @@ export async function callBackendApi(
       payload = JSON.parse(text);
     } catch {
       // keep text
+    }
+
+    if (response.ok && typeof payload === "string" && looksLikeHtmlLoginPage(payload)) {
+      return withSqlFallback(
+        {
+          status: "error",
+          failureKind: "auth",
+          endpointId: endpoint.id,
+          appCode: endpoint.appCode,
+          request: {
+            method: request.method,
+            url: request.url,
+            query: request.query,
+            body: request.body,
+          },
+          message:
+            "大风车 HTTP 返回登录页 HTML（非 JSON）：SSO 未生效。请同步大风车登录后再经 MCP 调用。",
+          sqlFallback,
+        },
+        endpoint,
+        params,
+      );
+    }
+
+    if (response.ok && isBusinessAuthFailure(payload)) {
+      const msg =
+        payload && typeof payload === "object"
+          ? String(
+              (payload as Record<string, unknown>).msg ??
+                (payload as Record<string, unknown>).message ??
+                "登录超时",
+            )
+          : "登录超时";
+      return withSqlFallback(
+        {
+          status: "error",
+          failureKind: "auth",
+          endpointId: endpoint.id,
+          appCode: endpoint.appCode,
+          request: {
+            method: request.method,
+            url: request.url,
+            query: request.query,
+            body: request.body,
+          },
+          response: payload,
+          message: `大风车业务鉴权失败（${msg}）。请侧栏重新同步测试环境 SSO / 更新 DFC_API_DEV_SSO_TOKEN 后重试。`,
+          sqlFallback,
+        },
+        endpoint,
+        params,
+      );
     }
 
     if (!response.ok) {
@@ -357,7 +522,7 @@ export async function callBackendApi(
           },
           response: payload,
           message: network
-            ? `HTTP ${response.status} 服务不可达（网关 upstream 失败）。请求参数已齐全（见 URL query），不是缺参。请立即 propose_sql 使用 suggestedSql，禁止向用户索取 shop_code。`
+            ? `HTTP ${response.status} 服务不可达（网关 upstream 失败）。请求参数已齐全（见 URL query），不是缺参。请检查：① 是否已连公司 VPN/内网；② 测试环境 ${endpoint.baseUrlEnvKey} 是否与前端一致（CRM：http://super-mario.stable.dasouche.net；勿用线上 *.souche.com；裸 super-mario.dasouche.net 常 503）；③ 侧栏是否已同步大风车 SSO。然后立即 propose_sql 使用 suggestedSql，禁止向用户索取 shop_code。`
             : `HTTP ${response.status}：${bodyPreview || "请求失败"}。请 propose_sql 回退，勿向用户索取额外参数。`,
           sqlFallback,
         },

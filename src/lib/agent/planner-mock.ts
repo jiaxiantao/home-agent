@@ -11,6 +11,7 @@ import {
   isApiFirstQuestion,
 } from "@/lib/analytics/api-catalog";
 import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
+import { formatBackendApiAnswer } from "@/lib/agent/answer-format";
 import { userRequestedChart } from "@/lib/agent/chart-intent";
 import { PRODUCT_NAME_ZH } from "@/lib/product";
 
@@ -431,7 +432,7 @@ export function buildMockPlan(
     if (apiResult?.status === "success" && apiResult.table?.rows.length) {
       return {
         action: "answer",
-        answer: `已通过后端接口 \`${apiResult.endpointId}\` 查询到 ${apiResult.table.rows.length} 条记录。\n${JSON.stringify(apiResult.table.rows.slice(0, 5), null, 2)}`,
+        answer: formatBackendApiAnswer(apiResult),
         reasoning: "HTTP 接口返回成功，直接汇总答案",
       };
     }
@@ -448,7 +449,10 @@ export function buildMockPlan(
         tool: "propose_sql",
         args: {
           sql: apiResult.suggestedSql,
-          explanation: `HTTP 调用失败（${apiResult.failureKind ?? apiResult.status}），参数已齐全，自动 SQL 回退`,
+          explanation:
+            apiResult.failureKind === "auth"
+              ? "HTTP 需大风车 SSO（侧栏同步登录 / DFC_API_DEV_SSO_TOKEN）；参数已齐全，暂以 SQL 回退"
+              : `HTTP 调用失败（${apiResult.failureKind ?? apiResult.status}），参数已齐全，自动 SQL 回退`,
         },
         reasoning:
           "call_backend_api 失败且已有 suggestedSql：立即 propose_sql，禁止向用户索取 shop_code",

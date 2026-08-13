@@ -1,15 +1,56 @@
 {
-  "comment": "高优先级接口人工增强：SQL 回退、参数映射、额外 matchPatterns",
+  "comment": "对齐 dafengche-project / super-mario 真实调用：测试 host=*.stable.dasouche.net；客户详情优先 crmQueryCustomerInfo；路径带 /v1 与 .json",
   "overrides": [
+    {
+      "endpoint": {
+        "id": "super-mario:http:GET:/v1/customerAction/crmQueryCustomerInfo.json:crmQueryCustomerInfo",
+        "appCode": "super-mario",
+        "repo": "gourd/super-mario",
+        "entity": "crm_customer",
+        "kind": "http",
+        "method": "GET",
+        "path": "/v1/customerAction/crmQueryCustomerInfo.json",
+        "title": "CRM 客户详情（当前 H5 主接口 recordId）",
+        "description": "web-app-mars-h5-customer detailNew：crmQueryCustomerInfo",
+        "readOnly": true,
+        "preferOverSql": true,
+        "keywords": [
+          "crmQueryCustomerInfo",
+          "customerAction",
+          "客户详情",
+          "recordId",
+          "客户id"
+        ],
+        "methodName": "crmQueryCustomerInfo",
+        "className": "CustomerAction",
+        "baseUrlEnvKey": "DFC_API_SUPER_MARIO_BASE_URL",
+        "http": {
+          "method": "GET",
+          "path": "/v1/customerAction/crmQueryCustomerInfo.json",
+          "queryParams": { "recordId": "recordId" }
+        },
+        "sqlFallback": {
+          "database": "super_mario",
+          "table": "customer",
+          "hint": "WHERE id = ? LIMIT 20（门店由登录态限定；勿向用户索取 shop_code）"
+        },
+        "matchPatterns": [
+          "客户\\s*id",
+          "客户.*(?:id|ID).*(?:信息|资料|详情)",
+          "recordId.*客户",
+          "crmQueryCustomerInfo"
+        ]
+      }
+    },
     {
       "id": "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
       "patch": {
         "preferOverSql": true,
         "title": "CRM 客户详情（手机/微信联系方式）",
-        "path": "/customerAction/queryCustomerDetailsByContact",
+        "path": "/v1/customerAction/queryCustomerDetailsByContact.json",
         "http": {
           "method": "GET",
-          "path": "/customerAction/queryCustomerDetailsByContact",
+          "path": "/v1/customerAction/queryCustomerDetailsByContact.json",
           "queryParams": { "contact": "phone" }
         },
         "sqlFallback": {
@@ -28,11 +69,11 @@
       "id": "super-mario:http:GET:/customer/customerDetail/queryRecordDetail:queryRecordDetail",
       "patch": {
         "preferOverSql": true,
-        "title": "CRM 客户详情（客户 recordId）",
+        "title": "CRM 客户详情布局（recordId+objCode，RN/PC 旧接口）",
         "entity": "crm_customer",
         "http": {
           "method": "GET",
-          "path": "/customer/customerDetail/queryRecordDetail",
+          "path": "/v1/customer/customerDetail/queryRecordDetail.json",
           "queryParams": { "recordId": "recordId", "objCode": "objCode" }
         },
         "sqlFallback": {
@@ -41,11 +82,26 @@
           "hint": "WHERE id = ? LIMIT 20（objCode 仅 HTTP 参数，禁止写入 SQL；勿向用户索取 shop_code）"
         },
         "matchPatterns": [
-          "客户\\s*id",
-          "客户.*(?:id|ID).*(?:信息|资料|详情)",
-          "recordId.*客户",
-          "queryRecordDetail"
+          "queryRecordDetail",
+          "客户详情布局"
         ]
+      }
+    },
+    {
+      "id": "super-mario:http:GET:/v1/customer/customerDetail/queryRecordDetail:queryRecordDetail",
+      "patch": {
+        "preferOverSql": true,
+        "entity": "crm_customer",
+        "http": {
+          "method": "GET",
+          "path": "/v1/customer/customerDetail/queryRecordDetail.json",
+          "queryParams": { "recordId": "recordId", "objCode": "objCode" }
+        },
+        "sqlFallback": {
+          "database": "super_mario",
+          "table": "customer",
+          "hint": "WHERE id = ? LIMIT 20"
+        }
       }
     },
     {
@@ -54,7 +110,7 @@
         "preferOverSql": true,
         "http": {
           "method": "GET",
-          "path": "/customer/customerDetail/getCustomerIdByPhone",
+          "path": "/v1/customer/customerDetail/getCustomerIdByPhone.json",
           "queryParams": { "phone": "phone" }
         },
         "sqlFallback": {

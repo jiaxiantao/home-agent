@@ -239,6 +239,13 @@ export function pickBestApiForQuestion(question: string): ApiRouteMatch | undefi
   if (!top || top.score < 4) return undefined;
 
   if (params.recordId) {
+    const crmInfo = ranked.find(
+      (item) =>
+        item.endpoint.methodName === "crmQueryCustomerInfo" ||
+        item.endpoint.http?.path?.includes("crmQueryCustomerInfo"),
+    );
+    if (crmInfo) return crmInfo;
+
     const byRecordId = ranked.find(
       (item) => item.endpoint.http?.queryParams?.recordId === "recordId",
     );

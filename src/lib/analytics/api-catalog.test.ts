@@ -26,10 +26,11 @@ describe("api-catalog", () => {
     expect(best?.endpoint.entity).toBe("cheniu_user");
   });
 
-  it("prefers CRM queryRecordDetail for customer recordId", () => {
+  it("prefers CRM crmQueryCustomerInfo for customer recordId", () => {
     const q = "我想知道客户 id 为 ANWbnMyLF0 的客户信息";
     const best = pickBestApiForQuestion(q);
-    expect(best?.endpoint.methodName).toBe("queryRecordDetail");
+    expect(best?.endpoint.methodName).toBe("crmQueryCustomerInfo");
+    expect(best?.endpoint.http?.path).toContain("crmQueryCustomerInfo");
     expect(best?.extractedParams.recordId).toBe("ANWbnMyLF0");
     expect(isApiFirstQuestion(q)).toBe(true);
   });

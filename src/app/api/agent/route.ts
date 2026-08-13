@@ -123,6 +123,7 @@ export async function POST(request: Request) {
                       resume: body.resume,
                       audit,
                       threadId: body.threadId,
+                      sso: ssoCredentials,
                     },
                   )) {
                     send(trace.type, trace);

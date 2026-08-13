@@ -1,24 +1,20 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { A2UISurface } from "@/lib/a2ui/types";
-import type {
-  AgentPlan,
-  AgentResumeAction,
-  AgentToolName,
-  AgentTraceEvent,
-} from "@/lib/agent/types";
+import type { AgentPlan, AgentResumeAction, AgentToolName, AgentTraceEvent } from "@/lib/agent/types";
+import { formatAgentPlanTitle, getAgentToolLabel } from "@/lib/agent/tool-labels";
 import {
   createHistoryEntry,
   updateQueryHistory,
   type QueryHistoryEntry,
 } from "@/lib/history/query-history";
-import type { LlmProvider } from "@/lib/llm-config";
 import {
   getStoredLlmProvider,
   storeLlmProvider,
 } from "@/lib/llm-provider-preference";
+import { resolveDefaultLlmProvider, type LlmProvider } from "@/lib/llm-providers-catalog";
 import { parseSseBlock } from "@/lib/sse";
 import { PRODUCT_SLUG } from "@/lib/product";
 
@@ -94,10 +90,14 @@ function storeThreadId(threadId: string) {
 
 function formatPlan(plan: AgentPlan) {
   if (plan.action === "tool") {
-    return `调用 ${plan.tool} · ${plan.reasoning || "执行工具步骤"}`;
+    return formatAgentPlanTitle({
+      action: "tool",
+      tool: plan.tool,
+      reasoning: plan.reasoning,
+    });
   }
 
-  return `直接回答 · ${plan.reasoning || "生成最终回答"}`;
+  return "整理结论";
 }
 
 function formatToolResult(tool: AgentToolName, output: string) {
@@ -249,15 +249,20 @@ export function useAgentStream() {
   const [stats, setStats] = useState<AgentRunStats | null>(null);
   const [surfaces, setSurfaces] = useState<A2UISurface[]>([]);
   const [pendingRunId, setPendingRunId] = useState<string | null>(null);
-  const [threadId, setThreadId] = useState<string | undefined>(getStoredThreadId);
+  const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [llmProvider, setLlmProviderState] = useState<LlmProvider>(
-    () => getStoredLlmProvider(),
+    resolveDefaultLlmProvider(),
   );
   const setLlmProvider = useCallback((provider: LlmProvider) => {
     setLlmProviderState(provider);
     storeLlmProvider(provider);
+  }, []);
+
+  useEffect(() => {
+    setThreadId(getStoredThreadId());
+    setLlmProviderState(getStoredLlmProvider());
   }, []);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -401,7 +406,7 @@ export function useAgentStream() {
         appendTurnStep({
           id: crypto.randomUUID(),
           kind: "tool",
-          title: `调用 ${payload.tool}`,
+          title: getAgentToolLabel(payload.tool),
           detail: JSON.stringify(payload.args, null, 2),
           status: "running",
           tool: payload.tool,
@@ -411,13 +416,13 @@ export function useAgentStream() {
           (step) => step.kind === "tool" && step.tool === payload.tool,
           {
             status: "done",
-            title: `已完成 ${payload.tool}`,
+            title: `${getAgentToolLabel(payload.tool)} 完成`,
           },
         );
         appendTurnStep({
           id: crypto.randomUUID(),
           kind: "result",
-          title: `${payload.tool} 结果`,
+          title: `${getAgentToolLabel(payload.tool)} 结果`,
           detail: formatToolResult(payload.tool, payload.output),
           status: "done",
           tool: payload.tool,

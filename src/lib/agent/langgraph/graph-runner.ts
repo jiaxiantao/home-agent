@@ -3,12 +3,17 @@ import { AIMessage, ToolMessage } from "@langchain/core/messages";
 
 import type { DfcAgentStateType } from "@/lib/agent/langgraph/state";
 import { createLangChainTools, toolResultToPrior } from "@/lib/agent/langgraph/tools";
+import { runWithSsoRequestContext } from "@/lib/security/sso-context";
+import type { SsoCredentials } from "@/lib/security/sso-credentials";
 
-export function createToolsNodeHandler() {
+export function createToolsNodeHandler(sso?: SsoCredentials | null) {
   const toolNode = new ToolNode(createLangChainTools());
 
   return async (state: DfcAgentStateType): Promise<Partial<DfcAgentStateType>> => {
-    const result = await toolNode.invoke(state);
+    const invoke = async () => toolNode.invoke(state);
+    const result = sso
+      ? await runWithSsoRequestContext(sso, invoke)
+      : await invoke();
     const newMessages = (result.messages ?? []) as DfcAgentStateType["messages"];
     const priorAdds: DfcAgentStateType["priorToolResults"] = [];
 
