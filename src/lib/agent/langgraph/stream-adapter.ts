@@ -53,6 +53,17 @@ export function planStreamEvent(input: {
   };
 }
 
+export function answerStreamEvent(input: {
+  text: string;
+  delta: string;
+}): AgentTraceEvent {
+  return {
+    type: "answer_stream",
+    text: input.text,
+    delta: input.delta,
+  };
+}
+
 export function stepMetricEvent(input: {
   step: number;
   planMs: number;

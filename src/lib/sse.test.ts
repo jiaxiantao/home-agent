@@ -31,4 +31,15 @@ describe("sse", () => {
     expect(parseSseBlock(blocks[0]!)?.payload).toMatchObject({ phase: "start" });
     expect(parseSseBlock(blocks[1]!)?.payload).toMatchObject({ type: "plan_stream" });
   });
+
+  it("round-trips answer_stream events", () => {
+    const payload = {
+      type: "answer_stream",
+      text: "根据查询结果",
+      delta: "根据",
+    } as const;
+    const parsed = parseSseBlock(encodeSseEvent("answer_stream", payload).trim());
+    expect(parsed?.event).toBe("answer_stream");
+    expect(parsed?.payload).toEqual(payload);
+  });
 });

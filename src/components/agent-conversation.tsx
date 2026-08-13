@@ -136,7 +136,10 @@ export function AgentConversation({
                 ))}
 
                 {turn.finalAnswer ? (
-                  <AgentFinalAnswer text={turn.finalAnswer} running={false} />
+                  <AgentFinalAnswer
+                    text={turn.finalAnswer}
+                    running={Boolean(turnRunning && turn.answerStreaming)}
+                  />
                 ) : null}
               </div>
             </div>

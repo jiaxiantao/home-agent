@@ -70,6 +70,8 @@ export type ConversationTurn = {
   steps: AgentActivityStep[];
   /** LLM 规划流式输出（进行中） */
   planStreamText?: string;
+  /** 最终结论正在流式输出 */
+  answerStreaming?: boolean;
 };
 
 
@@ -126,6 +128,7 @@ function traceLineFromEvent(payload: AgentTraceEvent): AgentTraceLine | null {
         text: `[planner] ${payload.label ?? (payload.mock ? "规则模式" : "LLM")}`,
       };
     case "plan_stream":
+    case "answer_stream":
       return null;
     case "tool_call":
       return {
@@ -164,7 +167,11 @@ function phaseFromEvent(payload: AgentTraceEvent): AgentPhase | null {
       if (payload.phase === "plan") {
         return "planning";
       }
-      if (payload.phase === "limit" || payload.phase === "resume") {
+      if (
+        payload.phase === "answer" ||
+        payload.phase === "limit" ||
+        payload.phase === "resume"
+      ) {
         return "answering";
       }
       return null;
@@ -172,6 +179,8 @@ function phaseFromEvent(payload: AgentTraceEvent): AgentPhase | null {
       return "planning";
     case "plan_stream":
       return "planning";
+    case "answer_stream":
+      return "answering";
     case "tool_call":
       return "tool";
     case "awaiting_input":
@@ -467,6 +476,14 @@ export function useAgentStream() {
           status: "done",
           tool: payload.tool,
         });
+      } else if (payload.type === "answer_stream") {
+        setFinalAnswer(payload.text);
+        updateTurn({
+          planStreamText: undefined,
+          finalAnswer: payload.text,
+          answerStreaming: true,
+          status: "running",
+        });
       } else if (payload.type === "answer") {
         setFinalAnswer(payload.text);
         setIsMock(Boolean(payload.mock));
@@ -474,6 +491,7 @@ export function useAgentStream() {
           finalAnswer: payload.text,
           followUps: payload.followUps?.length ? payload.followUps : undefined,
           isMock: Boolean(payload.mock),
+          answerStreaming: false,
           status: "done",
         });
 

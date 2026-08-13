@@ -100,6 +100,13 @@ export type AgentTraceEvent =
       sql: string;
       explanation: string;
     }
+  | {
+      type: "answer_stream";
+      /** 累积文本 */
+      text: string;
+      /** 本次增量 */
+      delta: string;
+    }
   | { type: "answer"; text: string; mock?: boolean; followUps?: string[] }
   | { type: "thread"; threadId: string }
   | { type: "planner_mode"; mock: boolean; label?: string }

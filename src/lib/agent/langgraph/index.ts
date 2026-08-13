@@ -27,9 +27,13 @@ import {
   streamRoutePlannerNode,
   shouldUseTools,
 } from "@/lib/agent/langgraph/nodes/plan-or-act";
-import { synthesizeAnswerAfterQuery } from "@/lib/agent/langgraph/nodes/finalize";
+import {
+  streamSynthesizeAnswerAfterQuery,
+  type SynthesizedAnswer,
+} from "@/lib/agent/langgraph/nodes/finalize";
 import { suggestFollowUpQuestions } from "@/lib/agent/follow-ups";
 import {
+  answerStreamEvent,
   doneEvent,
   emitTerminalError,
   planStreamEvent,
@@ -177,22 +181,64 @@ function answerEvent(input: {
   };
 }
 
-async function buildFinalAnswerFromState(input: {
+async function* emitAnswerStream(input: {
+  message: string;
+  prior: AgentToolResult[];
+  conversation: ThreadTurn[];
+  summary: string;
+}): AsyncGenerator<AgentTraceEvent, SynthesizedAnswer> {
+  let streamed = "";
+  let result: SynthesizedAnswer = { text: "", mock: true, followUps: [] };
+
+  async function* source() {
+    for await (const event of streamSynthesizeAnswerAfterQuery(input)) {
+      yield event;
+    }
+  }
+
+  for await (const item of withIdleHeartbeat(
+    source(),
+    STREAM_HEARTBEAT_MS,
+    () => ({
+      kind: "delta" as const,
+      text: streamed || "正在整理结论…",
+      delta: "",
+    }),
+  )) {
+    if (item.kind === "delta") {
+      streamed = item.text || streamed;
+      yield answerStreamEvent({ text: streamed, delta: item.delta });
+      continue;
+    }
+    result = {
+      text: item.text,
+      mock: item.mock,
+      followUps: item.followUps,
+    };
+  }
+
+  return result;
+}
+
+async function* streamFinalAnswerFromState(input: {
   state: DfcAgentStateType;
   message: string;
   conversation: ThreadTurn[];
   fallback: string;
-}): Promise<{
-  answer: string;
-  mock?: boolean;
-  followUps: string[];
-  apiResult?: BackendApiCallResult;
-  sqlResult?: ExecuteSqlData;
-}> {
+}): AsyncGenerator<
+  AgentTraceEvent,
+  {
+    answer: string;
+    mock?: boolean;
+    followUps: string[];
+    apiResult?: BackendApiCallResult;
+    sqlResult?: ExecuteSqlData;
+  }
+> {
   const apiResult = findBackendApiResult(input.state.priorToolResults);
   if (apiResult?.status === "success" && apiResult.table?.rows.length) {
     const summary = summarizeBackendApiResult(apiResult);
-    const synthesized = await synthesizeAnswerAfterQuery({
+    const synthesized = yield* emitAnswerStream({
       message: input.message,
       prior: input.state.priorToolResults,
       conversation: input.conversation,
@@ -209,7 +255,7 @@ async function buildFinalAnswerFromState(input: {
   const sqlResult = findExecuteSqlResult(input.state.priorToolResults);
   if (sqlResult) {
     const summary = summarizeSqlResult(sqlResult);
-    const synthesized = await synthesizeAnswerAfterQuery({
+    const synthesized = yield* emitAnswerStream({
       message: input.message,
       prior: input.state.priorToolResults,
       conversation: input.conversation,
@@ -229,6 +275,10 @@ async function buildFinalAnswerFromState(input: {
     input.conversation,
   );
   if (mockPlan.action === "answer" && mockPlan.answer.trim()) {
+    yield answerStreamEvent({
+      text: mockPlan.answer,
+      delta: mockPlan.answer,
+    });
     return withFollowUps({
       message: input.message,
       answer: mockPlan.answer,
@@ -237,6 +287,10 @@ async function buildFinalAnswerFromState(input: {
     });
   }
 
+  yield answerStreamEvent({
+    text: input.fallback,
+    delta: input.fallback,
+  });
   return withFollowUps({
     message: input.message,
     answer: input.fallback,
@@ -494,7 +548,7 @@ async function* resumeConfirmedSql(
 
     yield { type: "trace", phase: "answer", message: "基于查询结果合成最终回答" };
 
-    const synthesized = await synthesizeAnswerAfterQuery({
+    const synthesized = yield* emitAnswerStream({
       message: pending.message,
       prior,
       conversation: pending.threadId && pending.userId
@@ -796,26 +850,27 @@ export async function* runDfcAgentLoop(
       yield { type: "trace", phase: "answer", message: "整理最终回答" };
 
       const fallback = resolveTerminalAnswer(state);
-      const finalized = await buildFinalAnswerFromState({
+      const apiPreview = findBackendApiResult(state.priorToolResults);
+      if (apiPreview?.status === "success" && apiPreview.table) {
+        yield {
+          type: "a2ui",
+          surface: buildQueryResultSurface({
+            surfaceId: `api_${Date.now().toString(36)}`,
+            sql: `-- 接口: ${apiPreview.endpointId}`,
+            columns: apiPreview.table.columns,
+            rows: apiPreview.table.rows,
+            summary: summarizeBackendApiResult(apiPreview),
+          }),
+        };
+      }
+
+      const finalized = yield* streamFinalAnswerFromState({
         state,
         message,
         conversation,
         fallback,
       });
       const answer = finalized.answer;
-
-      if (finalized.apiResult?.table) {
-        yield {
-          type: "a2ui",
-          surface: buildQueryResultSurface({
-            surfaceId: `api_${Date.now().toString(36)}`,
-            sql: `-- 接口: ${finalized.apiResult.endpointId}`,
-            columns: finalized.apiResult.table.columns,
-            rows: finalized.apiResult.table.rows,
-            summary: summarizeBackendApiResult(finalized.apiResult),
-          }),
-        };
-      }
 
       yield {
         type: "plan",
@@ -1001,26 +1056,27 @@ export async function* runDfcAgentLoop(
           Boolean(findExecuteSqlResult(state.priorToolResults));
 
         if (state.finalAnswer && hasQueryableResults) {
-          const finalized = await buildFinalAnswerFromState({
+          const apiPreview = findBackendApiResult(state.priorToolResults);
+          if (apiPreview?.status === "success" && apiPreview.table) {
+            yield {
+              type: "a2ui",
+              surface: buildQueryResultSurface({
+                surfaceId: `api_${Date.now().toString(36)}`,
+                sql: `-- 接口: ${apiPreview.endpointId}`,
+                columns: apiPreview.table.columns,
+                rows: apiPreview.table.rows,
+                summary: summarizeBackendApiResult(apiPreview),
+              }),
+            };
+          }
+
+          const finalized = yield* streamFinalAnswerFromState({
             state,
             message,
             conversation,
             fallback: state.finalAnswer,
           });
           const answer = finalized.answer;
-
-          if (finalized.apiResult?.table) {
-            yield {
-              type: "a2ui",
-              surface: buildQueryResultSurface({
-                surfaceId: `api_${Date.now().toString(36)}`,
-                sql: `-- 接口: ${finalized.apiResult.endpointId}`,
-                columns: finalized.apiResult.table.columns,
-                rows: finalized.apiResult.table.rows,
-                summary: summarizeBackendApiResult(finalized.apiResult),
-              }),
-            };
-          }
 
           await appendAssistantThreadMessage(thread.threadId, userId, answer);
           yield answerEvent({
