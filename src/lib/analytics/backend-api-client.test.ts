@@ -32,6 +32,15 @@ describe("buildSuggestedSqlForEndpoint", () => {
     expect(sql).toContain("ANwbnMyLF0");
     expect(sql).not.toMatch(/shop_code\s*=/);
   });
+
+  it("builds customer-by-phone sql matching phone/backup/wechat", () => {
+    const sql = buildSuggestedSqlForEndpoint(endpoint, {
+      phone: "13166990795",
+    });
+    expect(sql).toContain("13166990795");
+    expect(sql).toMatch(/phone\s*=/);
+    expect(sql).toMatch(/weichat\s*=/);
+  });
 });
 
 describe("buildDfcUpstreamSsoHeaders", () => {

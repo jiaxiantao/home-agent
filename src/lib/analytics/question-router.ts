@@ -27,6 +27,13 @@ export const questionRouteRules: RouteKeywordRule[] = [
     reason: "车牛/大风车用户信息语义",
   },
   {
+    pattern: /客户.*(?:手机|电话|微信)|(?:手机|电话|微信).*客户/,
+    databases: ["super_mario"],
+    searchTerms: ["customer", "phone", "weichat", "crm"],
+    suggestedTables: [{ database: "super_mario", table: "customer" }],
+    reason: "CRM 客户按手机号/微信号查询",
+  },
+  {
     pattern: /crm|客户档案|客户管理|跟进记录|客户关怀|门店客户|super.?mario/i,
     databases: ["super_mario"],
     searchTerms: ["customer", "follow", "care", "crm"],

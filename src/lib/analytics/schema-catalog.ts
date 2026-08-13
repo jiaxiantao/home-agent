@@ -169,6 +169,8 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
       { name: "owner", type: "varchar(20)", description: "负责人" },
       { name: "shop_code", type: "varchar(50)", description: "门店 lookup" },
       { name: "phone", type: "varchar(100)", description: "手机号" },
+      { name: "phone_backup", type: "varchar(100)", description: "备用手机号" },
+      { name: "weichat", type: "varchar(100)", description: "微信号" },
       { name: "name", type: "varchar(255)", description: "客户姓名" },
       { name: "source", type: "varchar(80)", description: "来源" },
       { name: "org_id", type: "varchar(20)", description: "组织 ID" },
@@ -176,6 +178,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
     ],
     notes: [
       "与 matador.cheniu_user 不同：这是 CRM 客户档案，id 为 varchar",
+      "业务人员通常按手机号/微信号查客户，少用内部 recordId",
       "问「客户管理 / 跟进 / 客户档案」优先此表",
     ],
   },

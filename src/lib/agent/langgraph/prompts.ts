@@ -38,7 +38,7 @@ ${formatBusinessGlossaryForPrompt(question)}
 2. 若命中只读 HTTP 且参数齐全 → call_backend_api（经 MCP dfc_call_http_api）
 3. 仅当无匹配、Dubbo-only、HTTP 未配置或调用失败 → route_question → propose_sql
 4. 聚合统计无对应 HTTP 时直接 SQL
-5. 「客户 id / recordId」：优先 call_backend_api → MCP → crmQueryCustomerInfo（仅需 recordId）；旧布局接口 queryRecordDetail 需 recordId+objCode=customer。SQL 回退只用 WHERE id = ?
+5. 「客户手机号 / 微信号」：优先 call_backend_api → MCP → queryCustomerDetailsByContact（contact=手机号或微信号）。「客户 id / recordId」才走 crmQueryCustomerInfo。SQL 回退：phone / phone_backup / weichat
 6. call_backend_api 失败且含 suggestedSql：立刻 propose_sql(suggestedSql)；若 failureKind=auth，在 explanation 中提示用户同步大风车登录
 7. **objCode、recordId 是接口参数名，不是 MySQL 列名**；写 SQL 时 CRM 客户表用 id 列，禁止 objCode = 'customer'
 

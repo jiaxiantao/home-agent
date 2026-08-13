@@ -59,7 +59,7 @@ export function AgentConversation({
       <section className="flex min-h-[280px] flex-col items-center justify-center px-4 py-16 text-center">
         <p className="text-[13px] font-medium text-brand-soft">用自然语言问数</p>
         <p className="mt-2 max-w-md text-[12px] leading-6 text-zinc-500">
-          用自然语言描述分析需求。Agent 会规划工具、提出 SQL，确认后查询并展示结果。
+          例如：「客户手机号为 13166990795 的客户信息」「正式车源一共有多少辆」。也可按微信号查客户。Agent 会自动选库、调接口或生成 SQL。
         </p>
       </section>
     );
@@ -104,7 +104,7 @@ export function AgentConversation({
                   ) : null}
                   {turn.stats ? (
                     <span className="font-mono text-[10px] text-zinc-600">
-                      {turn.stats.steps}步 · {turn.stats.totalMs}ms
+                      {turn.stats.steps} 步 · {turn.stats.toolCalls} 工具 · {turn.stats.totalMs} ms
                     </span>
                   ) : null}
                 </div>

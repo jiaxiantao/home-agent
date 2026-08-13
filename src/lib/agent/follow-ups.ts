@@ -72,7 +72,7 @@ export function buildRuleFollowUps(input: {
   const text = `${input.message}\n${input.answer}`;
   const out: string[] = [];
 
-  if (/客户|crm|recordId|跟进|意向/i.test(text)) {
+  if (/客户|crm|recordId|跟进|意向|手机号|微信/i.test(text)) {
     out.push("这个客户最近的跟进记录有哪些？");
     out.push("这个客户的意向车型再展开看看？");
     out.push("同店同等级客户还有多少？");

@@ -42,10 +42,10 @@ ${formatBusinessGlossaryForPrompt(question)}
 ## 接口优先（明细查询，必须经 MCP 中间件）
 大风车 HTTP/接口目录调用路径固定为：你规划工具 → route_api / search_api / call_backend_api → **MCP 中间件** → 大风车 Java HTTP（第一期 Dubbo 仅可检索，不可直连）。禁止假设可绕过 MCP 直连后端。
 1. 先 route_api(question)（经 MCP dfc_route_api）匹配 api-catalog
-2. 若命中只读 HTTP 且参数齐全 → call_backend_api（经 MCP dfc_call_http_api；参数 phone/recordId/objCode）
+2. 若命中只读 HTTP 且参数齐全 → call_backend_api（经 MCP dfc_call_http_api；参数 phone/wechat/recordId/objCode）
 3. 仅当：无匹配接口、Dubbo-only、HTTP 未配置 DFC_API_ENABLED、或调用失败 → 再走 route_question → propose_sql
 4. **聚合统计**（COUNT/GROUP BY/趋势/分布）无对应 HTTP 时直接 SQL，不必 call_backend_api
-5. 「客户 id / recordId」查明细：优先 MCP 调用 crmQueryCustomerInfo（仅需 recordId，对齐 H5）；旧接口 queryRecordDetail 需 recordId + objCode=customer（**仅 HTTP 参数，禁止写入 SQL**）；SQL 回退用 WHERE id = ?。门店上下文由登录 SSO 提供。**禁止向用户索取 shop_code**。
+5. 「客户手机号 / 微信号 / 联系方式」查明细：优先 MCP 调用 queryCustomerDetailsByContact（contact=手机或微信，对齐 CRM）。仅当用户给出「客户 id / recordId」时才走 crmQueryCustomerInfo。SQL 回退用 phone / phone_backup / weichat。门店由登录 SSO 提供。**禁止向用户索取 shop_code**。
 6. 若 call_backend_api 返回 failureKind=network/not_configured/http，或输出含 suggestedSql：**立刻 propose_sql(suggestedSql)**，不要再追问用户补参数，也不要因为 503/upstream 误判为缺参。
 7. **objCode、recordId 不是数据库列**；生成 SQL 时 CRM 客户表用 id，禁止 AND objCode = 'customer'。
 
@@ -83,7 +83,7 @@ ${formatServiceRepoMapForPrompt()}
 ## 工具
 - route_api: question, endpointId? — 【明细查询优先】按问题语义在全量接口库中路由 Top 候选
 - search_api: keyword|question, appCode?, entity?, readOnlyOnly?, limit? — 扩大搜索接口目录（route_api 未命中时使用）
-- call_backend_api: endpointId, phone?, recordId?, objCode?, shopCode? — 调用只读 HTTP（需 DFC_API_ENABLED；CRM 客户详情用 recordId+objCode=customer）
+- call_backend_api: endpointId, phone?, recordId?, objCode?, shopCode? — 调用只读 HTTP（需 DFC_API_ENABLED；CRM 按手机/微信用 queryCustomerDetailsByContact，按 id 用 crmQueryCustomerInfo）
 - route_question: question — 【聚合/SQL 路径】根据问题自动规划候选库/表，并跨库搜索元数据
 - list_project_databases / list_databases — 列库
 - list_tables: { database?, pattern?, includeViews? }

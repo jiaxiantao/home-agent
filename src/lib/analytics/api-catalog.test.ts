@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   extractPhoneFromQuestion,
+  extractWechatFromQuestion,
   isApiFirstQuestion,
   pickBestApiForQuestion,
   rankApisForQuestion,
@@ -12,18 +13,36 @@ describe("api-catalog", () => {
     expect(extractPhoneFromQuestion("查询客户手机号为16612341112的客户信息")).toBe(
       "16612341112",
     );
+    expect(
+      extractPhoneFromQuestion("我想知道客户手机号为 13166990795 的客户信息"),
+    ).toBe("13166990795");
   });
 
   it("prefers CRM API for customer phone lookup", () => {
-    const best = pickBestApiForQuestion("帮我查询客户手机号为16612341112的客户信息");
+    const best = pickBestApiForQuestion(
+      "我想知道客户手机号为 13166990795 的客户信息",
+    );
     expect(best?.endpoint.appCode).toBe("super-mario");
     expect(best?.endpoint.methodName).toBe("queryCustomerDetailsByContact");
-    expect(best?.extractedParams.phone).toBe("16612341112");
+    expect(best?.extractedParams.phone).toBe("13166990795");
+    expect(isApiFirstQuestion("我想知道客户手机号为 13166990795 的客户信息")).toBe(
+      true,
+    );
   });
 
   it("prefers cheniu user API for 车牛用户", () => {
     const best = pickBestApiForQuestion("查车牛用户手机号13800138000的资料");
     expect(best?.endpoint.entity).toBe("cheniu_user");
+  });
+
+  it("prefers CRM contact API for wechat lookup", () => {
+    expect(extractWechatFromQuestion("客户微信号为 wxid_demo001 的信息")).toBe(
+      "wxid_demo001",
+    );
+    const best = pickBestApiForQuestion("我想知道客户微信号为 wxid_demo001 的客户信息");
+    expect(best?.endpoint.methodName).toBe("queryCustomerDetailsByContact");
+    expect(best?.extractedParams.phone).toBe("wxid_demo001");
+    expect(best?.extractedParams.wechat).toBe("wxid_demo001");
   });
 
   it("prefers CRM crmQueryCustomerInfo for customer recordId", () => {

@@ -72,8 +72,9 @@ export function buildSuggestedSqlForEndpoint(
     return `SELECT id, name, phone, shop_code, owner, grade, source, date_create, date_update FROM \`${db}\`.\`${table}\` WHERE id = '${escapeSqlLiteral(params.recordId)}' LIMIT 20`;
   }
 
-  if (params.phone && /customer/i.test(table)) {
-    return `SELECT id, name, phone, shop_code, owner, grade, source, date_create, date_update FROM \`${db}\`.\`${table}\` WHERE phone = '${escapeSqlLiteral(params.phone)}' LIMIT 20`;
+  if ((params.phone || params.wechat) && /customer/i.test(table)) {
+    const contact = escapeSqlLiteral(params.phone || params.wechat || "");
+    return `SELECT id, name, phone, weichat, shop_code, owner, grade, source, date_create, date_update FROM \`${db}\`.\`${table}\` WHERE phone = '${contact}' OR phone_backup = '${contact}' OR weichat = '${contact}' LIMIT 20`;
   }
 
   if (params.phone && /cheniu_user/i.test(table)) {

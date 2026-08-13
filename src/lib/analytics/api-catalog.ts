@@ -44,8 +44,17 @@ export function extractPhoneFromQuestion(question: string): string | undefined {
   return explicit?.[1];
 }
 
+/** 微信号：字母开头，6～20 位字母数字_- */
+export function extractWechatFromQuestion(question: string): string | undefined {
+  const explicit = question.match(
+    /微信(?:号|账号|id)?\s*(?:为|是|=|：|:)?\s*['"`]?([a-zA-Z][-_a-zA-Z0-9]{5,19})/i,
+  );
+  return explicit?.[1];
+}
+
 export function extractApiParams(question: string): ApiRouteParams {
   const phone = extractPhoneFromQuestion(question);
+  const wechat = extractWechatFromQuestion(question);
   const recordId =
     question.match(
       /(?:客户|record)\s*(?:id|ID|Id)\s*(?:为|是|=|：|:)\s*['"`]?([a-zA-Z0-9_-]{2,64})/i,
@@ -53,7 +62,8 @@ export function extractApiParams(question: string): ApiRouteParams {
     question.match(/\brecordId\s*=\s*['"`]?([a-zA-Z0-9_-]+)/i)?.[1];
 
   return {
-    phone,
+    phone: phone || wechat,
+    wechat,
     recordId,
     shopCode: process.env.DFC_API_DEFAULT_SHOP_CODE?.trim() || undefined,
     objCode:
@@ -126,19 +136,21 @@ function scoreEndpoint(
     }
   }
 
-  if (params.phone) {
-    if (/phone|mobile|contact|手机|电话/i.test(blob)) {
+  if (params.phone || params.wechat) {
+    if (/phone|mobile|contact|weichat|wechat|手机|电话|微信/i.test(blob)) {
       score += 5;
-      reasons.push("手机号 + 接口含 phone/contact");
+      reasons.push(params.wechat && !extractPhoneFromQuestion(question)
+        ? "微信号 + 接口含 contact/weichat"
+        : "手机号 + 接口含 phone/contact");
     }
     if (endpoint.http?.queryParams?.phone === "phone") score += 6;
-    if (endpoint.http?.queryParams?.contact === "phone") score += 6;
+    if (endpoint.http?.queryParams?.contact === "phone") score += 8;
   } else if (
     endpoint.http?.queryParams?.phone === "phone" ||
     endpoint.http?.queryParams?.contact === "phone"
   ) {
     score -= 10;
-    reasons.push("需要手机号但问题未提供");
+    reasons.push("需要手机号/微信号但问题未提供");
   }
 
   if (params.recordId) {
@@ -252,7 +264,14 @@ export function pickBestApiForQuestion(question: string): ApiRouteMatch | undefi
     if (byRecordId) return byRecordId;
   }
 
-  if (/客户/.test(question) && paramsHasPhone(top.extractedParams)) {
+  if (
+    /客户/.test(question) &&
+    (paramsHasPhone(top.extractedParams) || top.extractedParams.wechat)
+  ) {
+    const byContact = ranked.find(
+      (item) => item.endpoint.methodName === "queryCustomerDetailsByContact",
+    );
+    if (byContact) return byContact;
     const crm = ranked.find((item) => item.endpoint.entity === "crm_customer");
     if (crm && crm.score >= top.score - 2) return crm;
   }
@@ -265,7 +284,7 @@ export function pickBestApiForQuestion(question: string): ApiRouteMatch | undefi
 }
 
 function paramsHasPhone(params: ApiRouteParams) {
-  return Boolean(params.phone);
+  return Boolean(params.phone || params.wechat);
 }
 
 export function isApiFirstQuestion(question: string): boolean {
@@ -273,15 +292,15 @@ export function isApiFirstQuestion(question: string): boolean {
   const best = pickBestApiForQuestion(question);
   if (!best) return false;
   if (best.endpoint.entity === "car" || best.endpoint.entity === "order") {
-    return /手机|电话|id\s*为|详情|信息/.test(question) && Boolean(params.phone);
+    return /手机|电话|微信|id\s*为|详情|信息/.test(question) && paramsHasPhone(params);
   }
   if (params.recordId && best.endpoint.http?.queryParams?.recordId === "recordId") {
     return true;
   }
   if (!best.endpoint.preferOverSql && !best.endpoint.http?.queryParams) {
-    return Boolean(params.phone) && best.score >= 8;
+    return paramsHasPhone(params) && best.score >= 8;
   }
-  return Boolean(params.phone);
+  return paramsHasPhone(params);
 }
 
 export function formatApiCatalogForPrompt(question?: string) {

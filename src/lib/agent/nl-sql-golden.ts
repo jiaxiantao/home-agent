@@ -109,11 +109,11 @@ export const nlSqlGoldenCases: GoldenCase[] = [
   },
   {
     id: "customer-by-phone-api",
-    question: "帮我查询客户手机号为16612341112的客户信息",
+    question: "我想知道客户手机号为 13166990795 的客户信息",
     expect: {
       action: "tool",
       tool: "route_api",
-      argsIncludes: { question: "帮我查询客户手机号为16612341112的客户信息" },
+      argsIncludes: { question: "我想知道客户手机号为 13166990795 的客户信息" },
     },
   },
   {

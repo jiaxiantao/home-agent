@@ -5,7 +5,7 @@ import { buildRuleFollowUps } from "@/lib/agent/follow-ups";
 describe("buildRuleFollowUps", () => {
   it("suggests customer follow-ups for CRM answers", () => {
     const followUps = buildRuleFollowUps({
-      message: "客户 id 为 ANwbnMyLF0 的客户信息",
+      message: "客户手机号为 13166990795 的客户信息",
       answer: "客户等级 H，处于新建阶段，有购车意向。",
     });
     expect(followUps[0]).toMatch(/跟进|意向|同店/);

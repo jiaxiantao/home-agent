@@ -4,7 +4,7 @@
 
 **DFC Data Agent（大风车数据分析助手）** 帮你用自然语言查大风车业务数据。
 
-你只需要说要查什么，例如：「我想知道客户 id 为 xxx 的用户信息」。Agent 会自动判断查哪个库、哪张表、用什么条件，生成只读 SQL；你确认后即可看到结果。一般**不需要**手动选择数据库或表（偏好库默认为「自动」）。
+你只需要说要查什么，例如：「我想知道客户手机号为 13166990795 的客户信息」。也可按微信号查。Agent 会自动判断查哪个库、哪张表、用什么条件，生成只读 SQL；你确认后即可看到结果。一般**不需要**手动选择数据库或表（偏好库默认为「自动」）。
 
 ## 快速开始
 
@@ -55,11 +55,12 @@
 - 本地无同域 Cookie 时配置 `DFC_API_DEV_SSO_TOKEN`（Mars **测试外网**登录后从 `_security_token` 复制）
 
 **CRM 客户详情（对齐前后端）**：
-- 主接口：`GET /v1/customerAction/crmQueryCustomerInfo.json?recordId=`
+- 业务主路径（手机号/微信号）：`GET /v1/customerAction/queryCustomerDetailsByContact.json?contact=`
+- 仅当已知内部客户 ID：`GET /v1/customerAction/crmQueryCustomerInfo.json?recordId=`
 - 鉴权头：只写一次 `Souche-Security-Token`（勿再双写 `souche-security-token`，Node fetch 会合并成非法 `token, token`），Cookie `_security_token`，CRM 另加 `_source_code=WEB`
 - 经 **MCP → HTTP**；缺 SSO 返回 `failureKind=auth`
 
-未配置 `DFC_API_*` 时 Agent 仍会识别推荐接口，并自动用等价 SQL 回退（如 `super_mario.customer` 按 `phone` 查询）。
+未配置 `DFC_API_*` 时 Agent 仍会识别推荐接口，并自动用等价 SQL 回退（如 `super_mario.customer` 按 `phone` / `weichat` 查询）。
 
 接口目录见 `config/dfc-api-catalog.json`、`docs/dfc-backend-apis.md` 与 `docs/dfc-backend-repos.md`。
 

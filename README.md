@@ -5,7 +5,7 @@
 
 **大风车（DFC）数据分析助手**：用户用自然语言描述要查的数据，Agent **自动规划**数据库、表与查询条件，生成只读 SQL，用户确认后出数（表格/图表）。无需手动选库选表。
 
-示例：「我想知道客户 id 为 xxx 的用户信息」→ Agent 路由到 `matador.cheniu_user` → 提出 SQL 供确认 → 返回用户信息。
+示例：「我想知道客户手机号为 13166990795 的客户信息」→ Agent 路由 CRM 接口 `queryCustomerDetailsByContact`（或 SQL 回退 `super_mario.customer`）→ 返回客户信息。也可按微信号查询。
 
 ## 能力
 

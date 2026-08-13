@@ -46,7 +46,7 @@
       "id": "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
       "patch": {
         "preferOverSql": true,
-        "title": "CRM 客户详情（手机/微信联系方式）",
+        "title": "CRM 客户详情（手机号/微信号联系方式）",
         "path": "/v1/customerAction/queryCustomerDetailsByContact.json",
         "http": {
           "method": "GET",
@@ -56,11 +56,14 @@
         "sqlFallback": {
           "database": "super_mario",
           "table": "customer",
-          "hint": "WHERE phone = ? LIMIT 20（门店由登录态限定；勿向用户索取 shop_code）"
+          "hint": "WHERE phone = ? OR phone_backup = ? OR weichat = ? LIMIT 20（门店由登录态限定）"
         },
         "matchPatterns": [
-          "客户.*(?:手机|电话|联系方式)",
-          "(?:手机|电话).*(?:客户|CRM)",
+          "客户.*(?:手机|电话|微信|联系方式)",
+          "(?:手机|电话|微信).*(?:客户|CRM)",
+          "客户手机号",
+          "客户微信号",
+          "queryCustomerDetailsByContact",
           "crm.*客户.*(?:信息|资料|详情)"
         ]
       }

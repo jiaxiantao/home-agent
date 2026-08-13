@@ -65,6 +65,13 @@ describe("customer / user lookup routing", () => {
     });
   });
 
+  it("suggests CRM customer for phone lookup", () => {
+    expect(suggestedTablesForQuestion("我想知道客户手机号为 13166990795 的客户信息")[0]).toMatchObject({
+      database: "super_mario",
+      table: "customer",
+    });
+  });
+
   it("suggests both CRM and user tables for ambiguous 客户 id", () => {
     const tables = suggestedTablesForQuestion("客户 id 为 xxx 的信息");
     expect(tables.some((t) => t.database === "super_mario")).toBe(true);

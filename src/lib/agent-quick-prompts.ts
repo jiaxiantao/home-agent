@@ -9,10 +9,10 @@ export type AgentQuickPrompt = {
 
 export const agentQuickPrompts: AgentQuickPrompt[] = [
   {
-    id: "user-by-id",
+    id: "customer-by-phone",
     tool: "propose_sql",
     label: "查客户",
-    prompt: "我想知道客户 id 为 ANwbnMyLF0 的客户信息",
+    prompt: "我想知道客户手机号为 13166990795 的客户信息",
   },
   {
     id: "car-count",

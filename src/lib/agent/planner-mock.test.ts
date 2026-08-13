@@ -71,6 +71,14 @@ describe("buildMockPlan", () => {
     }
   });
 
+  it("routes customer phone questions to backend API first", () => {
+    const plan = buildMockPlan("我想知道客户手机号为 13166990795 的客户信息", []);
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("route_api");
+    }
+  });
+
   it("proposes CRM customer sql fallback after API failure", () => {
     const plan = buildMockPlan("我想知道客户 id 为 demo_user_001 的用户信息", [
       {

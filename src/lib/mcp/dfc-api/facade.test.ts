@@ -31,9 +31,12 @@ describe("dfc mcp facade", () => {
 
   it("routes customer phone questions", () => {
     const result = dfcMcpRouteApi({
-      question: "查询手机号 13800138000 的客户详情",
+      question: "我想知道客户手机号为 13166990795 的客户信息",
     });
-    expect(result.params.phone).toBe("13800138000");
+    expect(result.params.phone).toBe("13166990795");
+    expect(result.bestMatch?.endpoint.methodName).toBe(
+      "queryCustomerDetailsByContact",
+    );
     expect(Array.isArray(result.candidates)).toBe(true);
   });
 

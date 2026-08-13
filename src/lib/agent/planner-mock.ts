@@ -518,10 +518,10 @@ export function buildMockPlan(
         action: "tool",
         tool: "propose_sql",
         args: {
-          sql: `SELECT id, name, phone, shop_code, owner, grade, source, date_create, date_update FROM \`${crmDb}\`.\`customer\` WHERE phone = '${escapedPhone}' LIMIT 20`,
-          explanation: `接口不可用时的 SQL 回退：按手机号 ${phone} 查 CRM 客户（${crmDb}.customer）`,
+          sql: `SELECT id, name, phone, weichat, shop_code, owner, grade, source, date_create, date_update FROM \`${crmDb}\`.\`customer\` WHERE phone = '${escapedPhone}' OR phone_backup = '${escapedPhone}' OR weichat = '${escapedPhone}' LIMIT 20`,
+          explanation: `接口不可用时的 SQL 回退：按手机号/微信号 ${phone} 查 CRM 客户（${crmDb}.customer）`,
         },
-        reasoning: "route_api/call_backend_api 未成功，按手机号查 CRM 客户 SQL",
+        reasoning: "route_api/call_backend_api 未成功，按手机号/微信号查 CRM 客户 SQL",
       };
     }
 
@@ -788,7 +788,7 @@ export function buildMockPlan(
 
   return {
     action: "answer",
-    answer: `（${PRODUCT_NAME_ZH}）已理解你的问题：「${message}」。可直接问「客户 id 为 xxx 的用户信息」「正式车源一共有多少辆」——无需手动选库选表。本地未启用 LLM 时使用规则规划器。`,
+    answer: `（${PRODUCT_NAME_ZH}）已理解你的问题：「${message}」。可直接问「客户手机号为 xxx 的客户信息」「正式车源一共有多少辆」——无需手动选库选表。本地未启用 LLM 时使用规则规划器。`,
     reasoning: "无匹配工具，直接回答",
   };
 }

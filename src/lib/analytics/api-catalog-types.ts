@@ -41,6 +41,8 @@ export type DfcApiEndpoint = {
 
 export type ApiRouteParams = {
   phone?: string;
+  /** 微信号；queryCustomerDetailsByContact 的 contact 也可传微信 */
+  wechat?: string;
   recordId?: string;
   shopCode?: string;
   /** super-mario CRM 对象 code，默认 customer */
