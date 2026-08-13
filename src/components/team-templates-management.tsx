@@ -102,7 +102,7 @@ function TemplateFormModal({
             {title}
           </h2>
           <p className="mt-1 text-xs text-slate-500">
-            填写模板名称、分类与完整问法，保存后全员可在问数助手中使用。
+            填写模板名称、分类与完整问法，保存后全员可在数据智能体中使用。
           </p>
         </div>
 
@@ -398,11 +398,11 @@ export function TeamTemplatesManagement() {
           className="inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-brand-soft"
         >
           <span aria-hidden>←</span>
-          返回问数助手
+          返回数据智能体
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-white">团队模板</h1>
         <p className="mt-1 text-sm text-slate-500">
-          管理团队常用问法，按触发次数排序；全员可在问数助手侧边栏一键选用。
+          管理团队常用问法，按触发次数排序；全员可在数据智能体侧边栏一键选用。
         </p>
       </div>
 

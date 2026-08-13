@@ -150,7 +150,7 @@ export const teamTemplateSeed: TeamTemplateSeed[] = [
   { category: "运营报表", label: "车源求购比", prompt: "当前正式车源和求购线索的数量比是多少？" },
 
   // —— 元数据 / 能查什么 ——
-  { category: "元数据", label: "核心表目录", prompt: "现在用问数助手能查哪些业务数据？" },
+  { category: "元数据", label: "核心表目录", prompt: "现在用数据智能体能查哪些业务数据？" },
   { category: "元数据", label: "项目有哪些库", prompt: "大风车现在覆盖哪些业务线？分别能问什么？" },
   { category: "元数据", label: "车源能查什么", prompt: "查车源一般可以问哪些问题？" },
   { category: "元数据", label: "客户能查什么", prompt: "查客户一般可以问哪些问题？" },

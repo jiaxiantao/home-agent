@@ -56,7 +56,7 @@ export function AgentWorkflowBar({
           {stats.steps} 步 · {stats.toolCalls} 工具 · {stats.totalMs} ms
         </p>
       ) : (
-        <p className="text-[10px] text-zinc-600">问数 → 确认 SQL → 结果</p>
+        <p className="text-[10px] text-zinc-600">提问 → 确认 SQL → 结果</p>
       )}
     </div>
   );

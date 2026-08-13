@@ -19,7 +19,7 @@ export function SiteHeader() {
           <SiteAuthBadge />
           <nav className="text-[12px] text-zinc-500">
             <Link href="/agents" className="transition hover:text-zinc-200">
-              问数助手
+              数据智能体
             </Link>
           </nav>
         </div>

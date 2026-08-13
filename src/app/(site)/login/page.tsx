@@ -21,7 +21,7 @@ export default function LoginPage() {
             <p className="text-xs uppercase tracking-[0.24em] text-brand/80">
               DFC Data Agent
             </p>
-            <h1 className="text-xl font-semibold text-white">登录问数助手</h1>
+            <h1 className="text-xl font-semibold text-white">登录数据智能体</h1>
           </div>
         </div>
         <p className="mt-4 text-sm leading-6 text-slate-400">

@@ -8,7 +8,7 @@ import { BRAND_LOGO_PATH, PRODUCT_NAME_EN } from "@/lib/product";
 import { getDfcMarsAccountUrl } from "@/lib/security/sso-config";
 
 const navItems = [
-  { href: "/agents", label: "问数助手" },
+  { href: "/agents", label: "数据智能体" },
   { href: "/sessions", label: "历史会话" },
   { href: "/templates", label: "团队模板" },
   { href: "/tools", label: "工具管理" },

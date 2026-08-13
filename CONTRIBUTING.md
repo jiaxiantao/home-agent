@@ -1,6 +1,6 @@
 # Contributing
 
-感谢你对 **DFC Data Agent**（大风车数据分析助手）的关注！欢迎 Issue、文档改进和小功能 PR。
+感谢你对 **DFC Data Agent**（大风车数据智能体）的关注！欢迎 Issue、文档改进和小功能 PR。
 
 ## 开发环境
 

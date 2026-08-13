@@ -171,11 +171,11 @@ export function AgentSessionsManagement() {
           className="inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-brand-soft"
         >
           <span aria-hidden>←</span>
-          返回问数助手
+          返回数据智能体
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-white">历史会话</h1>
         <p className="mt-1 text-sm text-slate-500">
-          问数助手中的对话会写入 MySQL（未配置时回退 Redis/内存）。点「继续对话」可接着追问。
+          数据智能体中的对话会写入 MySQL（未配置时回退 Redis/内存）。点「继续对话」可接着追问。
         </p>
       </div>
 
@@ -265,7 +265,7 @@ export function AgentSessionsManagement() {
             </ul>
           ) : (
             <p className="px-5 py-12 text-center text-sm text-slate-500">
-              暂无历史会话，去问数助手聊一轮后会自动出现。
+              暂无历史会话，去数据智能体聊一轮后会自动出现。
             </p>
           )}
         </div>

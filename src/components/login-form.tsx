@@ -68,7 +68,7 @@ export function LoginForm({ compact = false }: { compact?: boolean }) {
         disabled={loading || !token.trim()}
         className="w-full rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-50"
       >
-        {loading ? "验证中…" : "进入问数助手"}
+        {loading ? "验证中…" : "进入数据智能体"}
       </button>
     </form>
   );

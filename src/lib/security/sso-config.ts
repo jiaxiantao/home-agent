@@ -43,7 +43,7 @@ export function primaryHeaderForCookie(cookieName: string) {
 }
 
 /**
- * 构建 SSO 登录跳转 URL，附带 returnUrl 供登录后回到问数助手。
+ * 构建 SSO 登录跳转 URL，附带 returnUrl 供登录后回到数据智能体。
  * Hash 路由（#/app/dashboard）保留在 query 之后。
  */
 export function buildSsoLoginUrl(returnUrl: string) {

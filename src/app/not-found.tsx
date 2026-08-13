@@ -11,13 +11,13 @@ export default function NotFound() {
           页面不存在
         </h1>
         <p className="mt-4 text-sm leading-7 text-slate-300">
-          请从问数助手页继续。
+          请从数据智能体页继续。
         </p>
         <Link
           href="/agents"
           className="mt-8 inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-hover"
         >
-          前往问数助手
+          前往数据智能体
         </Link>
       </div>
     </div>

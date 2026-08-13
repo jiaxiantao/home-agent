@@ -1,9 +1,9 @@
-# DFC Data Agent · 大风车数据分析助手
+# DFC Data Agent · 大风车数据智能体
 
 [![CI](https://git.souche-inc.com/dfc-ai/dfc-data-agent/badges/master/pipeline.svg)](https://git.souche-inc.com/dfc-ai/dfc-data-agent/-/pipelines)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-**大风车（DFC）数据分析助手**：用户用自然语言描述要查的数据，Agent **自动规划**数据库、表与查询条件，生成只读 SQL，用户确认后出数（表格/图表）。无需手动选库选表。
+**大风车（DFC）数据智能体**：用户用自然语言描述要查的数据，Agent **自动规划**数据库、表与查询条件，生成只读 SQL，用户确认后出数（表格/图表）。无需手动选库选表。
 
 示例：「我想知道客户手机号为 13166990795 的客户信息」→ Agent 路由 CRM 接口 `queryCustomerDetailsByContact`（或 SQL 回退 `super_mario.customer`）→ 返回客户信息。也可按微信号查询。
 
@@ -76,7 +76,7 @@ ollama pull qwen3
 ollama serve
 ```
 
-未配置 LLM 或设置 `LLM_DISABLED=1` 时问数会直接报错，不再回退规则规划器。
+未配置 LLM 或设置 `LLM_DISABLED=1` 时提问会直接报错，不再回退规则规划器。
 
 ### 常用命令
 
@@ -109,7 +109,7 @@ pnpm test:e2e
 - `AUTH_MODE` / `AUTH_TOKEN` — 企业内网鉴权（见 [docs/security.md](./docs/security.md)）
 - `REDIS_URL` — 多实例待确认 SQL 持久化
 - `OLLAMA_MODEL=qwen3` — 默认模型
-- `LLM_DISABLED=1` — 关闭 LLM，问数直接报错
+- `LLM_DISABLED=1` — 关闭 LLM，提问直接报错
 - `AGENT_MAX_STEPS` — 循环最大步数
 
 ## 企业内网部署

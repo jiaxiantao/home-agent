@@ -117,7 +117,7 @@ export async function suggestFollowUpQuestions(input: {
     const response = await model.invoke([
       new SystemMessage(
         [
-          "你是大风车问数助手的追问推荐器。",
+          "你是大风车数据智能体的追问推荐器。",
           "根据用户问题、会话上下文与本轮回答，推荐 2～3 条用户可直接发送的追问。",
           "要求：短句、可执行、贴合当前实体/指标；不要重复原问题；不要解释。",
           '只输出 JSON：{"followUps":["...","..."]}',

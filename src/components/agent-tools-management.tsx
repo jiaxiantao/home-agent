@@ -506,7 +506,7 @@ export function AgentToolsManagement() {
           className="inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-brand-soft"
         >
           <span aria-hidden>←</span>
-          返回问数助手
+          返回数据智能体
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-white">工具管理</h1>
         <p className="mt-1 text-sm text-slate-500">

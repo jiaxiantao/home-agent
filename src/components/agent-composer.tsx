@@ -153,7 +153,7 @@ export function AgentComposer({
                 disabled={!value.trim()}
                 className="ui-btn-primary h-8 px-3.5"
               >
-                {hasConversation ? "发送" : "问数"}
+                {hasConversation ? "发送" : "提问"}
               </button>
             )}
           </div>
