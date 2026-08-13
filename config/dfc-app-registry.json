@@ -14,7 +14,7 @@
     "danube-deal-adapter": { "repo": "danube/danube-deal-adapter", "database": "danube_deal_adapter", "baseUrlEnvKey": "DFC_API_DANUBE_DEAL_ADAPTER_BASE_URL" },
     "danube-usedcar-market": { "repo": "danube/danube-usedcar-market", "database": "danube_usedcar_market", "baseUrlEnvKey": "DFC_API_DANUBE_USEDCAR_MARKET_BASE_URL" },
     "rich-man": { "repo": "gourd/rich-man", "database": "matador", "baseUrlEnvKey": "DFC_API_RICH_MAN_BASE_URL" },
-    "crazyracing-kartrider": { "repo": "gourd/crazyracing-kartrider", "database": "matador", "baseUrlEnvKey": "DFC_API_KARTRIDER_BASE_URL" },
+    "crazyracing-kartrider": { "repo": "gourd/crazyracing-kartrider", "database": "crazy_kartrider", "baseUrlEnvKey": "DFC_API_KARTRIDER_BASE_URL" },
     "maple-story": { "repo": "gourd/maple-story", "database": "maple_story", "baseUrlEnvKey": "DFC_API_MAPLE_STORY_BASE_URL" },
     "da-vinci": { "repo": "gourd/da-vinci", "database": "da_vinci", "baseUrlEnvKey": "DFC_API_DA_VINCI_BASE_URL" },
     "anduin": { "repo": "gourd/anduin", "database": "anduin", "baseUrlEnvKey": "DFC_API_ANDUIN_BASE_URL" },

@@ -49,13 +49,23 @@ export const dfcBusinessEntities: BusinessEntity[] = [
     disambiguation: "问「会员等级 / 会员权益 / 积分」时用 danube_member，不是 matador 用户表",
   },
   {
-    terms: ["正式车源", "在售车辆", "库存车", "车源", "车辆信息", "车牌", "车牌号"],
+    terms: ["正式车源", "在售车辆", "库存车", "车源"],
     database: "matador",
     table: "car",
     idColumns: ["car_id", "id", "license_number", "vin"],
     description: "大风车核心车源主表",
     filters: ["test_type = 0"],
-    disambiguation: "统计正式车源必须 test_type = 0",
+    disambiguation: "统计正式车源必须 test_type = 0；按车牌查明细不要用此表优先",
+  },
+  {
+    terms: ["车辆管理", "车牌", "车牌号", "车辆信息", "查车辆"],
+    database: "crazy_kartrider",
+    table: "car",
+    idColumns: ["id", "plate_number", "vin_number"],
+    description: "门店车辆管理主表（crazyracing-kartrider）",
+    filters: ["date_delete = 0"],
+    disambiguation:
+      "按车牌查车用 plate_number；测试环境车牌通常只在此库，不在 matador.car",
   },
   {
     terms: ["求购", "买车意向", "求购线索"],

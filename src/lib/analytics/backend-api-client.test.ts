@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  assertTestSafeUpstreamUrl,
   buildDfcUpstreamSsoHeaders,
   buildSuggestedSqlForEndpoint,
 } from "@/lib/analytics/backend-api-client";
@@ -55,5 +56,24 @@ describe("buildDfcUpstreamSsoHeaders", () => {
     expect(soucheKeys).toHaveLength(1);
     expect(headers[soucheKeys[0]!]).toBe("22_demo_token");
     expect(headers.Cookie).toBe("_security_token=22_demo_token");
+  });
+});
+
+describe("assertTestSafeUpstreamUrl", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("blocks souche.com hosts in test env", () => {
+    vi.stubEnv("ANALYTICS_MYSQL_ENV", "test");
+    expect(assertTestSafeUpstreamUrl("https://matador.souche.com/car/detail")).toMatch(
+      /禁止调用线上域名 matador\.souche\.com/,
+    );
+    expect(assertTestSafeUpstreamUrl("http://super-mario.stable.dasouche.net/crm")).toBeUndefined();
+  });
+
+  it("allows souche.com outside test env", () => {
+    vi.stubEnv("ANALYTICS_MYSQL_ENV", "prod");
+    expect(assertTestSafeUpstreamUrl("https://matador.souche.com/car/detail")).toBeUndefined();
   });
 });

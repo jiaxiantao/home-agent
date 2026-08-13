@@ -403,10 +403,10 @@ export function buildMockPlan(
         action: "tool",
         tool: "propose_sql",
         args: {
-          sql: `SELECT car_id, brand_name, series_name, model_name, license_number, vin, first_license_plate_date, display_mileage, car_province_name, car_city_name, car_body_color_name, gearbox_name, sale_price, car_status, car_type, dfc_shop_name, up_shelf_date, date_create FROM \`matador\`.\`car\` WHERE license_number = '${escaped}' AND test_type = 0 LIMIT 20`,
-          explanation: `按车牌号 ${plate} 查询车辆主表 matador.car（正式数据 test_type = 0）`,
+          sql: `SELECT id, JSON_UNQUOTE(JSON_EXTRACT(name, '$.displayValue')) AS car_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.brandName')) AS brand_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.seriesName')) AS series_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.modelName')) AS model_name, plate_number, vin_number, mileage, JSON_UNQUOTE(JSON_EXTRACT(area, '$.displayValue')) AS area, sale_price, shop_code, date_create FROM \`crazy_kartrider\`.\`car\` WHERE plate_number = '${escaped}' AND date_delete = 0 LIMIT 20`,
+          explanation: `按车牌号 ${plate} 查询车辆管理主表 crazy_kartrider.car（date_delete = 0）。测试环境车牌通常不在 matador.car`,
         },
-        reasoning: "车牌查车：matador.car.license_number",
+        reasoning: "车牌查车：crazy_kartrider.car.plate_number",
       };
     }
 

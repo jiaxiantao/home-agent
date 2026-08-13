@@ -30,8 +30,10 @@ describe("matchBusinessEntities", () => {
     expect(hits.some((h) => h.database === "danube_member")).toBe(true);
   });
 
-  it("maps plate questions to matador.car", () => {
+  it("maps plate questions to crazy_kartrider.car", () => {
     const hits = matchBusinessEntities("查询车牌号为皖JV066M的车辆信息");
-    expect(hits.some((h) => h.database === "matador" && h.table === "car")).toBe(true);
+    expect(hits.some((h) => h.database === "crazy_kartrider" && h.table === "car")).toBe(
+      true,
+    );
   });
 });

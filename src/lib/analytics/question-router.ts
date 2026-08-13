@@ -158,15 +158,19 @@ export const questionRouteRules: RouteKeywordRule[] = [
   },
   {
     pattern: /车牌|牌照|license.?plate|license.?number|车辆信息|查\(?:一?下\)?车/,
-    databases: ["matador"],
-    searchTerms: ["license_number", "plate", "car"],
-    suggestedTables: [{ database: "matador", table: "car" }],
-    reason: "按车牌查车辆信息",
+    databases: ["crazy_kartrider", "matador"],
+    searchTerms: ["plate_number", "license_number", "plate", "car"],
+    suggestedTables: [
+      { database: "crazy_kartrider", table: "car" },
+      { database: "matador", table: "car" },
+    ],
+    reason: "按车牌查车辆：车辆管理 crazy_kartrider.car.plate_number",
   },
   {
     pattern: /车辆管理|crazy.?kartrider/,
     databases: ["crazy_kartrider", "matador"],
-    searchTerms: ["vehicle", "car", "manage"],
+    searchTerms: ["vehicle", "car", "manage", "plate_number"],
+    suggestedTables: [{ database: "crazy_kartrider", table: "car" }],
     reason: "车辆管理语义",
   },
   {
@@ -237,7 +241,7 @@ export const questionRouteRules: RouteKeywordRule[] = [
     reason: "订单成交语义",
   },
   {
-    pattern: /车源|在售|库存车辆|正式车|车辆|car_status|operate_report|运营日报|pv|uv/,
+    pattern: /车源|在售|库存车辆|正式车|car_status|operate_report|运营日报|pv|uv/,
     databases: ["matador"],
     searchTerms: ["car", "operate", "report"],
     suggestedTables: [{ database: "matador", table: "car" }],

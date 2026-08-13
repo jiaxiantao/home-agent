@@ -42,8 +42,29 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
     ],
     notes: [
       "统计正式车源时常用 test_type = 0",
-      "按车牌查车用 license_number，并加 test_type = 0",
+      "在售车源车牌字段是 license_number，测试环境常为空",
       "在售常用 car_status = 1（具体枚举以业务为准）",
+    ],
+  },
+  {
+    name: "car",
+    database: "crazy_kartrider",
+    domain: "car",
+    description: "车辆管理主表：门店库存车，含车牌号 plate_number",
+    columns: [
+      { name: "id", type: "varchar", description: "车辆管理业务 ID" },
+      { name: "plate_number", type: "varchar", description: "车牌号" },
+      { name: "vin_number", type: "varchar", description: "车架号 VIN" },
+      { name: "name", type: "json", description: "品牌/车系/车型 JSON，displayValue 可读" },
+      { name: "mileage", type: "decimal", description: "表显里程" },
+      { name: "sale_price", type: "decimal", description: "网络标价" },
+      { name: "shop_code", type: "varchar", description: "店铺 code" },
+      { name: "date_delete", type: "bigint", description: "0=未删除" },
+      { name: "date_create", type: "datetime", description: "创建时间" },
+    ],
+    notes: [
+      "按车牌查车优先此表 plate_number，并加 date_delete = 0",
+      "name/color/area 为 JSON，查询时可用 JSON_EXTRACT($.displayValue)",
     ],
   },
   {

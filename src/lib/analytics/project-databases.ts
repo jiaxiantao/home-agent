@@ -66,7 +66,7 @@ export const dfcProjectDatabaseRegistry: ProjectDatabaseEntry[] = [
     description: "车辆管理",
     domain: "car",
     env: "test",
-    keywords: ["车辆管理", "crazy_kartrider", "kartrider"],
+    keywords: ["车辆管理", "crazy_kartrider", "kartrider", "车牌", "车辆信息", "plate_number"],
   },
   {
     name: "da_vinci",

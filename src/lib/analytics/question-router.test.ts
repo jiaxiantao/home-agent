@@ -86,15 +86,15 @@ describe("plate lookup routing", () => {
     expect(extractLicensePlate("帮我查一下浙A12345")).toBe("浙A12345");
   });
 
-  it("routes plate questions to matador.car", () => {
+  it("routes plate questions to crazy_kartrider.car first", () => {
     const q = "查询车牌号为皖JV066M的车辆信息";
-    expect(rankDatabasesForQuestion(q)[0]?.database).toBe("matador");
+    expect(rankDatabasesForQuestion(q)[0]?.database).toBe("crazy_kartrider");
     expect(suggestedTablesForQuestion(q)[0]).toMatchObject({
-      database: "matador",
+      database: "crazy_kartrider",
       table: "car",
     });
     expect(extractQuestionSearchTerms(q)).toEqual(
-      expect.arrayContaining(["license_number", "plate", "car"]),
+      expect.arrayContaining(["plate_number", "license_number", "plate", "car"]),
     );
   });
 });

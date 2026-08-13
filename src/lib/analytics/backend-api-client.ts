@@ -51,6 +51,34 @@ function resolveBaseUrl(endpoint: DfcApiEndpoint): string | undefined {
   return undefined;
 }
 
+function currentApiEnv() {
+  return (
+    process.env.ANALYTICS_MYSQL_ENV?.trim() ||
+    process.env.DFC_API_ENV?.trim() ||
+    "test"
+  ).toLowerCase();
+}
+
+/** 测试环境禁止打线上 *.souche.com / *.souche-inc.com */
+export function assertTestSafeUpstreamUrl(url: string): string | undefined {
+  if (currentApiEnv() !== "test") {
+    return undefined;
+  }
+
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return `无效上游地址：${url}`;
+  }
+
+  if (/(^|\.)souche\.com$/i.test(hostname) || /(^|\.)souche-inc\.com$/i.test(hostname)) {
+    return `测试环境禁止调用线上域名 ${hostname}，请改用 *.dasouche.net（当前 ANALYTICS_MYSQL_ENV=${currentApiEnv()}）`;
+  }
+
+  return undefined;
+}
+
 function escapeSqlLiteral(value: string) {
   return value.replace(/'/g, "''");
 }
@@ -311,6 +339,28 @@ export async function callBackendApi(
         endpointId: endpoint.id,
         appCode: endpoint.appCode,
         message: `未配置 ${endpoint.baseUrlEnvKey} 或 DFC_API_GATEWAY_BASE_URL。参数已齐全时请直接 propose_sql，勿向用户索取额外参数。`,
+        sqlFallback,
+      },
+      endpoint,
+      params,
+    );
+  }
+
+  const blockedHost = assertTestSafeUpstreamUrl(request.url);
+  if (blockedHost) {
+    return withSqlFallback(
+      {
+        status: "error",
+        failureKind: "not_configured",
+        endpointId: endpoint.id,
+        appCode: endpoint.appCode,
+        request: {
+          method: request.method,
+          url: request.url,
+          query: request.query,
+          body: request.body,
+        },
+        message: `${blockedHost}。请直接 propose_sql 使用 suggestedSql。`,
         sqlFallback,
       },
       endpoint,
