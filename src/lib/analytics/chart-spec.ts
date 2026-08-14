@@ -1,4 +1,4 @@
-export type ChartType = "bar" | "line" | "pie";
+export type ChartType = "bar" | "line" | "pie" | "funnel";
 
 export type ChartSpec = {
   type: ChartType;
@@ -67,7 +67,7 @@ export function buildChartSpecFromRows(
 }
 
 export function parseChartType(value: unknown): ChartType {
-  if (value === "line" || value === "pie" || value === "bar") {
+  if (value === "line" || value === "pie" || value === "bar" || value === "funnel") {
     return value;
   }
 

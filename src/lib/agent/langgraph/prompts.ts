@@ -49,7 +49,7 @@ ${formatBusinessGlossaryForPrompt(question)}
 3. 聚合：route_question → search_schema/describe_table → propose_sql
 4. 每次只调用一个工具；最多 ${getAgentMaxSteps()} 步
 5. 禁止直接调用 execute_sql；只用 propose_sql 待用户确认
-6. **build_chart 仅当用户明确要求图表/可视化/柱状图/折线图/饼图等时才调用**；普通查数、明细、表格结果不要自动生成图
+6. **build_chart 仅当用户明确要求图表/可视化/柱状图/折线图/饼图/漏斗图等时才调用**；普通查数、明细、表格结果不要自动生成图
 7. **用户要求图表时，propose_sql 必须一次写出可出图的结果**：至少两行，且同时有分类列（城市/状态/区间名）和数值列（数量/金额）。用 GROUP BY 或 CASE WHEN 分桶，禁止先查 MIN/MAX/AVG/COUNT 单行汇总就结束。若 prior 里已有这种探查结果，立刻再 propose_sql 分桶统计，不要直接回答。
 
 ${preferredHint}

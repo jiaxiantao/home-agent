@@ -7,6 +7,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Funnel,
+  FunnelChart,
+  LabelList,
   Line,
   LineChart,
   Pie,
@@ -30,6 +33,33 @@ function ChartView({ chart }: { chart: Extract<A2UIComponent, { type: "Chart" }>
     [chart.xKey]: String(row[chart.xKey] ?? ""),
     [chart.yKey]: Number(row[chart.yKey] ?? 0),
   }));
+
+  if (chart.type === "funnel") {
+    return (
+      <ResponsiveContainer width="100%" height={280}>
+        <FunnelChart>
+          <Tooltip />
+          <Funnel
+            data={data}
+            dataKey={chart.yKey}
+            nameKey={chart.xKey}
+            isAnimationActive={false}
+          >
+            {data.map((_, index) => (
+              <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+            ))}
+            <LabelList
+              position="right"
+              fill="#e2e8f0"
+              stroke="none"
+              dataKey={chart.xKey}
+              fontSize={12}
+            />
+          </Funnel>
+        </FunnelChart>
+      </ResponsiveContainer>
+    );
+  }
 
   if (chart.type === "pie") {
     return (

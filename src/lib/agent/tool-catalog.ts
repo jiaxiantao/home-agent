@@ -144,8 +144,8 @@ export const agentToolCatalog: AgentToolCatalogItem[] = [
   {
     name: "build_chart",
     label: "生成图表",
-    description: "根据查询结果生成 bar/line/pie 图表描述（仅当用户明确要求图表时）",
-    args: { columns: "string[]", rows: "object[]", chartType: "bar|line|pie" },
+    description: "根据查询结果生成 bar/line/pie/funnel 图表描述（仅当用户明确要求图表时）",
+    args: { columns: "string[]", rows: "object[]", chartType: "bar|line|pie|funnel" },
   },
 ];
 

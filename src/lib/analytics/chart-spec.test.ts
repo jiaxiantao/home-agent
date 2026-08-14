@@ -36,4 +36,22 @@ describe("buildChartSpecFromRows", () => {
       title: "售价区间",
     });
   });
+
+  it("builds a funnel chart from staged conversion rows", () => {
+    const chart = buildChartSpecFromRows(
+      ["stage", "cnt"],
+      [
+        { stage: "正式车源", cnt: 4195 },
+        { stage: "求购线索", cnt: 0 },
+        { stage: "主订单", cnt: 6 },
+      ],
+      { preferredType: "funnel", title: "转化漏斗" },
+    );
+    expect(chart).toMatchObject({
+      type: "funnel",
+      xKey: "stage",
+      yKey: "cnt",
+      title: "转化漏斗",
+    });
+  });
 });

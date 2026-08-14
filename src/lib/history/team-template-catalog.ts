@@ -220,6 +220,7 @@ export const teamTemplateSeed: TeamTemplateSeed[] = [
   { category: "图表", label: "运营DAU趋势图", prompt: "最近 7 天运营日报里的 DAU 趋势怎样？画折线图" },
   { category: "图表", label: "门店运营柱状图", prompt: "按门店对比最近 7 天新增车源和成交数，看前 15 名，用柱状图展示" },
   { category: "图表", label: "业务漏斗柱状图", prompt: "对比正式车源数、求购线索数、主订单数，看转化漏斗，用柱状图展示" },
+  { category: "图表", label: "业务转化漏斗图", prompt: "对比正式车源数、求购线索数、主订单数，生成漏斗图" },
   { category: "图表", label: "城市供需柱状图", prompt: "按城市对比正式车源数和成交订单数，看前 15 名，用柱状图展示" },
 ];
 

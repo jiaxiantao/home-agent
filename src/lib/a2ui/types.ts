@@ -25,7 +25,7 @@ export const a2uiComponentSchema = z.discriminatedUnion("type", [
     id: z.string(),
     type: z.literal("Chart"),
     chart: z.object({
-      type: z.enum(["bar", "line", "pie"]),
+      type: z.enum(["bar", "line", "pie", "funnel"]),
       title: z.string().optional(),
       xKey: z.string(),
       yKey: z.string(),
