@@ -23,6 +23,16 @@ function routedPrior(
 ): AgentToolResult[] {
   return [
     {
+      tool: "route_api",
+      args: { question },
+      output: "未命中可调用 HTTP",
+      data: {
+        question,
+        bestMatch: null,
+        candidates: [],
+      },
+    },
+    {
       tool: "route_question",
       args: { question },
       output: `问题路由「${question}」→ ${suggestedDatabase}`,
@@ -45,7 +55,7 @@ export const nlSqlGoldenCases: GoldenCase[] = [
     question: "大风车正式车源一共有多少辆？",
     expect: {
       action: "tool",
-      tool: "route_question",
+      tool: "route_api",
     },
   },
   {
@@ -104,7 +114,7 @@ export const nlSqlGoldenCases: GoldenCase[] = [
     question: "会员中心有多少注册用户？",
     expect: {
       action: "tool",
-      tool: "route_question",
+      tool: "route_api",
     },
   },
   {

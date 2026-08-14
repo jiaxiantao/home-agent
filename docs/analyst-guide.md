@@ -36,16 +36,16 @@
 
 同一 MySQL 实例上可分析多个大风车库（matador、danube_member、danube_topcars 等）。
 
-- **接口优先**：按手机号/ID 查客户、用户、会员等**明细**时，Agent 会从全量接口库（约 1 万条 HTTP/Dubbo）中自动匹配，先 `route_api`，必要时 `search_api`，再 `call_backend_api`；未配置网关或调用失败时回退 SQL
+- **接口优先**：所有问数（明细、聚合、组合）都先从全量接口库（约 1 万条 HTTP/Dubbo）匹配。命中可调用 HTTP 则直接调接口；一个问题需要多个接口时会分别调用再组装结果。仅当 Java 服务确实没有对应 HTTP（Dubbo 也无 HTTP 等价）时，才生成 SQL 让你确认执行
 - **按车牌查车**：先调车辆管理 HTTP `POST /web/v3/carViewQuery/queryRecordPageInfo.json`（`keywords`=车牌；测试 `https://crazyracing-kartrider.stable.dasouche.net`）。失败再 SQL：`crazy_kartrider.car.plate_number`（`date_delete = 0`）。不要打线上 `*.souche.com`
-- Agent 会先 `route_api` / `route_question` 自动推断查哪个服务或库表，再执行；**默认无需手动选库**
+- Agent 会先 `route_api`（必要时 `search_api` / 多次 `call_backend_api`）取数；没有合适接口才 `route_question` + SQL；**默认无需手动选库**
 - 输入区「偏好库」默认为「自动规划」；仅在你想加权某个库时再切换
 - 也可直接问：「现在个人会员一共有多少？」Agent 会自动选库，无需记库名
 - 跨库 SQL 使用 `` `库名`.`表名` ``（系统禁止 `USE`）
 
 ### 启用后端 HTTP 调用（管理员）
 
-在 `.env` 中配置后，明细查询会真实调用内网服务而非仅走 SQL：
+在 `.env` 中配置后，问数会真实调用内网 HTTP（可组合多个接口），而不是一上来就抛 SQL：
 
 - `AUTH_MODE=sso` — 使用大风车 SSO 登录态（推荐内网/外网部署）
 - `SSO_LOGIN_URL` — 未登录时跳转的大风车 Mars 入口（默认测试外网 dashboard）

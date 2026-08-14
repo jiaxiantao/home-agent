@@ -13,9 +13,9 @@ describe("getAgentMaxSteps", () => {
     }
   });
 
-  it("defaults to 8", () => {
+  it("defaults to 10", () => {
     delete process.env.AGENT_MAX_STEPS;
-    expect(getAgentMaxSteps()).toBe(8);
+    expect(getAgentMaxSteps()).toBe(10);
   });
 
   it("respects env within cap", () => {
@@ -30,9 +30,9 @@ describe("getAgentMaxSteps", () => {
 
   it("falls back to default for invalid values", () => {
     process.env.AGENT_MAX_STEPS = "0";
-    expect(getAgentMaxSteps()).toBe(8);
+    expect(getAgentMaxSteps()).toBe(10);
 
     process.env.AGENT_MAX_STEPS = "not-a-number";
-    expect(getAgentMaxSteps()).toBe(8);
+    expect(getAgentMaxSteps()).toBe(10);
   });
 });

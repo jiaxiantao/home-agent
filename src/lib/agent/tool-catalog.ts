@@ -82,13 +82,13 @@ export const agentToolCatalog: AgentToolCatalogItem[] = [
   {
     name: "route_question",
     label: "问题路由",
-    description: "根据自然语言自动推断候选数据库与表，并跨库搜索元数据",
+    description: "根据自然语言自动推断候选数据库与表（仅当接口目录无可用 HTTP 时）",
     args: { question: "string", query: "string?", limitPerTerm: "number?" },
   },
   {
     name: "route_api",
     label: "接口路由",
-    description: "匹配大风车已有后端 HTTP/Dubbo 接口，优先于直查 SQL",
+    description: "所有问数第一步：匹配大风车已有 HTTP/Dubbo 接口，能调 HTTP 则优先于 SQL",
     args: { question: "string", endpointId: "string?" },
   },
   {
@@ -107,7 +107,7 @@ export const agentToolCatalog: AgentToolCatalogItem[] = [
   {
     name: "call_backend_api",
     label: "调用后端接口",
-    description: "按 api-catalog 调用只读 HTTP 接口（需 DFC_API_ENABLED）",
+    description: "按 api-catalog 调用只读 HTTP；一个问题可多次调用不同接口再组装",
     args: {
       endpointId: "string",
       phone: "string?",

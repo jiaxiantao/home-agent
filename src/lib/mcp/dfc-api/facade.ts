@@ -249,8 +249,8 @@ export function formatDfcMcpRouteOutput(result: DfcMcpRouteResult): string {
     `接口路由「${result.question}」`,
     `提取参数：${JSON.stringify(result.params)}`,
     result.bestMatch
-      ? `推荐：${result.bestMatch.endpoint.id} — ${result.bestMatch.endpoint.title}（${result.bestMatch.httpCallable ? "尝试 call_backend_api" : "建议 SQL 回退"}）`
-      : "未命中只读接口，请直接 route_question + propose_sql",
+      ? `推荐：${result.bestMatch.endpoint.id} — ${result.bestMatch.endpoint.title}（${result.bestMatch.httpCallable ? "尝试 call_backend_api" : "Dubbo-only，先找 HTTP 等价再 SQL"}）`
+      : "未命中只读 HTTP，请 search_api 再搜；仍无则 route_question + propose_sql",
     "候选接口：",
     lines.join("\n") || "- （无）",
   ].join("\n");

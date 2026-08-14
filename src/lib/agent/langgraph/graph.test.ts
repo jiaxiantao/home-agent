@@ -78,7 +78,7 @@ describe("langgraph graph", () => {
     expect(shouldUseTools({ ...state, ...update })).toBe("__end__");
   });
 
-  it("mock planner routes aggregate questions through route_question first", async () => {
+  it("mock planner routes aggregate questions through route_api first", async () => {
     process.env.LLM_DISABLED = "1";
 
     const state = createGraphInput("大风车正式车源一共有多少辆？");
@@ -91,7 +91,7 @@ describe("langgraph graph", () => {
     };
     const last = merged.messages.at(-1);
     expect(last instanceof AIMessage && last.tool_calls?.[0]?.name).toBe(
-      "route_question",
+      "route_api",
     );
   });
 

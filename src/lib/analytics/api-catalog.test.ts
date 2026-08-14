@@ -55,7 +55,7 @@ describe("api-catalog", () => {
     expect(isApiFirstQuestion(q)).toBe(true);
   });
 
-  it("marks aggregate questions as not api-first", () => {
+  it("marks aggregate questions as not lookup-shaped (planner still searches APIs first)", () => {
     expect(isApiFirstQuestion("统计正式车源有多少")).toBe(false);
   });
 

@@ -1,7 +1,7 @@
 import { AIMessage } from "@langchain/core/messages";
 
 import {
-  formatBackendApiAnswer,
+  formatBackendApiAnswers,
   summarizeBackendApiResult,
   summarizeSqlResult,
 } from "@/lib/agent/answer-format";
@@ -139,14 +139,33 @@ function summarizeQuery(result: ExecuteSqlData) {
   return summarizeSqlResult(result);
 }
 
-function findBackendApiResult(prior: AgentToolResult[]) {
-  const entry = [...prior].reverse().find((item) => item.tool === "call_backend_api");
-  return entry?.data as BackendApiCallResult | undefined;
+function findSuccessfulBackendApiResults(prior: AgentToolResult[]) {
+  return prior
+    .filter((item) => item.tool === "call_backend_api")
+    .map((item) => item.data as BackendApiCallResult | undefined)
+    .filter(
+      (item): item is BackendApiCallResult =>
+        Boolean(item?.status === "success" && item.table?.rows.length),
+    );
 }
 
 function findExecuteSqlResult(prior: AgentToolResult[]) {
   const entry = [...prior].reverse().find((item) => item.tool === "execute_sql");
   return entry?.data as ExecuteSqlData | undefined;
+}
+
+function backendApiA2uiEvents(prior: AgentToolResult[]) {
+  const stamp = Date.now().toString(36);
+  return findSuccessfulBackendApiResults(prior).map((apiPreview, index) => ({
+    type: "a2ui" as const,
+    surface: buildQueryResultSurface({
+      surfaceId: `api_${index}_${stamp}`,
+      sql: `-- 接口: ${apiPreview.endpointId}`,
+      columns: apiPreview.table!.columns,
+      rows: apiPreview.table!.rows,
+      summary: summarizeBackendApiResult(apiPreview),
+    }),
+  }));
 }
 
 async function withFollowUps(input: {
@@ -248,9 +267,13 @@ async function* streamFinalAnswerFromState(input: {
     sqlResult?: ExecuteSqlData;
   }
 > {
-  const apiResult = findBackendApiResult(input.state.priorToolResults);
-  if (apiResult?.status === "success" && apiResult.table?.rows.length) {
-    const summary = summarizeBackendApiResult(apiResult);
+  const apiResults = findSuccessfulBackendApiResults(input.state.priorToolResults);
+  const apiResult = apiResults.at(-1);
+  if (apiResult) {
+    const summary =
+      apiResults.length > 1
+        ? `已调用 ${apiResults.length} 个接口并组装结果。`
+        : summarizeBackendApiResult(apiResult);
     const synthesized = yield* emitAnswerStream({
       message: input.message,
       prior: input.state.priorToolResults,
@@ -258,7 +281,7 @@ async function* streamFinalAnswerFromState(input: {
       summary,
     });
     return {
-      answer: synthesized.text || formatBackendApiAnswer(apiResult),
+      answer: synthesized.text || formatBackendApiAnswers(apiResults),
       mock: synthesized.mock,
       followUps: synthesized.followUps,
       apiResult,
@@ -692,9 +715,9 @@ function resolveTerminalAnswer(state: DfcAgentStateType) {
     }
   }
 
-  const apiResult = findBackendApiResult(state.priorToolResults);
-  if (apiResult?.status === "success" && apiResult.table?.rows.length) {
-    return formatBackendApiAnswer(apiResult);
+  const apiResults = findSuccessfulBackendApiResults(state.priorToolResults);
+  if (apiResults.length) {
+    return formatBackendApiAnswers(apiResults);
   }
 
   if (state.priorToolResults.length) {
@@ -931,18 +954,8 @@ export async function* runDfcAgentLoop(
       yield { type: "trace", phase: "answer", message: "整理最终回答" };
 
       const fallback = resolveTerminalAnswer(state);
-      const apiPreview = findBackendApiResult(state.priorToolResults);
-      if (apiPreview?.status === "success" && apiPreview.table) {
-        yield {
-          type: "a2ui",
-          surface: buildQueryResultSurface({
-            surfaceId: `api_${Date.now().toString(36)}`,
-            sql: `-- 接口: ${apiPreview.endpointId}`,
-            columns: apiPreview.table.columns,
-            rows: apiPreview.table.rows,
-            summary: summarizeBackendApiResult(apiPreview),
-          }),
-        };
+      for (const event of backendApiA2uiEvents(state.priorToolResults)) {
+        yield event;
       }
 
       const finalized = yield* streamFinalAnswerFromState({
@@ -1141,22 +1154,12 @@ export async function* runDfcAgentLoop(
       const next = afterToolsRoute(state);
       if (next === "__end__") {
         const hasQueryableResults =
-          findBackendApiResult(state.priorToolResults)?.status === "success" ||
+          findSuccessfulBackendApiResults(state.priorToolResults).length > 0 ||
           Boolean(findExecuteSqlResult(state.priorToolResults));
 
         if (state.finalAnswer && hasQueryableResults) {
-          const apiPreview = findBackendApiResult(state.priorToolResults);
-          if (apiPreview?.status === "success" && apiPreview.table) {
-            yield {
-              type: "a2ui",
-              surface: buildQueryResultSurface({
-                surfaceId: `api_${Date.now().toString(36)}`,
-                sql: `-- 接口: ${apiPreview.endpointId}`,
-                columns: apiPreview.table.columns,
-                rows: apiPreview.table.rows,
-                summary: summarizeBackendApiResult(apiPreview),
-              }),
-            };
+          for (const event of backendApiA2uiEvents(state.priorToolResults)) {
+            yield event;
           }
 
           const finalized = yield* streamFinalAnswerFromState({

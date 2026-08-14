@@ -320,6 +320,10 @@ function paramsHasPhone(params: ApiRouteParams) {
   return Boolean(params.phone || params.wechat);
 }
 
+/**
+ * 高置信「明细 lookup」：车牌 / 客户 id / 手机微信等，catalog 已能直接 call HTTP。
+ * 规划器对所有业务问数（含聚合）都会先 route_api；本函数不表示「聚合可以跳过接口」。
+ */
 export function isApiFirstQuestion(question: string): boolean {
   const params = extractApiParams(question);
   const best = pickBestApiForQuestion(question);
@@ -363,7 +367,7 @@ export function formatApiCatalogForPrompt(question?: string) {
       return `- ${ep.appCode} / ${ep.title}：${call}`;
     });
 
-  return `全库 ${total} 条 HTTP+Dubbo 接口（config/dfc-api-catalog.json）。明细查询请先 route_api / search_api。\n${prefer.join("\n")}`;
+  return `全库 ${total} 条 HTTP+Dubbo 接口（config/dfc-api-catalog.json）。明细与聚合均请先 route_api / search_api；能调 HTTP 就调，多接口组装后再答，无合适接口才 SQL。\n${prefer.join("\n")}`;
 }
 
 function formatEndpointLine(item: ApiRouteMatch) {
@@ -381,7 +385,7 @@ export function formatApiRouteHintForPrompt(question?: string) {
   }
   const best = pickBestApiForQuestion(question);
   if (!best) {
-    return `已在全量接口库（${loadDfcApiCatalog().length} 条）中检索，未命中高置信只读接口；请 route_question + SQL 或 search_api 扩大搜索。`;
+    return `已在全量接口库（${loadDfcApiCatalog().length} 条）中检索，未命中高置信只读接口；请 search_api 再搜一轮，仍无可用 HTTP 再 route_question + SQL。`;
   }
   const ep = best.endpoint;
   const call =
@@ -393,8 +397,8 @@ export function formatApiRouteHintForPrompt(question?: string) {
     `调用：${call}`,
     `参数：${JSON.stringify(best.extractedParams)}`,
     best.httpCallable
-      ? "→ call_backend_api；失败则 SQL 回退"
-      : "→ Dubbo/未映射 HTTP，直接 SQL 或配置 DFC_API_*",
+      ? "→ call_backend_api；若问题还需其它数据，继续调用其它候选接口后组装；都失败才 SQL"
+      : "→ Dubbo/未映射 HTTP：先 search_api 找 HTTP 等价，没有再 SQL",
   ].join("\n");
 }
 

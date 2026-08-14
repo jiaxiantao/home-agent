@@ -1,7 +1,7 @@
 import { HumanMessage, SystemMessage, type AIMessageChunk } from "@langchain/core/messages";
 
 import {
-  formatBackendApiAnswer,
+  formatBackendApiAnswers,
   formatSqlAnswer,
 } from "@/lib/agent/answer-format";
 import { suggestFollowUpQuestions } from "@/lib/agent/follow-ups";
@@ -23,10 +23,12 @@ export type SynthesizeAnswerEvent =
   | { kind: "done"; text: string; mock: boolean; followUps: string[] };
 
 function buildPriorContext(prior: AgentToolResult[]) {
-  const apiEntry = [...prior].reverse().find((item) => item.tool === "call_backend_api");
-  const apiResult = apiEntry?.data as BackendApiCallResult | undefined;
-  if (apiResult?.status === "success" && apiResult.table?.rows.length) {
-    return formatBackendApiAnswer(apiResult);
+  const apiResults = prior
+    .filter((item) => item.tool === "call_backend_api")
+    .map((item) => item.data as BackendApiCallResult | undefined)
+    .filter((item): item is BackendApiCallResult => Boolean(item));
+  if (apiResults.some((item) => item.status === "success" && item.table?.rows.length)) {
+    return formatBackendApiAnswers(apiResults);
   }
 
   const sqlEntry = [...prior].reverse().find((item) => item.tool === "execute_sql");

@@ -3,7 +3,7 @@
 [![CI](https://git.souche-inc.com/dfc-ai/dfc-data-agent/badges/master/pipeline.svg)](https://git.souche-inc.com/dfc-ai/dfc-data-agent/-/pipelines)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-**大风车（DFC）数据智能体**：用户用自然语言描述要查的数据，Agent **自动规划**数据库、表与查询条件，生成只读 SQL，用户确认后出数（表格/图表）。无需手动选库选表。
+**大风车（DFC）数据智能体**：用户用自然语言描述要查的数据。Agent **优先检索并调用已有大风车 HTTP 接口**（必要时组合多个接口），仅当后端没有对应接口时才生成只读 SQL 供用户确认。无需手动选库选表。
 
 示例：「我想知道客户手机号为 13166990795 的客户信息」→ Agent 路由 CRM 接口 `queryCustomerDetailsByContact`（或 SQL 回退 `super_mario.customer`）→ 返回客户信息。也可按微信号查询。
 
@@ -11,7 +11,9 @@
 
 | 工具 | 说明 |
 |------|------|
-| `route_question` | 按问题语义自动规划候选库/表（可跨库搜元数据） |
+| `route_api` | 所有问数第一步：匹配已有 HTTP/Dubbo 接口 |
+| `call_backend_api` | 调用只读 HTTP（可多次，组装多接口结果） |
+| `route_question` | 无可用 HTTP 后，按语义规划候选库/表 |
 | `list_schema` | matador 手写业务口径目录 |
 | `search_schema` | 按关键词搜表/字段（支持跨业务库） |
 | `propose_sql` | 提出待确认的只读 SQL（建议 \`db\`.\`table\`） |

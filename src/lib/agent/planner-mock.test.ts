@@ -31,18 +31,40 @@ describe("buildMockPlan", () => {
     }
   });
 
-  it("routes analytics questions before proposing sql", () => {
+  it("routes analytics questions through APIs before proposing sql", () => {
     const plan = buildMockPlan("大风车正式车源一共有多少辆？", []);
 
     expect(plan.action).toBe("tool");
     if (plan.action === "tool") {
-      expect(plan.tool).toBe("route_question");
+      expect(plan.tool).toBe("route_api");
       expect(String(plan.args.question)).toMatch(/车源/);
+    }
+  });
+
+  it("falls back to route_question after API catalog miss", () => {
+    const plan = buildMockPlan("大风车正式车源一共有多少辆？", [
+      {
+        tool: "route_api",
+        args: { question: "大风车正式车源一共有多少辆？" },
+        output: "未命中可调用 HTTP",
+        data: { bestMatch: null, candidates: [] },
+      },
+    ]);
+
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("route_question");
     }
   });
 
   it("proposes qualified sql after route_question", () => {
     const plan = buildMockPlan("大风车正式车源一共有多少辆？", [
+      {
+        tool: "route_api",
+        args: { question: "大风车正式车源一共有多少辆？" },
+        output: "未命中可调用 HTTP",
+        data: { bestMatch: null, candidates: [] },
+      },
       {
         tool: "route_question",
         args: { question: "大风车正式车源一共有多少辆？" },
@@ -242,6 +264,146 @@ describe("buildMockPlan", () => {
     if (plan.action === "tool") {
       expect(plan.tool).toBe("propose_sql");
       expect(String(plan.args.sql)).toMatch(/city_code/i);
+    }
+  });
+
+  it("calls remaining HTTP APIs for compound questions then assembles", () => {
+    const question = "同时查客户手机号 13166990795 的资料以及车牌皖JV066M 的车辆信息";
+    const firstCall = buildMockPlan(question, [
+      {
+        tool: "route_api",
+        args: { question },
+        output: "接口路由",
+        data: {
+          bestMatch: {
+            endpoint: { id: "crm-contact" },
+            httpCallable: true,
+            extractedParams: { phone: "13166990795" },
+          },
+          candidates: [
+            {
+              endpoint: { id: "crm-contact" },
+              httpCallable: true,
+              extractedParams: { phone: "13166990795" },
+            },
+            {
+              endpoint: { id: "kartrider-plate" },
+              httpCallable: true,
+              extractedParams: { plate: "皖JV066M" },
+            },
+          ],
+        },
+      },
+    ]);
+    expect(firstCall.action).toBe("tool");
+    if (firstCall.action === "tool") {
+      expect(firstCall.tool).toBe("call_backend_api");
+      expect(firstCall.args.endpointId).toBe("crm-contact");
+    }
+
+    const secondCall = buildMockPlan(question, [
+      {
+        tool: "route_api",
+        args: { question },
+        output: "接口路由",
+        data: {
+          bestMatch: {
+            endpoint: { id: "crm-contact" },
+            httpCallable: true,
+            extractedParams: { phone: "13166990795" },
+          },
+          candidates: [
+            {
+              endpoint: { id: "crm-contact" },
+              httpCallable: true,
+              extractedParams: { phone: "13166990795" },
+            },
+            {
+              endpoint: { id: "kartrider-plate" },
+              httpCallable: true,
+              extractedParams: { plate: "皖JV066M" },
+            },
+          ],
+        },
+      },
+      {
+        tool: "call_backend_api",
+        args: { endpointId: "crm-contact", phone: "13166990795" },
+        output: "ok",
+        data: {
+          status: "success",
+          endpointId: "crm-contact",
+          table: {
+            columns: ["name", "phone"],
+            rows: [{ name: "张三", phone: "13166990795" }],
+          },
+        },
+      },
+    ]);
+    expect(secondCall.action).toBe("tool");
+    if (secondCall.action === "tool") {
+      expect(secondCall.tool).toBe("call_backend_api");
+      expect(secondCall.args.endpointId).toBe("kartrider-plate");
+      expect(secondCall.args.plate).toBe("皖JV066M");
+    }
+
+    const assembled = buildMockPlan(question, [
+      {
+        tool: "route_api",
+        args: { question },
+        output: "接口路由",
+        data: {
+          bestMatch: {
+            endpoint: { id: "crm-contact" },
+            httpCallable: true,
+            extractedParams: { phone: "13166990795" },
+          },
+          candidates: [
+            {
+              endpoint: { id: "crm-contact" },
+              httpCallable: true,
+              extractedParams: { phone: "13166990795" },
+            },
+            {
+              endpoint: { id: "kartrider-plate" },
+              httpCallable: true,
+              extractedParams: { plate: "皖JV066M" },
+            },
+          ],
+        },
+      },
+      {
+        tool: "call_backend_api",
+        args: { endpointId: "crm-contact", phone: "13166990795" },
+        output: "ok",
+        data: {
+          status: "success",
+          endpointId: "crm-contact",
+          table: {
+            columns: ["name", "phone"],
+            rows: [{ name: "张三", phone: "13166990795" }],
+          },
+        },
+      },
+      {
+        tool: "call_backend_api",
+        args: { endpointId: "kartrider-plate", plate: "皖JV066M" },
+        output: "ok",
+        data: {
+          status: "success",
+          endpointId: "kartrider-plate",
+          table: {
+            columns: ["plate_number"],
+            rows: [{ plate_number: "皖JV066M" }],
+          },
+        },
+      },
+    ]);
+    expect(assembled.action).toBe("answer");
+    if (assembled.action === "answer") {
+      expect(assembled.answer).toContain("张三");
+      expect(assembled.answer).toContain("皖JV066M");
+      expect(assembled.answer).toContain("数据源");
     }
   });
 });

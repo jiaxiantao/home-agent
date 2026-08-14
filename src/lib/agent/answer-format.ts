@@ -52,6 +52,21 @@ export function formatBackendApiAnswer(result: BackendApiCallResult) {
   return `${summary}\n\n${formatRowsAsMarkdownTable(columns, rows)}`;
 }
 
+export function formatBackendApiAnswers(results: BackendApiCallResult[]) {
+  const ok = results.filter(
+    (item) => item.status === "success" && item.table?.rows.length,
+  );
+  if (ok.length === 0) {
+    return "接口调用未返回可用数据，请稍后重试或改用 SQL 查询。";
+  }
+  if (ok.length === 1) {
+    return formatBackendApiAnswer(ok[0]!);
+  }
+  return ok
+    .map((item, index) => `### 数据源 ${index + 1}\n\n${formatBackendApiAnswer(item)}`)
+    .join("\n\n");
+}
+
 export function summarizeSqlResult(result: ExecuteSqlData) {
   if (result.rowCount === 0) {
     return "查询成功，但没有返回数据行。";

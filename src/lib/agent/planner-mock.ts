@@ -7,12 +7,9 @@ import {
   extractQuestionSearchTerms,
   suggestedTablesForQuestion,
 } from "@/lib/analytics/question-router";
-import {
-  extractPhoneFromQuestion,
-  isApiFirstQuestion,
-} from "@/lib/analytics/api-catalog";
+import { extractPhoneFromQuestion } from "@/lib/analytics/api-catalog";
 import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
-import { formatBackendApiAnswer } from "@/lib/agent/answer-format";
+import { formatBackendApiAnswers } from "@/lib/agent/answer-format";
 import { inferPreferredChartType, userRequestedChart } from "@/lib/agent/chart-intent";
 import { PRODUCT_NAME_ZH } from "@/lib/product";
 
@@ -31,6 +28,82 @@ function lastToolData<T>(prior: AgentToolResult[], tool: AgentToolResult["tool"]
   }
 
   return undefined;
+}
+
+type RoutedApiMatch = {
+  endpoint: { id: string };
+  httpCallable: boolean;
+  extractedParams?: Record<string, string | undefined>;
+};
+
+const MAX_BACKEND_API_CALLS = 3;
+
+function looksLikeCompoundQuestion(question: string) {
+  return /以及|还有|同时|分别|并且/.test(question);
+}
+
+function calledEndpointIds(prior: AgentToolResult[]) {
+  const ids = new Set<string>();
+  for (const item of prior) {
+    if (item.tool !== "call_backend_api") continue;
+    const id = item.args?.endpointId;
+    if (typeof id === "string" && id.trim()) {
+      ids.add(id);
+    }
+  }
+  return ids;
+}
+
+function successfulApiResults(prior: AgentToolResult[]) {
+  return prior
+    .filter((item) => item.tool === "call_backend_api")
+    .map((item) => item.data as BackendApiCallResult | undefined)
+    .filter(
+      (item): item is BackendApiCallResult =>
+        Boolean(item?.status === "success" && item.table?.rows.length),
+    );
+}
+
+function nextHttpCandidate(
+  routed:
+    | { bestMatch?: RoutedApiMatch | null; candidates?: RoutedApiMatch[] }
+    | undefined,
+  called: Set<string>,
+) {
+  const list = [routed?.bestMatch, ...(routed?.candidates ?? [])].filter(
+    (item): item is RoutedApiMatch =>
+      Boolean(item?.httpCallable && item.endpoint?.id),
+  );
+  const seen = new Set<string>();
+  for (const item of list) {
+    const id = item.endpoint.id;
+    if (seen.has(id) || called.has(id)) continue;
+    seen.add(id);
+    return item;
+  }
+  return undefined;
+}
+
+function callBackendApiPlan(
+  match: RoutedApiMatch,
+  extras: { phone?: string; plate?: string },
+  reasoning: string,
+): AgentPlan {
+  const params = match.extractedParams ?? {};
+  return {
+    action: "tool",
+    tool: "call_backend_api",
+    args: {
+      endpointId: match.endpoint.id,
+      phone: params.phone ?? extras.phone,
+      recordId: params.recordId,
+      shopCode: params.shopCode,
+      groupCode: params.groupCode,
+      objCode: params.objCode,
+      plate: params.plate ?? extras.plate,
+    },
+    reasoning,
+  };
 }
 
 function extractTableName(message: string) {
@@ -395,52 +468,45 @@ export function buildMockPlan(
   if (wantsAnalytics && !hasTool(prior, "propose_sql") && !hasTool(prior, "execute_sql")) {
     const phone = extractPhoneFromQuestion(normalized);
     const plate = extractLicensePlate(normalized);
-    const apiFirst = isApiFirstQuestion(normalized);
 
-    if (apiFirst && !hasTool(prior, "route_api")) {
+    if (!hasTool(prior, "route_api")) {
       return {
         action: "tool",
         tool: "route_api",
         args: { question: normalized },
-        reasoning: "明细查询：先匹配大风车后端已有接口",
+        reasoning: "业务问数：先检索大风车已有 HTTP/Dubbo 接口，能调 HTTP 再调，无接口才 SQL",
       };
     }
 
     const apiRouted = lastToolData<{
-      bestMatch?: { endpoint: { id: string }; httpCallable: boolean; extractedParams: Record<string, string> };
+      bestMatch?: RoutedApiMatch | null;
+      candidates?: RoutedApiMatch[];
     }>(prior, "route_api");
+    const called = calledEndpointIds(prior);
+    const successes = successfulApiResults(prior);
+    const nextMatch = nextHttpCandidate(apiRouted, called);
+    const shouldCallMore =
+      Boolean(nextMatch) &&
+      called.size < MAX_BACKEND_API_CALLS &&
+      (successes.length === 0 || looksLikeCompoundQuestion(normalized));
 
-    if (
-      apiFirst &&
-      apiRouted?.bestMatch?.httpCallable &&
-      !hasTool(prior, "call_backend_api")
-    ) {
-      const match = apiRouted.bestMatch;
+    if (shouldCallMore && nextMatch) {
+      return callBackendApiPlan(nextMatch, { phone, plate }, "调用大风车已有 HTTP 接口取数（优先于 SQL）");
+    }
+
+    if (successes.length > 0) {
       return {
-        action: "tool",
-        tool: "call_backend_api",
-        args: {
-          endpointId: match.endpoint.id,
-          phone: match.extractedParams.phone ?? phone,
-          recordId: match.extractedParams.recordId,
-          shopCode: match.extractedParams.shopCode,
-          objCode: match.extractedParams.objCode,
-          plate: match.extractedParams.plate ?? plate,
-        },
-        reasoning: "调用大风车 HTTP 接口查询（CRM/车辆管理等，优先于 SQL）",
+        action: "answer",
+        answer: formatBackendApiAnswers(successes),
+        reasoning:
+          successes.length > 1
+            ? "多个 HTTP 接口返回成功，组装后直接回答"
+            : "HTTP 接口返回成功，直接汇总答案",
       };
     }
 
     const apiResult = lastToolData<BackendApiCallResult>(prior, "call_backend_api");
-    if (apiResult?.status === "success" && apiResult.table?.rows.length) {
-      return {
-        action: "answer",
-        answer: formatBackendApiAnswer(apiResult),
-        reasoning: "HTTP 接口返回成功，直接汇总答案",
-      };
-    }
-
-    // HTTP 失败但已给出可执行 SQL：直接回退，不向用户索取额外参数
+    // HTTP 失败且没有其它可调接口、但已给出可执行 SQL：回退，不向用户索取额外参数
     if (
       apiResult &&
       apiResult.status !== "success" &&
@@ -468,7 +534,7 @@ export function buildMockPlan(
         action: "tool",
         tool: "route_question",
         args: { question: normalized },
-        reasoning: "业务问数：先自动规划候选数据库与表",
+        reasoning: "接口目录无可用 HTTP：再规划候选数据库与表，准备 SQL 回退",
       };
     }
 

@@ -29,7 +29,7 @@ data:
   OLLAMA_MODEL: "qwen3"
   OLLAMA_API_KEY: "ollama"
   RATE_LIMIT_AGENT_PER_MIN: "30"
-  AGENT_MAX_STEPS: "8"
+  AGENT_MAX_STEPS: "10"
 ---
 # 敏感信息请用 Secret（示例键名，勿提交真实值）
 apiVersion: v1
