@@ -30,7 +30,7 @@ export function ThemeToggle({
             : "text-muted hover:text-foreground",
         )}
       >
-        亮色
+        白天
       </button>
       <button
         type="button"
@@ -43,7 +43,7 @@ export function ThemeToggle({
             : "text-muted hover:text-foreground",
         )}
       >
-        暗黑
+        黑夜
       </button>
     </div>
   );
