@@ -43,6 +43,9 @@ export type DfcMcpCallHttpInput = {
   phone?: string;
   recordId?: string;
   shopCode?: string;
+  groupCode?: string;
+  orgCode?: string;
+  departmentCode?: string;
   objCode?: string;
   plate?: string;
   query?: Record<string, string>;

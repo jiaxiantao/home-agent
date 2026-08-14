@@ -113,6 +113,7 @@ export const agentToolCatalog: AgentToolCatalogItem[] = [
       phone: "string?",
       recordId: "string?",
       shopCode: "string?",
+      groupCode: "string?",
       objCode: "string?",
       plate: "string?",
     },

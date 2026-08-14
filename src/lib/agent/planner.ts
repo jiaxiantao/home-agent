@@ -18,6 +18,7 @@ import { buildMockPlan } from "@/lib/agent/planner-mock";
 import { parsePlanFromLlm } from "@/lib/agent/planner-schema";
 import type { AgentToolResult } from "@/lib/agent/types";
 import { getLlmConfig, isLlmConfigured } from "@/lib/llm-config";
+import { formatDfcUserForPrompt } from "@/lib/security/dfc-user-profile";
 import { PRODUCT_NAME_EN, PRODUCT_NAME_ZH } from "@/lib/product";
 
 function getPlannerSystem(question?: string) {
@@ -45,7 +46,7 @@ ${formatBusinessGlossaryForPrompt(question)}
 2. 若命中只读 HTTP 且参数齐全 → call_backend_api（经 MCP dfc_call_http_api；参数 phone/wechat/recordId/objCode）
 3. 仅当：无匹配接口、Dubbo-only、HTTP 未配置 DFC_API_ENABLED、或调用失败 → 再走 route_question → propose_sql
 4. **聚合统计**（COUNT/GROUP BY/趋势/分布）无对应 HTTP 时直接 SQL，不必 call_backend_api
-5. 「客户手机号 / 微信号 / 联系方式」查明细：优先 MCP 调用 queryCustomerDetailsByContact（contact=手机或微信，对齐 CRM）。仅当用户给出「客户 id / recordId」时才走 crmQueryCustomerInfo。SQL 回退用 phone / phone_backup / weichat。门店由登录 SSO 提供。**禁止向用户索取 shop_code**。
+5. 「客户手机号 / 微信号 / 联系方式」查明细：优先 MCP 调用 queryCustomerDetailsByContact（contact=手机或微信，对齐 CRM）。仅当用户给出「客户 id / recordId」时才走 crmQueryCustomerInfo。SQL 回退用 phone / phone_backup / weichat。门店/集团/本人手机号由登录 SSO 自动注入。**禁止向用户索取 shop_code / group_code**。
 6. 若 call_backend_api 返回 failureKind=network/not_configured/http，或输出含 suggestedSql：**立刻 propose_sql(suggestedSql)**，不要再追问用户补参数，也不要因为 503/upstream 误判为缺参。
 7. **objCode、recordId 不是数据库列**；生成 SQL 时 CRM 客户表用 id，禁止 AND objCode = 'customer'。
 
@@ -65,6 +66,9 @@ ${formatBusinessGlossaryForPrompt(question)}
 
 ${preferredHint}
 
+## 当前登录用户
+${formatDfcUserForPrompt()}
+
 ## 问题→库路由提示${question ? "（与当前问题相关）" : ""}
 ${formatRouteHintForPrompt(question)}
 
@@ -83,7 +87,7 @@ ${formatServiceRepoMapForPrompt()}
 ## 工具
 - route_api: question, endpointId? — 【明细查询优先】按问题语义在全量接口库中路由 Top 候选
 - search_api: keyword|question, appCode?, entity?, readOnlyOnly?, limit? — 扩大搜索接口目录（route_api 未命中时使用）
-- call_backend_api: endpointId, phone?, recordId?, objCode?, shopCode? — 调用只读 HTTP（需 DFC_API_ENABLED；CRM 按手机/微信用 queryCustomerDetailsByContact，按 id 用 crmQueryCustomerInfo）
+- call_backend_api: endpointId, phone?, recordId?, objCode?, shopCode?, groupCode? — 调用只读 HTTP（需 DFC_API_ENABLED；CRM 按手机/微信用 queryCustomerDetailsByContact，按 id 用 crmQueryCustomerInfo）。shopCode/groupCode 缺省时由登录用户资料自动填充，不必传入。
 - route_question: question — 【聚合/SQL 路径】根据问题自动规划候选库/表，并跨库搜索元数据
 - list_project_databases / list_databases — 列库
 - list_tables: { database?, pattern?, includeViews? }

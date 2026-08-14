@@ -45,6 +45,9 @@ export type ApiRouteParams = {
   wechat?: string;
   recordId?: string;
   shopCode?: string;
+  groupCode?: string;
+  orgCode?: string;
+  departmentCode?: string;
   /** super-mario CRM 对象 code，默认 customer */
   objCode?: string;
   /** 车牌号；车辆管理 queryRecordPageInfo keywords */

@@ -344,6 +344,7 @@ export async function runAgentTool(
         phone: readOptionalString(args, "phone"),
         recordId: readOptionalString(args, "recordId"),
         shopCode: readOptionalString(args, "shopCode"),
+        groupCode: readOptionalString(args, "groupCode"),
         objCode: readOptionalString(args, "objCode"),
         plate: readOptionalString(args, "plate"),
         query,

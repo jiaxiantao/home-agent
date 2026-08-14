@@ -11,7 +11,7 @@ import { getClientIp, resolveAuthUserFromHeaders } from "@/lib/security/auth";
 import { isAuthEnabled } from "@/lib/security/auth-config";
 import { auditFromContext, writeAudit } from "@/lib/security/audit-log";
 import { checkAgentRateLimit } from "@/lib/security/rate-limit";
-import { resolveSsoCredentialsFromRequest } from "@/lib/security/dfc-user-profile";
+import { resolveDfcUserProfile, resolveSsoCredentialsFromRequest } from "@/lib/security/dfc-user-profile";
 import { runWithSsoRequestContext } from "@/lib/security/sso-context";
 import { runWithLlmProvider, parseLlmProvider } from "@/lib/llm-provider-context";
 
@@ -116,6 +116,7 @@ export async function POST(request: Request) {
 
         try {
           const ssoCredentials = resolveSsoCredentialsFromRequest(request.headers);
+          await resolveDfcUserProfile(request.headers);
           await runWithSsoRequestContext(ssoCredentials, async () => {
             await runWithLlmProvider(parseLlmProvider(body.llmProvider), async () => {
               await runWithAnalyticsEnv(analyticsEnv, async () => {

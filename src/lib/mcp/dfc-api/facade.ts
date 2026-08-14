@@ -13,6 +13,13 @@ import {
 } from "@/lib/analytics/backend-api-client";
 import { getDevSsoCredentials, primaryHeaderForCookie } from "@/lib/security/sso-config";
 import {
+  applyLoggedInUserToApiParams,
+  applyLoggedInUserToBody,
+  applyLoggedInUserToQuery,
+  getCachedDfcUserProfile,
+  resolveDfcUserProfileFromSso,
+} from "@/lib/security/dfc-user-profile";
+import {
   getSsoRequestContext,
   runWithSsoRequestContext,
 } from "@/lib/security/sso-context";
@@ -125,6 +132,7 @@ export async function dfcMcpCallHttpApi(
       phone: input.phone,
       recordId: input.recordId,
       shopCode: input.shopCode,
+      groupCode: input.groupCode,
       objCode: input.objCode ?? "customer",
       plate: input.plate,
     };
@@ -141,40 +149,52 @@ export async function dfcMcpCallHttpApi(
   }
 
   const fromQuestion = extractApiParams(input.question || "");
-  const params = {
-    ...fromQuestion,
-    phone: input.phone || fromQuestion.phone,
-    recordId: input.recordId || fromQuestion.recordId,
-    plate: input.plate || fromQuestion.plate,
-    shopCode:
-      input.shopCode ||
-      fromQuestion.shopCode ||
-      process.env.DFC_API_DEFAULT_SHOP_CODE?.trim() ||
-      undefined,
-    objCode:
-      input.objCode ||
-      fromQuestion.objCode ||
-      (fromQuestion.plate || input.plate ? "car" : "customer"),
-  };
-
   const ssoPayload = input.sso ?? input._sso;
   const sso =
     toSsoCredentials(ssoPayload) ??
     getSsoRequestContext() ??
     getDevSsoCredentials();
+
+  const loginUser = sso
+    ? (getCachedDfcUserProfile(sso) ??
+      (await resolveDfcUserProfileFromSso(sso)))
+    : null;
+
+  const params = applyLoggedInUserToApiParams(
+    {
+      ...fromQuestion,
+      phone: input.phone || fromQuestion.phone,
+      recordId: input.recordId || fromQuestion.recordId,
+      plate: input.plate || fromQuestion.plate,
+      shopCode: input.shopCode || fromQuestion.shopCode,
+      groupCode: input.groupCode || fromQuestion.groupCode,
+      orgCode: input.orgCode,
+      departmentCode: input.departmentCode,
+      objCode:
+        input.objCode ||
+        fromQuestion.objCode ||
+        (fromQuestion.plate || input.plate ? "car" : "customer"),
+    },
+    loginUser,
+  );
+  if (!params.shopCode) {
+    params.shopCode = process.env.DFC_API_DEFAULT_SHOP_CODE?.trim() || undefined;
+  }
+
+  const extraQuery = applyLoggedInUserToQuery(input.query, loginUser);
+  const extraBody = applyLoggedInUserToBody(input.body, loginUser);
   const serviceChain =
     ssoPayload?.serviceChain?.trim() ||
     process.env.DFC_API_SERVICE_CHAIN?.trim();
 
   const run = () =>
     callBackendApi(endpoint, params, {
-      extraQuery: input.query,
-      extraBody: input.body,
+      extraQuery,
+      extraBody,
       serviceChain,
     });
 
   if (!sso) {
-    // callBackendApi 也会返回 auth，这里提前标明是中间件未拿到 SSO
     return withAuthMissing(endpoint, params);
   }
 

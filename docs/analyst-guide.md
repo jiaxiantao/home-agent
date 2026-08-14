@@ -53,7 +53,7 @@
 - `DFC_API_SUPER_MARIO_BASE_URL=http://super-mario.stable.dasouche.net`（与 `web-app-mars-h5-customer` 测试配置一致；须 `*.dasouche.net`，勿用线上 `*.souche.com`）
 - `DFC_API_MATADOR_BASE_URL=http://matador.dasouche.net`
 - 可选 `DFC_API_SERVICE_CHAIN`（多环境；前端默认注释）
-- 本地无同域 Cookie 时配置 `DFC_API_DEV_SSO_TOKEN`（Mars **测试外网**登录后从 `_security_token` 复制）
+- 本地无同域 Cookie 时：侧栏「粘贴 Token 同步登录」，或配置 `DFC_API_DEV_SSO_TOKEN`（Mars **测试外网**登录后从 `_security_token` 复制）。同步成功或刷新页面后，服务端会拉取当前用户的门店/集团/手机号等资料并缓存在内存；Agent 调 HTTP 时自动注入 `shopCode` / `groupCode`，不必在问题里提供门店号。客户手机号仍以问题里的号码为准。
 
 **CRM 客户详情（对齐前后端）**：
 - 业务主路径（手机号/微信号）：`GET /v1/customerAction/queryCustomerDetailsByContact.json?contact=`

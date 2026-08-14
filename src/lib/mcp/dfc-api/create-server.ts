@@ -118,6 +118,7 @@ export function createDfcApiMcpServer() {
         phone: z.string().optional(),
         recordId: z.string().optional(),
         shopCode: z.string().optional(),
+        groupCode: z.string().optional(),
         objCode: z.string().optional(),
         plate: z.string().optional(),
         query: z.record(z.string(), z.string()).optional(),

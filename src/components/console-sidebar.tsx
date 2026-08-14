@@ -28,6 +28,8 @@ type DfcUser = {
   userName?: string;
   shopCode?: string;
   shopName?: string;
+  groupCode?: string;
+  orgCode?: string;
   phone?: string;
   linked?: boolean;
 };
@@ -267,11 +269,13 @@ function accountSubtitle(
   authMode: string,
 ) {
   if (isDfcLinked) {
-    if (dfcUser?.shopName) {
-      return `${dfcUser.shopName} · 点击切换 ↗`;
-    }
-    if (dfcUser?.shopCode) {
-      return `门店 ${dfcUser.shopCode} · 点击切换 ↗`;
+    const shop =
+      dfcUser?.shopName ||
+      (dfcUser?.shopCode ? `门店 ${dfcUser.shopCode}` : "");
+    const group = dfcUser?.groupCode ? `集团 ${dfcUser.groupCode}` : "";
+    const label = [shop, group].filter(Boolean).join(" · ");
+    if (label) {
+      return `${label} · 点击切换 ↗`;
     }
     return "大风车账号 · 点击切换 ↗";
   }

@@ -145,6 +145,7 @@ export async function runCallBackendApiTool(args: {
   phone?: string;
   recordId?: string;
   shopCode?: string;
+  groupCode?: string;
   objCode?: string;
   plate?: string;
   query?: Record<string, string>;

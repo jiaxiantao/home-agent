@@ -55,6 +55,7 @@ const toolSchemas: Partial<Record<AgentToolName, z.ZodType>> = {
     phone: z.string().optional(),
     recordId: z.string().optional(),
     shopCode: z.string().optional(),
+    groupCode: z.string().optional(),
     objCode: z.string().optional(),
     plate: z.string().optional().describe("车牌号，queryRecordPageInfo keywords"),
     query: z.record(z.string(), z.string()).optional(),

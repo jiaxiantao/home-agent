@@ -11,6 +11,7 @@ import { formatProjectDatabasesForPrompt } from "@/lib/analytics/project-databas
 import { getPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
 import { formatRouteHintForPrompt } from "@/lib/analytics/question-router";
 import { getAgentMaxSteps } from "@/lib/agent/config";
+import { formatDfcUserForPrompt } from "@/lib/security/dfc-user-profile";
 import { PRODUCT_NAME_EN, PRODUCT_NAME_ZH } from "@/lib/product";
 
 export function buildAgentSystemPrompt(question?: string) {
@@ -40,7 +41,7 @@ ${formatBusinessGlossaryForPrompt(question)}
 3. 仅当无匹配、Dubbo-only、HTTP 未配置或调用失败 → route_question → propose_sql
 4. 聚合统计无对应 HTTP 时直接 SQL
 5. 「客户手机号 / 微信号」：优先 call_backend_api → MCP → queryCustomerDetailsByContact（contact=手机号或微信号）。「客户 id / recordId」才走 crmQueryCustomerInfo。SQL 回退：phone / phone_backup / weichat
-6. call_backend_api 失败且含 suggestedSql：立刻 propose_sql(suggestedSql)；若 failureKind=auth，在 explanation 中提示用户同步大风车登录
+6. call_backend_api 失败且含 suggestedSql：立刻 propose_sql(suggestedSql)；若 failureKind=auth，在 explanation 中提示用户同步大风车登录。shopCode/groupCode 由登录用户自动注入，禁止向用户索取
 7. **objCode、recordId 是接口参数名，不是 MySQL 列名**；写 SQL 时 CRM 客户表用 id 列，禁止 objCode = 'customer'
 
 ## 自动规划铁律
@@ -53,6 +54,9 @@ ${formatBusinessGlossaryForPrompt(question)}
 7. **用户要求图表时，propose_sql 必须一次写出可出图的结果**：至少两行，且同时有分类列（城市/状态/区间名）和数值列（数量/金额）。用 GROUP BY 或 CASE WHEN 分桶，禁止先查 MIN/MAX/AVG/COUNT 单行汇总就结束。若 prior 里已有这种探查结果，立刻再 propose_sql 分桶统计，不要直接回答。K线图需开/高/低/收四列；散点图需两列数值；桑基图需来源、去向、数值；仪表盘允许单行指标。
 
 ${preferredHint}
+
+## 当前登录用户
+${formatDfcUserForPrompt()}
 
 ## 问题→库路由${question ? "（当前问题）" : ""}
 ${formatRouteHintForPrompt(question)}

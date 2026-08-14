@@ -1,14 +1,21 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 
 import {
+  applyLoggedInUserToApiParams,
+  applyLoggedInUserToBody,
+  applyLoggedInUserToQuery,
+  clearDfcUserProfileCacheForTest,
   DFC_SSO_SESSION_COOKIE,
   DFC_SSO_SESSION_COOKIE_LEGACY,
+  forgetDfcUserProfile,
+  getCachedDfcUserProfile,
   resolveDfcUserProfile,
   resolveSsoCredentialsFromRequest,
 } from "@/lib/security/dfc-user-profile";
 
 describe("dfc-user-profile", () => {
   afterEach(() => {
+    clearDfcUserProfileCacheForTest();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -51,41 +58,43 @@ describe("dfc-user-profile", () => {
     });
   });
 
-  it("merges matador workbench user profile", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string) => {
-        if (url.includes("queryLoginUserInfo")) {
-          return new Response(
-            JSON.stringify({
-              success: true,
-              data: {
-                loginUserId: "ACC123",
-                loginUserName: "贾先涛",
-                loginUserPhone: "13800000000",
-              },
-            }),
-            { status: 200 },
-          );
-        }
-        if (url.includes("findUserInfoByToken")) {
-          return new Response(
-            JSON.stringify({
-              success: true,
-              data: {
-                account: "ACC123",
-                nickname: "贾先涛",
-                shopCode: "01161577",
-              },
-            }),
-            { status: 200 },
-          );
-        }
-        return new Response(JSON.stringify({ success: false }), {
-          status: 404,
-        });
-      }),
-    );
+  it("merges workbench shop/group and caches the profile in memory", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("queryLoginUserInfo")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              loginUserId: "ACC123",
+              loginUserName: "贾先涛",
+              loginUserPhone: "13800000000",
+              shopCode: "01161577",
+              shopName: "杭州门店",
+              groupCode: "G001",
+              currentShop: { code: "01161577", groupCode: "G001" },
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("findUserInfoByToken")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              account: "ACC123",
+              nickname: "贾先涛",
+              shopCode: "01161577",
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ success: false }), {
+        status: 404,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     const headers = new Headers({
       cookie: `${DFC_SSO_SESSION_COOKIE}=token-xyz`,
@@ -96,6 +105,77 @@ describe("dfc-user-profile", () => {
       userId: "ACC123",
       userName: "贾先涛",
       shopCode: "01161577",
+      groupCode: "G001",
+      phone: "13800000000",
     });
+
+    const cached = await resolveDfcUserProfile(headers);
+    expect(cached?.shopCode).toBe("01161577");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    await resolveDfcUserProfile(headers, { refresh: true });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it("fills missing shop/group without overriding question phone", () => {
+    const user = {
+      linked: true as const,
+      shopCode: "01161577",
+      groupCode: "G001",
+      phone: "13800000000",
+    };
+    expect(
+      applyLoggedInUserToApiParams(
+        { phone: "13166990795", shopCode: undefined },
+        user,
+      ),
+    ).toMatchObject({
+      phone: "13166990795",
+      shopCode: "01161577",
+      groupCode: "G001",
+    });
+    expect(
+      applyLoggedInUserToApiParams({ phone: undefined, shopCode: undefined }, user)
+        .phone,
+    ).toBeUndefined();
+    expect(
+      applyLoggedInUserToQuery({ shop_code: "", groupCode: "", phone: "" }, user),
+    ).toMatchObject({
+      shop_code: "01161577",
+      shopCode: "01161577",
+      groupCode: "G001",
+      phone: "13800000000",
+    });
+    expect(
+      applyLoggedInUserToBody({ shop_code: "", ownerPhone: "kept" }, user),
+    ).toMatchObject({
+      shop_code: "01161577",
+      shopCode: "01161577",
+      groupCode: "G001",
+      ownerPhone: "kept",
+    });
+  });
+
+  it("forgets cached profile", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: { loginUserId: "ACC123", loginUserName: "贾先涛" },
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+    const headers = new Headers({
+      cookie: `${DFC_SSO_SESSION_COOKIE}=token-forget`,
+    });
+    await resolveDfcUserProfile(headers);
+    const sso = resolveSsoCredentialsFromRequest(headers);
+    expect(getCachedDfcUserProfile(sso)?.userId).toBe("ACC123");
+    forgetDfcUserProfile(sso);
+    expect(getCachedDfcUserProfile(sso)).toBeNull();
   });
 });

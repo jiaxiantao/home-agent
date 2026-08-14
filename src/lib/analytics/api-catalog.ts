@@ -69,9 +69,6 @@ export function extractApiParams(question: string): ApiRouteParams {
     wechat,
     plate,
     recordId,
-    shopCode: isCrmQuestion
-      ? process.env.DFC_API_DEFAULT_SHOP_CODE?.trim() || undefined
-      : undefined,
     objCode: isCrmQuestion
       ? process.env.DFC_API_DEFAULT_CUSTOMER_OBJ_CODE?.trim() || "customer"
       : undefined,
