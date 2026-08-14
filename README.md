@@ -16,7 +16,7 @@
 | `search_schema` | 按关键词搜表/字段（支持跨业务库） |
 | `propose_sql` | 提出待确认的只读 SQL（建议 \`db\`.\`table\`） |
 | `execute_sql` | 用户确认后执行（不可由规划器直接触发） |
-| `build_chart` | 根据结果生成 bar/line/pie |
+| `build_chart` | 按用户意图生成 25 种常见图表（柱状/折线/饼/漏斗/K 线等），可下载 PNG/SVG |
 
 - 页面：`/agents`（`/` 自动跳转）
 - API：`POST /api/agent`（SSE + resume 确认）

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { ChartSpec } from "@/lib/analytics/chart-spec";
+import { chartSpecSchema, type ChartSpec } from "@/lib/analytics/chart-spec";
 
 export const a2uiComponentSchema = z.discriminatedUnion("type", [
   z.object({
@@ -24,13 +24,7 @@ export const a2uiComponentSchema = z.discriminatedUnion("type", [
   z.object({
     id: z.string(),
     type: z.literal("Chart"),
-    chart: z.object({
-      type: z.enum(["bar", "line", "pie", "funnel"]),
-      title: z.string().optional(),
-      xKey: z.string(),
-      yKey: z.string(),
-      data: z.array(z.record(z.string(), z.unknown())),
-    }),
+    chart: chartSpecSchema,
   }),
   z.object({
     id: z.string(),

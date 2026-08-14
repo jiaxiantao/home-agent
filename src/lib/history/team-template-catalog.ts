@@ -222,6 +222,19 @@ export const teamTemplateSeed: TeamTemplateSeed[] = [
   { category: "图表", label: "业务漏斗柱状图", prompt: "对比正式车源数、求购线索数、主订单数，看转化漏斗，用柱状图展示" },
   { category: "图表", label: "业务转化漏斗图", prompt: "对比正式车源数、求购线索数、主订单数，生成漏斗图" },
   { category: "图表", label: "城市供需柱状图", prompt: "按城市对比正式车源数和成交订单数，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "车源状态环形图", prompt: "统计各状态的正式车源数量，用环形图展示" },
+  { category: "图表", label: "品牌车源条形图", prompt: "按品牌统计正式车源数量，看前 15 名，用条形图展示" },
+  { category: "图表", label: "成交面积图", prompt: "最近 30 天每天成交了多少单？用面积图展示" },
+  { category: "图表", label: "售价直方图", prompt: "正式车源售价大概落在哪些区间？各有多少辆？用直方图展示" },
+  { category: "图表", label: "城市供需堆积柱", prompt: "按城市对比正式车源数和成交订单数，看前 10 名，用堆积柱状图展示" },
+  { category: "图表", label: "城市供需分组柱", prompt: "按城市对比正式车源数和成交订单数，看前 10 名，用分组柱状图展示" },
+  { category: "图表", label: "品牌供需雷达图", prompt: "按品牌对比正式车源数、求购线索数和成交订单数，看前 8 名，用雷达图展示" },
+  { category: "图表", label: "城市供需散点图", prompt: "各城市正式车源数和成交订单数，用散点图展示" },
+  { category: "图表", label: "品牌占比树图", prompt: "按品牌看正式车源数量占比，用矩形树图展示" },
+  { category: "图表", label: "订单状态玫瑰图", prompt: "按订单状态看一下主订单数量分布，用玫瑰图展示" },
+  { category: "图表", label: "业务转化瀑布图", prompt: "对比正式车源数、求购线索数、主订单数，用瀑布图展示" },
+  { category: "图表", label: "城市品牌热力图", prompt: "按城市和品牌交叉看正式车源数量，看数量最多的组合，用热力图展示" },
+  { category: "图表", label: "渠道转化桑基图", prompt: "客户从哪些渠道进来、最后落在哪些订单状态？用桑基图展示" },
 ];
 
 export const teamTemplateSeedCount = teamTemplateSeed.length;

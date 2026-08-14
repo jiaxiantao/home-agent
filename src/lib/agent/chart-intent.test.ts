@@ -12,6 +12,10 @@ describe("userRequestedChart", () => {
     expect(userRequestedChart("show a bar chart by city")).toBe(true);
     expect(userRequestedChart("对比车源、求购、订单，生成漏斗图")).toBe(true);
     expect(userRequestedChart("看转化漏斗")).toBe(true);
+    expect(userRequestedChart("最近成交画K线图")).toBe(true);
+    expect(userRequestedChart("按品牌用雷达图对比")).toBe(true);
+    expect(userRequestedChart("城市车源和成交用散点图看")).toBe(true);
+    expect(userRequestedChart("用热力图看城市和品牌交叉")).toBe(true);
   });
 
   it("returns false for plain data queries", () => {
@@ -28,5 +32,13 @@ describe("userRequestedChart", () => {
     expect(inferPreferredChartType("按状态用饼图展示")).toBe("pie");
     expect(inferPreferredChartType("对比车源求购订单，生成漏斗图")).toBe("funnel");
     expect(inferPreferredChartType("看转化漏斗，用柱状图展示")).toBe("bar");
+    expect(inferPreferredChartType("最近成交画K线图")).toBe("candlestick");
+    expect(inferPreferredChartType("用分组柱状图对比")).toBe("groupedBar");
+    expect(inferPreferredChartType("按品牌用雷达图对比")).toBe("radar");
+    expect(inferPreferredChartType("城市车源和成交用散点图看")).toBe("scatter");
+    expect(inferPreferredChartType("用环形图展示状态占比")).toBe("doughnut");
+    expect(inferPreferredChartType("按品牌统计，用条形图展示")).toBe("horizontalBar");
+    expect(inferPreferredChartType("用热力图看交叉分布")).toBe("heatmap");
+    expect(inferPreferredChartType("渠道转化用桑基图")).toBe("sankey");
   });
 });

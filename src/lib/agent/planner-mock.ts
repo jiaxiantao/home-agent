@@ -13,7 +13,7 @@ import {
 } from "@/lib/analytics/api-catalog";
 import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
 import { formatBackendApiAnswer } from "@/lib/agent/answer-format";
-import { userRequestedChart } from "@/lib/agent/chart-intent";
+import { inferPreferredChartType, userRequestedChart } from "@/lib/agent/chart-intent";
 import { PRODUCT_NAME_ZH } from "@/lib/product";
 
 type ConversationTurn = { role: string; content: string; sql?: string };
@@ -750,6 +750,7 @@ export function buildMockPlan(
           columns: result.columns,
           rows: result.rows,
           title: "查询结果",
+          chartType: inferPreferredChartType(message),
         },
         reasoning: "已有多行结果，尝试生成图表",
       };

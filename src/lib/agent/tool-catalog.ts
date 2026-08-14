@@ -144,8 +144,14 @@ export const agentToolCatalog: AgentToolCatalogItem[] = [
   {
     name: "build_chart",
     label: "生成图表",
-    description: "根据查询结果生成 bar/line/pie/funnel 图表描述（仅当用户明确要求图表时）",
-    args: { columns: "string[]", rows: "object[]", chartType: "bar|line|pie|funnel" },
+    description:
+      "根据查询结果生成图表描述（仅当用户明确要求图表时）。支持柱状/折线/饼/漏斗/K线/雷达/散点/热力等 25 种常见图形",
+    args: {
+      columns: "string[]",
+      rows: "object[]",
+      chartType:
+        "bar|groupedBar|stackedBar|horizontalBar|histogram|waterfall|line|area|stackedArea|stepLine|pie|doughnut|rose|funnel|radar|scatter|bubble|treemap|sunburst|sankey|radialBar|composed|candlestick|gauge|heatmap",
+    },
   },
 ];
 

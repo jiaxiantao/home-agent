@@ -2,112 +2,10 @@
 
 import { useState } from "react";
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Funnel,
-  FunnelChart,
-  LabelList,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-
 import type { A2UIComponent, A2UISurface } from "@/lib/a2ui/types";
+import { ChartCard } from "@/components/a2ui/chart-view";
 import { buildCsv, downloadCsv } from "@/lib/export/csv";
-import { BRAND_CHART_COLORS, BRAND_HEX } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-
-const PIE_COLORS = [...BRAND_CHART_COLORS];
-
-function ChartView({ chart }: { chart: Extract<A2UIComponent, { type: "Chart" }>["chart"] }) {
-  const data = chart.data.map((row) => ({
-    ...row,
-    [chart.xKey]: String(row[chart.xKey] ?? ""),
-    [chart.yKey]: Number(row[chart.yKey] ?? 0),
-  }));
-
-  if (chart.type === "funnel") {
-    return (
-      <ResponsiveContainer width="100%" height={280}>
-        <FunnelChart>
-          <Tooltip />
-          <Funnel
-            data={data}
-            dataKey={chart.yKey}
-            nameKey={chart.xKey}
-            isAnimationActive={false}
-          >
-            {data.map((_, index) => (
-              <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-            ))}
-            <LabelList
-              position="right"
-              fill="#e2e8f0"
-              stroke="none"
-              dataKey={chart.xKey}
-              fontSize={12}
-            />
-          </Funnel>
-        </FunnelChart>
-      </ResponsiveContainer>
-    );
-  }
-
-  if (chart.type === "pie") {
-    return (
-      <ResponsiveContainer width="100%" height={240}>
-        <PieChart>
-          <Pie
-            data={data}
-            dataKey={chart.yKey}
-            nameKey={chart.xKey}
-            outerRadius={84}
-            label
-          >
-            {data.map((_, index) => (
-              <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip />
-        </PieChart>
-      </ResponsiveContainer>
-    );
-  }
-
-  if (chart.type === "line") {
-    return (
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff12" />
-          <XAxis dataKey={chart.xKey} stroke="#71717a" fontSize={11} />
-          <YAxis stroke="#71717a" fontSize={11} />
-          <Tooltip />
-          <Line type="monotone" dataKey={chart.yKey} stroke={BRAND_HEX.primary} strokeWidth={2} />
-        </LineChart>
-      </ResponsiveContainer>
-    );
-  }
-
-  return (
-    <ResponsiveContainer width="100%" height={240}>
-      <BarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff12" />
-        <XAxis dataKey={chart.xKey} stroke="#71717a" fontSize={11} />
-        <YAxis stroke="#71717a" fontSize={11} />
-        <Tooltip />
-        <Bar dataKey={chart.yKey} fill={BRAND_HEX.primary} radius={[3, 3, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
 
 function TableView({
   component,
@@ -230,16 +128,7 @@ function ComponentView({
     case "Table":
       return <TableView component={component} />;
     case "Chart":
-      return (
-        <div className="rounded-lg border border-white/[0.08] bg-black/20 p-3">
-          {component.chart.title ? (
-            <p className="mb-2 text-[12px] font-medium text-zinc-400">
-              {component.chart.title}
-            </p>
-          ) : null}
-          <ChartView chart={component.chart} />
-        </div>
-      );
+      return <ChartCard chart={component.chart} />;
     case "ButtonGroup":
       return (
         <div
