@@ -46,7 +46,7 @@ ${formatBusinessGlossaryForPrompt(question)}
 2. 若命中只读 HTTP 且参数齐全 → call_backend_api（经 MCP dfc_call_http_api；参数 phone/wechat/recordId/objCode）
 3. 仅当：无匹配接口、Dubbo-only、HTTP 未配置 DFC_API_ENABLED、或调用失败 → 再走 route_question → propose_sql
 4. **聚合统计**（COUNT/GROUP BY/趋势/分布）无对应 HTTP 时直接 SQL，不必 call_backend_api
-5. 「客户手机号 / 微信号 / 联系方式」查明细：优先 MCP 调用 queryCustomerDetailsByContact（contact=手机或微信，对齐 CRM）。仅当用户给出「客户 id / recordId」时才走 crmQueryCustomerInfo。SQL 回退用 phone / phone_backup / weichat。门店/集团/本人手机号由登录 SSO 自动注入。**禁止向用户索取 shop_code / group_code**。
+5. 「客户手机号 / 微信号 / 联系方式」查明细：优先 MCP 调用 queryCustomerDetailsByContact（contact=手机或微信，对齐 CRM）。仅当用户给出「客户 id / recordId」时才走 crmQueryCustomerInfo。SQL 回退用 phone / phone_backup / weichat。门店/集团由登录 SSO 自动注入。**禁止向用户索取 shop_code / group_code**。
 6. 若 call_backend_api 返回 failureKind=network/not_configured/http，或输出含 suggestedSql：**立刻 propose_sql(suggestedSql)**，不要再追问用户补参数，也不要因为 503/upstream 误判为缺参。
 7. **objCode、recordId 不是数据库列**；生成 SQL 时 CRM 客户表用 id，禁止 AND objCode = 'customer'。
 
