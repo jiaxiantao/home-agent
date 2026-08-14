@@ -108,6 +108,21 @@ describe("dfc-user-profile", () => {
       groupCode: "G001",
       phone: "13800000000",
     });
+    expect(profile?.data).toMatchObject({
+      loginUserId: "ACC123",
+      loginUserName: "贾先涛",
+      shopCode: "01161577",
+      groupCode: "G001",
+    });
+    expect(profile?.raw?.queryLoginUserInfo?.payload).toMatchObject({
+      success: true,
+      data: { loginUserId: "ACC123", groupCode: "G001" },
+    });
+    expect(profile?.raw?.findUserInfoByToken?.payload).toMatchObject({
+      success: true,
+      data: { account: "ACC123" },
+    });
+    expect(profile?.raw?.nameAndPhone?.status).toBe(404);
 
     const cached = await resolveDfcUserProfile(headers);
     expect(cached?.shopCode).toBe("01161577");
@@ -115,6 +130,71 @@ describe("dfc-user-profile", () => {
 
     await resolveDfcUserProfile(headers, { refresh: true });
     expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it("keeps the original SSO payload when workbench only returns name/phone", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("queryLoginUserInfo")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              loginUserId: "NBAJJwvp4lM8c",
+              loginUserName: "贾先涛-新大风车-测试",
+              loginUserPhone: "13166990790",
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("findUserInfoByToken")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              id: "NBAJJwvp4lM8c",
+              account: "jiaxiantao",
+              displayName: "贾先涛-新大风车-测试",
+              nickname: "贾先涛-新大风车-测试",
+              phone: "13166990790",
+              shopCode: "01161577",
+              shopName: "杭州门店",
+              groupCode: "G001",
+              orgId: "ORG9",
+              departmentId: "D12",
+              departmentName: "技术部",
+              email: "jia@souche.com",
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: { name: "贾先涛-新大风车-测试", phone: "13166990790" },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const profile = await resolveDfcUserProfile(
+      new Headers({ cookie: `${DFC_SSO_SESSION_COOKIE}=token-full` }),
+    );
+    expect(profile).toMatchObject({
+      linked: true,
+      shopCode: "01161577",
+      shopName: "杭州门店",
+      groupCode: "G001",
+      orgId: "ORG9",
+      departmentName: "技术部",
+      email: "jia@souche.com",
+    });
+    expect(profile?.data?.shopCode).toBe("01161577");
+    expect(profile?.raw?.findUserInfoByToken?.payload).toMatchObject({
+      data: { shopCode: "01161577", groupCode: "G001" },
+    });
   });
 
   it("fills missing shop/group without overriding question phone", () => {

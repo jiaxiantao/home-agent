@@ -48,24 +48,39 @@ export function resolveSsoCredentialsFromRequest(
   return getDevSsoCredentials();
 }
 
+export type DfcUpstreamName =
+  | "queryLoginUserInfo"
+  | "findUserInfoByToken"
+  | "nameAndPhone";
+
+export type DfcUpstreamCall = {
+  url: string;
+  status?: number;
+  ok: boolean;
+  payload: unknown;
+};
+
 export type DfcUserProfile = {
   userId?: string;
   userName?: string;
+  account?: string;
   shopCode?: string;
   shopName?: string;
   groupCode?: string;
+  groupId?: string;
   orgCode?: string;
+  orgId?: string;
   departmentCode?: string;
+  departmentId?: string;
+  departmentName?: string;
   phone?: string;
+  email?: string;
   linked: boolean;
   source?: "matador" | "sso" | "session" | "dev";
-};
-
-type MatadorResult<T> = {
-  success?: boolean;
-  data?: T;
-  code?: string;
-  msg?: string;
+  /** 上游 data 浅合并，保留原始字段名 */
+  data?: Record<string, unknown>;
+  /** 各上游接口完整 JSON（含 success / code / msg） */
+  raw?: Partial<Record<DfcUpstreamName, DfcUpstreamCall>>;
 };
 
 function cacheKey(sso: SsoCredentials) {
@@ -128,50 +143,161 @@ function pickString(source: unknown, keys: string[]): string | undefined {
   return undefined;
 }
 
-function pickShopFields(data: Record<string, unknown>): Partial<DfcUserProfile> {
-  const nested = data.currentShop ?? data.shop ?? data.loginShop;
+function pickDeepString(
+  source: unknown,
+  keys: string[],
+  depth = 0,
+): string | undefined {
+  const direct = pickString(source, keys);
+  if (direct) {
+    return direct;
+  }
+  if (!source || typeof source !== "object" || Array.isArray(source) || depth >= 4) {
+    return undefined;
+  }
+  for (const value of Object.values(source as Record<string, unknown>)) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const nested = pickDeepString(value, keys, depth + 1);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return undefined;
+}
+
+function unwrapData(payload: unknown): Record<string, unknown> | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  if (record.success === false) {
+    return null;
+  }
+  const data = record.data;
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    return data as Record<string, unknown>;
+  }
+  if (
+    record.account ||
+    record.userId ||
+    record.loginUserId ||
+    record.shopCode ||
+    record.phone ||
+    record.loginUserPhone
+  ) {
+    return record;
+  }
+  return null;
+}
+
+function extractConvenienceFields(
+  data: Record<string, unknown>,
+  source: DfcUserProfile["source"],
+): Partial<DfcUserProfile> {
   return {
+    userId: pickDeepString(data, [
+      "loginUserId",
+      "userId",
+      "account",
+      "id",
+    ]),
+    userName: pickDeepString(data, [
+      "loginUserName",
+      "displayName",
+      "nickname",
+      "userName",
+      "name",
+    ]),
+    account: pickDeepString(data, ["account", "login"]),
+    phone: pickDeepString(data, [
+      "loginUserPhone",
+      "phone",
+      "mobile",
+      "loginPhone",
+    ]),
+    email: pickDeepString(data, ["email", "mail"]),
     shopCode:
-      pickString(data, [
+      pickDeepString(data, [
         "shopCode",
         "shop_code",
         "loginShopCode",
         "currentShopCode",
-      ]) ?? pickString(nested, ["code", "shopCode", "shop_code"]),
+      ]) ??
+      pickString(data.currentShop ?? data.shop ?? data.loginShop, [
+        "code",
+        "shopCode",
+        "shop_code",
+      ]),
     shopName:
-      pickString(data, ["shopName", "shop_name", "loginShopName"]) ??
-      pickString(nested, ["name", "shopName", "shop_name"]),
-    groupCode:
-      pickString(data, [
-        "groupCode",
-        "group_code",
-        "loginGroupCode",
-        "groupShopCode",
-      ]) ?? pickString(nested, ["groupCode", "group_code", "orgCode"]),
-    orgCode: pickString(data, ["orgCode", "org_code", "companyCode"]),
-    departmentCode: pickString(data, [
+      pickDeepString(data, ["shopName", "shop_name", "loginShopName"]) ??
+      pickString(data.currentShop ?? data.shop ?? data.loginShop, [
+        "name",
+        "shopName",
+        "shop_name",
+      ]),
+    groupCode: pickDeepString(data, [
+      "groupCode",
+      "group_code",
+      "loginGroupCode",
+      "groupShopCode",
+    ]),
+    groupId: pickDeepString(data, ["groupId", "group_id"]),
+    orgCode: pickDeepString(data, ["orgCode", "org_code", "companyCode"]),
+    orgId: pickDeepString(data, ["orgId", "org_id"]),
+    departmentCode: pickDeepString(data, [
       "departmentCode",
       "department_code",
       "deptCode",
     ]),
+    departmentId: pickDeepString(data, ["departmentId", "department_id", "deptId"]),
+    departmentName: pickDeepString(data, [
+      "departmentName",
+      "department_name",
+      "deptName",
+    ]),
+    source,
   };
+}
+
+function mergeData(
+  ...parts: Array<Record<string, unknown> | null | undefined>
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = {};
+  for (const part of parts) {
+    if (!part) continue;
+    for (const [key, value] of Object.entries(part)) {
+      if (merged[key] === undefined && value !== undefined) {
+        merged[key] = value;
+      }
+    }
+  }
+  return merged;
 }
 
 function mergeProfile(
   ...parts: Array<Partial<DfcUserProfile> | null | undefined>
 ): DfcUserProfile {
-  const merged: DfcUserProfile = { linked: false };
+  const merged: DfcUserProfile = { linked: false, data: {}, raw: {} };
   for (const part of parts) {
     if (!part) continue;
     merged.userId = merged.userId || part.userId;
     merged.userName = merged.userName || part.userName;
+    merged.account = merged.account || part.account;
     merged.phone = merged.phone || part.phone;
+    merged.email = merged.email || part.email;
     merged.shopCode = merged.shopCode || part.shopCode;
     merged.shopName = merged.shopName || part.shopName;
     merged.groupCode = merged.groupCode || part.groupCode;
+    merged.groupId = merged.groupId || part.groupId;
     merged.orgCode = merged.orgCode || part.orgCode;
+    merged.orgId = merged.orgId || part.orgId;
     merged.departmentCode = merged.departmentCode || part.departmentCode;
+    merged.departmentId = merged.departmentId || part.departmentId;
+    merged.departmentName = merged.departmentName || part.departmentName;
     merged.source = merged.source || part.source;
+    merged.data = mergeData(merged.data, part.data);
+    merged.raw = { ...merged.raw, ...part.raw };
   }
   merged.linked = Boolean(
     merged.userName || merged.userId || merged.shopCode || merged.phone,
@@ -204,129 +330,83 @@ function buildSsoHeaders(sso: SsoCredentials): Record<string, string> {
   return headers;
 }
 
-async function fetchMatadorLoginUser(
-  sso: SsoCredentials,
-): Promise<Partial<DfcUserProfile> | null> {
-  const url = `${resolveMatadorBaseUrl()}/api/web/workbench/common/commonApi/queryLoginUserInfo`;
+async function fetchJson(
+  url: string,
+  init: RequestInit,
+): Promise<DfcUpstreamCall> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
-
   try {
-    const response = await fetch(url, {
-      headers: buildSsoHeaders(sso),
-      signal: controller.signal,
-    });
-    const payload = (await response.json()) as MatadorResult<
-      Record<string, unknown>
-    >;
-
-    if (!response.ok || !payload.success || !payload.data) {
-      return null;
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const text = await response.text();
+    let payload: unknown = text;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = { parseError: true, body: text.slice(0, 2000) };
     }
-
-    const data = payload.data;
+    return { url, status: response.status, ok: response.ok, payload };
+  } catch (error) {
     return {
-      userId: pickString(data, ["loginUserId", "userId", "account", "id"]),
-      userName: pickString(data, [
-        "loginUserName",
-        "userName",
-        "name",
-        "nickname",
-      ]),
-      phone: pickString(data, [
-        "loginUserPhone",
-        "phone",
-        "mobile",
-        "loginPhone",
-      ]),
-      ...pickShopFields(data),
-      source: "matador",
+      url,
+      ok: false,
+      payload: {
+        error: error instanceof Error ? error.message : String(error),
+      },
     };
-  } catch {
-    return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+function fromUpstream(
+  name: DfcUpstreamName,
+  call: DfcUpstreamCall,
+  source: DfcUserProfile["source"],
+): Partial<DfcUserProfile> {
+  const data = unwrapData(call.payload);
+  return {
+    ...(data ? extractConvenienceFields(data, source) : { source }),
+    data: data ?? {},
+    raw: { [name]: call },
+  };
+}
+
+async function fetchMatadorLoginUser(
+  sso: SsoCredentials,
+): Promise<Partial<DfcUserProfile>> {
+  const url = `${resolveMatadorBaseUrl()}/api/web/workbench/common/commonApi/queryLoginUserInfo`;
+  const call = await fetchJson(url, { headers: buildSsoHeaders(sso) });
+  return fromUpstream("queryLoginUserInfo", call, "matador");
 }
 
 async function fetchSsoTokenUser(
   sso: SsoCredentials,
-): Promise<Partial<DfcUserProfile> | null> {
+): Promise<Partial<DfcUserProfile>> {
   const url = resolveSsoUserInfoUrl();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-
-  try {
-    const body = new URLSearchParams({ token: sso.token });
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body,
-      signal: controller.signal,
-    });
-
-    const payload = (await response.json()) as {
-      success?: boolean;
-      code?: string;
-      data?: Record<string, unknown>;
-    };
-
-    if (!response.ok || payload.success === false || !payload.data) {
-      return null;
-    }
-
-    const data = payload.data;
-    return {
-      userId: pickString(data, ["account", "userId", "login"]),
-      userName: pickString(data, ["nickname", "userName", "name", "account"]),
-      phone: pickString(data, ["phone", "mobile"]),
-      ...pickShopFields(data),
-      source: "sso",
-    };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  const body = new URLSearchParams({ token: sso.token });
+  const call = await fetchJson(url, {
+    method: "POST",
+    headers: {
+      ...buildSsoHeaders(sso),
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+  return fromUpstream("findUserInfoByToken", call, "sso");
 }
 
 async function fetchMatadorDfcName(
   sso: SsoCredentials,
-): Promise<Partial<DfcUserProfile> | null> {
+): Promise<Partial<DfcUserProfile>> {
   const url = `${resolveMatadorBaseUrl()}/api/h5/user/userInfoApi/nameAndPhone`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-
-  try {
-    const response = await fetch(url, {
-      headers: {
-        ...buildSsoHeaders(sso),
-        "x-channel": "dfc",
-      },
-      signal: controller.signal,
-    });
-    const payload = (await response.json()) as MatadorResult<{
-      name?: string;
-      phone?: string;
-    }>;
-
-    if (!response.ok || !payload.success || !payload.data) {
-      return null;
-    }
-
-    return {
-      userName: payload.data.name,
-      phone: payload.data.phone,
-      source: "matador",
-    };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  const call = await fetchJson(url, {
+    headers: {
+      ...buildSsoHeaders(sso),
+      "x-channel": "dfc",
+    },
+  });
+  return fromUpstream("nameAndPhone", call, "matador");
 }
 
 export async function resolveDfcUserProfileFromSso(
@@ -335,7 +415,7 @@ export async function resolveDfcUserProfileFromSso(
 ): Promise<DfcUserProfile | null> {
   if (!options?.refresh) {
     const cached = getCachedDfcUserProfile(sso);
-    if (cached) {
+    if (cached?.raw && Object.keys(cached.raw).length > 0) {
       return cached;
     }
   }
@@ -347,12 +427,11 @@ export async function resolveDfcUserProfileFromSso(
   ]);
 
   const merged = mergeProfile(workbenchUser, ssoUser, dfcName);
-  if (!merged.linked) {
+  if (merged.linked) {
+    rememberDfcUserProfile(sso, merged);
+  } else {
     forgetDfcUserProfile(sso);
-    return null;
   }
-
-  rememberDfcUserProfile(sso, merged);
   return merged;
 }
 
@@ -491,14 +570,19 @@ export function formatDfcUserForPrompt(
 
   const parts = [
     user.userName ? `姓名 ${user.userName}` : "",
-    user.userId ? `账号 ${user.userId}` : "",
+    user.account ? `账号 ${user.account}` : user.userId ? `账号 ${user.userId}` : "",
     user.phone ? `手机 ${user.phone}` : "",
+    user.email ? `邮箱 ${user.email}` : "",
     user.shopName || user.shopCode
       ? `门店 ${user.shopName ?? user.shopCode}${user.shopCode && user.shopName ? `（${user.shopCode}）` : ""}`
       : "",
-    user.groupCode ? `集团 ${user.groupCode}` : "",
-    user.orgCode ? `组织 ${user.orgCode}` : "",
-    user.departmentCode ? `部门 ${user.departmentCode}` : "",
+    user.groupCode || user.groupId
+      ? `集团 ${user.groupCode ?? user.groupId}`
+      : "",
+    user.orgCode || user.orgId ? `组织 ${user.orgCode ?? user.orgId}` : "",
+    user.departmentName || user.departmentCode || user.departmentId
+      ? `部门 ${user.departmentName ?? user.departmentCode ?? user.departmentId}`
+      : "",
   ].filter(Boolean);
 
   return `当前登录用户：${parts.join("，") || "已关联大风车账号"}。调用 HTTP 时自动注入 shopCode/groupCode（及 orgCode/departmentCode）。禁止向用户索取门店/集团。问题里的客户手机号优先；仅当接口明确需要本人手机号且问题未给出号码时，才使用登录用户手机号。`;

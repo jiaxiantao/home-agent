@@ -32,6 +32,8 @@ type DfcUser = {
   orgCode?: string;
   phone?: string;
   linked?: boolean;
+  data?: Record<string, unknown>;
+  raw?: Record<string, unknown>;
 };
 
 type AuthMe = {
