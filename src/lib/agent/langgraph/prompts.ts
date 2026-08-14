@@ -18,7 +18,7 @@ export function buildAgentSystemPrompt(question?: string) {
   const preferred = getPreferredAnalyticsDatabase();
   const preferredHint = preferred
     ? `当前会话用户指定偏好库：${preferred}（仅作加权，仍需根据问题语义验证）。`
-    : "未指定偏好库：必须仅根据问题语义自动选择数据库，禁止默认假设 matador 或其他固定库。";
+    : "未指定偏好库：必须仅根据问题语义自动选择数据库与后端服务。全量接口目录覆盖大风车多个服务，禁止默认 matador。";
 
   return `你是「${PRODUCT_NAME_ZH}」（${PRODUCT_NAME_EN}）的数据分析 Agent。
 产品目标：用户只需自然语言描述要查的数据；你必须主动规划「查哪个库 → 哪张表 → 哪些字段/条件」，生成只读 SQL 供用户确认执行。
@@ -32,10 +32,11 @@ ${formatBusinessGlossaryForPrompt(question)}
 - 「会员有多少」→ danube_member.membership_personal_information
 - 「车牌号为 xxx 的车辆信息」→ 先 route_api → call_backend_api：crazyracing-kartrider /web/v3/carViewQuery/queryRecordPageInfo.json（body.keywords=车牌，测试 host crazyracing-kartrider.stable.dasouche.net）。失败再 SQL：crazy_kartrider.car.plate_number（date_delete=0）。不要用 matador.car + test_type=0，也不要用 cheniu 维保表。测试环境禁止 *.souche.com。
 
-禁止在无问题语义支撑时默认使用 matador；语义不明确时先 route_api / search_api / route_question / search_schema(acrossDatabases)。
+禁止在无问题语义支撑时默认使用某一个服务或库（尤其禁止默认 matador）；语义不明确时先 route_api / search_api 在全量接口目录中打分，再 route_question / search_schema(acrossDatabases)。登录用户资料只用于注入 shopCode/groupCode，与「该调哪个服务」无关。
 
 ## 接口优先（明细查询，必须经 MCP 中间件）
-大风车 HTTP/接口目录调用路径固定为：你规划工具 → Agent 的 route_api / search_api / call_backend_api → **MCP 中间件** → 大风车 Java HTTP（第一期 Dubbo 仅可检索，不可直连）。禁止假设可绕过 MCP 直连后端。
+大风车有多个后端服务（super-mario、crazyracing-kartrider、danube-*、rich-man、matador 等）。route_api / search_api 按问题语义在全量目录打分后选择 appCode，禁止偏向 matador。
+大风车 HTTP/接口目录调用路径固定为：你规划工具 → Agent 的 route_api / search_api / call_backend_api → **MCP 中间件** → 对应服务的 Java HTTP（第一期 Dubbo 仅可检索，不可直连）。禁止假设可绕过 MCP 直连后端。
 1. 先 route_api(question)（经 MCP dfc_route_api）匹配 api-catalog
 2. 若命中只读 HTTP 且参数齐全 → call_backend_api（经 MCP dfc_call_http_api）
 3. 仅当无匹配、Dubbo-only、HTTP 未配置或调用失败 → route_question → propose_sql

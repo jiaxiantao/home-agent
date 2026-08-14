@@ -30,10 +30,11 @@ describe("matchBusinessEntities", () => {
     expect(hits.some((h) => h.database === "danube_member")).toBe(true);
   });
 
-  it("maps plate questions to crazy_kartrider.car", () => {
-    const hits = matchBusinessEntities("查询车牌号为皖JV066M的车辆信息");
-    expect(hits.some((h) => h.database === "crazy_kartrider" && h.table === "car")).toBe(
-      true,
+  it("maps 门店库存/在售 to crazy_kartrider instead of matador", () => {
+    const hits = matchBusinessEntities("门店在售库存车辆有多少？");
+    expect(hits.some((h) => h.database === "crazy_kartrider")).toBe(true);
+    expect(hits.some((h) => h.database === "matador" && h.table === "car")).toBe(
+      false,
     );
   });
 });

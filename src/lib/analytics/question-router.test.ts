@@ -14,9 +14,24 @@ describe("rankDatabasesForQuestion", () => {
     expect(ranked[0]?.database).toBe("danube_member");
   });
 
-  it("routes car inventory questions to matador", () => {
+  it("routes 正式车源 questions to matador", () => {
     const ranked = rankDatabasesForQuestion("大风车正式车源一共有多少辆？");
     expect(ranked[0]?.database).toBe("matador");
+  });
+
+  it("does not hitchhike matador onto other services", () => {
+    expect(rankDatabasesForQuestion("找车源撮合有多少？")[0]?.database).toBe(
+      "danube_topcars",
+    );
+    expect(rankDatabasesForQuestion("订单管理今日成交多少？")[0]?.database).toBe(
+      "rich_man",
+    );
+    expect(rankDatabasesForQuestion("门店在售库存车辆有多少？")[0]?.database).toBe(
+      "crazy_kartrider",
+    );
+    expect(
+      rankDatabasesForQuestion("找车源撮合有多少？").some((item) => item.database === "matador"),
+    ).toBe(false);
   });
 
   it("routes finance questions to danube_mammon", () => {

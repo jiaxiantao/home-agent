@@ -76,7 +76,8 @@ export type DfcUserProfile = {
   phone?: string;
   email?: string;
   linked: boolean;
-  source?: "matador" | "sso" | "session" | "dev";
+  /** 哪些上游接口成功解析出了 data（不是业务偏好服务） */
+  profileSources?: DfcUpstreamName[];
   /** 上游 data 浅合并，保留原始字段名 */
   data?: Record<string, unknown>;
   /** 各上游接口完整 JSON（含 success / code / msg） */
@@ -193,7 +194,6 @@ function unwrapData(payload: unknown): Record<string, unknown> | null {
 
 function extractConvenienceFields(
   data: Record<string, unknown>,
-  source: DfcUserProfile["source"],
 ): Partial<DfcUserProfile> {
   return {
     userId: pickDeepString(data, [
@@ -256,7 +256,6 @@ function extractConvenienceFields(
       "department_name",
       "deptName",
     ]),
-    source,
   };
 }
 
@@ -295,9 +294,17 @@ function mergeProfile(
     merged.departmentCode = merged.departmentCode || part.departmentCode;
     merged.departmentId = merged.departmentId || part.departmentId;
     merged.departmentName = merged.departmentName || part.departmentName;
-    merged.source = merged.source || part.source;
     merged.data = mergeData(merged.data, part.data);
     merged.raw = { ...merged.raw, ...part.raw };
+    if (part.profileSources?.length) {
+      const seen = new Set(merged.profileSources ?? []);
+      for (const name of part.profileSources) {
+        if (!seen.has(name)) {
+          seen.add(name);
+          merged.profileSources = [...(merged.profileSources ?? []), name];
+        }
+      }
+    }
   }
   merged.linked = Boolean(
     merged.userName || merged.userId || merged.shopCode || merged.phone,
@@ -362,13 +369,13 @@ async function fetchJson(
 function fromUpstream(
   name: DfcUpstreamName,
   call: DfcUpstreamCall,
-  source: DfcUserProfile["source"],
 ): Partial<DfcUserProfile> {
   const data = unwrapData(call.payload);
   return {
-    ...(data ? extractConvenienceFields(data, source) : { source }),
+    ...(data ? extractConvenienceFields(data) : {}),
     data: data ?? {},
     raw: { [name]: call },
+    profileSources: data ? [name] : undefined,
   };
 }
 
@@ -377,7 +384,7 @@ async function fetchMatadorLoginUser(
 ): Promise<Partial<DfcUserProfile>> {
   const url = `${resolveMatadorBaseUrl()}/api/web/workbench/common/commonApi/queryLoginUserInfo`;
   const call = await fetchJson(url, { headers: buildSsoHeaders(sso) });
-  return fromUpstream("queryLoginUserInfo", call, "matador");
+  return fromUpstream("queryLoginUserInfo", call);
 }
 
 async function fetchSsoTokenUser(
@@ -393,7 +400,7 @@ async function fetchSsoTokenUser(
     },
     body,
   });
-  return fromUpstream("findUserInfoByToken", call, "sso");
+  return fromUpstream("findUserInfoByToken", call);
 }
 
 async function fetchMatadorDfcName(
@@ -406,7 +413,7 @@ async function fetchMatadorDfcName(
       "x-channel": "dfc",
     },
   });
-  return fromUpstream("nameAndPhone", call, "matador");
+  return fromUpstream("nameAndPhone", call);
 }
 
 export async function resolveDfcUserProfileFromSso(

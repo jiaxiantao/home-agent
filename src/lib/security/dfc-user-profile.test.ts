@@ -123,6 +123,10 @@ describe("dfc-user-profile", () => {
       data: { account: "ACC123" },
     });
     expect(profile?.raw?.nameAndPhone?.status).toBe(404);
+    expect(profile?.profileSources).toEqual(
+      expect.arrayContaining(["queryLoginUserInfo", "findUserInfoByToken"]),
+    );
+    expect(profile).not.toHaveProperty("source");
 
     const cached = await resolveDfcUserProfile(headers);
     expect(cached?.shopCode).toBe("01161577");

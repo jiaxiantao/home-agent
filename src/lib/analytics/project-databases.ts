@@ -242,7 +242,7 @@ export const dfcProjectDatabaseRegistry: ProjectDatabaseEntry[] = [
     description: "matador 核心",
     domain: "car",
     env: "test",
-    keywords: ["matador", "大风车核心", "车源", "求购", "运营日报"],
+    keywords: ["matador", "正式车源", "求购", "运营日报", "operate_report"],
     notes: [
       "正式数据常用 test_type = 0；订单需 delete_time IS NULL",
     ],

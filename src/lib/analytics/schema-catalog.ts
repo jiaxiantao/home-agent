@@ -242,7 +242,11 @@ export function formatSchemaCatalogForPrompt(
       })
     : tables;
 
-  const selected = filtered.length > 0 ? filtered : tables.slice(0, 8);
+  const selected = filtered.length > 0 ? filtered : [];
+
+  if (selected.length === 0) {
+    return "当前问题未命中预置表口径。请先 route_api / search_api 选择后端服务，或 search_schema(acrossDatabases) 跨库探索；禁止默认 matador。";
+  }
 
   return selected
     .map((table) => {
