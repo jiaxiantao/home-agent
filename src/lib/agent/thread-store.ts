@@ -101,6 +101,18 @@ function parseMessages(value: ThreadRow["messages_json"]): ThreadMessage[] {
   return [];
 }
 
+/** 列表展示用时间：优先消息 ts（epoch ms），避免 MySQL DATETIME 被当成 UTC 后快 8 小时 */
+export function threadListUpdatedAt(thread: {
+  updatedAt: number;
+  messages: ThreadMessage[];
+}) {
+  const lastMessageAt = thread.messages.reduce((latest, message) => {
+    const ts = Number(message.ts);
+    return Number.isFinite(ts) && ts > latest ? ts : latest;
+  }, 0);
+  return lastMessageAt || thread.updatedAt;
+}
+
 export function deriveThreadTitle(messages: ThreadMessage[]) {
   const firstUser = messages.find((item) => item.role === "user")?.content?.trim() ?? "";
   return firstUser.slice(0, 40) || "新对话";
@@ -135,7 +147,7 @@ function toListItem(thread: AgentThread): ThreadListItem {
     title: thread.title || deriveThreadTitle(thread.messages),
     preview: deriveThreadPreview(thread.messages),
     messageCount: thread.messages.length,
-    updatedAt: new Date(thread.updatedAt).toISOString(),
+    updatedAt: new Date(threadListUpdatedAt(thread)).toISOString(),
     createdAt: new Date(thread.createdAt).toISOString(),
   };
 }
@@ -151,7 +163,7 @@ function mapMysqlRow(row: ThreadRow): AgentThread {
     threadId: row.thread_id,
     userId: row.user_id,
     messages,
-    updatedAt,
+    updatedAt: threadListUpdatedAt({ updatedAt, messages }),
     createdAt: row.created_at ? new Date(row.created_at).getTime() : updatedAt,
     title: row.title ?? undefined,
   });
@@ -206,25 +218,34 @@ async function writeThread(thread: AgentThread) {
     await ensureMysqlTable();
     try {
       await executeAppMysql(
-        `INSERT INTO agent_threads (thread_id, user_id, messages_json, title, created_at)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO agent_threads (thread_id, user_id, messages_json, title, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            messages_json = VALUES(messages_json),
-           title = VALUES(title)`,
+           title = VALUES(title),
+           updated_at = VALUES(updated_at)`,
         [
           next.threadId,
           next.userId,
           JSON.stringify(next.messages),
           next.title,
           new Date(next.createdAt),
+          new Date(next.updatedAt),
         ],
       );
     } catch {
       await executeAppMysql(
-        `INSERT INTO agent_threads (thread_id, user_id, messages_json)
-         VALUES (?, ?, ?)
-         ON DUPLICATE KEY UPDATE messages_json = VALUES(messages_json)`,
-        [next.threadId, next.userId, JSON.stringify(next.messages)],
+        `INSERT INTO agent_threads (thread_id, user_id, messages_json, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           messages_json = VALUES(messages_json),
+           updated_at = VALUES(updated_at)`,
+        [
+          next.threadId,
+          next.userId,
+          JSON.stringify(next.messages),
+          new Date(next.updatedAt),
+        ],
       );
     }
     memoryThreads.set(key, next);

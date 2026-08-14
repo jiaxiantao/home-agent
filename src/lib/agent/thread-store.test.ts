@@ -9,6 +9,7 @@ import {
   getThreadMessages,
   getUserThread,
   listUserThreadsPage,
+  threadListUpdatedAt,
 } from "@/lib/agent/thread-store";
 import { threadMessagesToTurns } from "@/lib/agent/thread-turns";
 
@@ -118,5 +119,29 @@ describe("thread-store", () => {
     await ensureThread(createThreadId(), "user-b");
     const listed = await listUserThreadsPage({ userId: "user-b" });
     expect(listed.total).toBe(0);
+  });
+
+  it("lists activity time from the last message instead of a skewed DB timestamp", async () => {
+    const messageAt = Date.parse("2026-08-14T03:00:51.000Z");
+    const skewedUpdatedAt = Date.parse("2026-08-14T11:00:51.000Z");
+
+    expect(
+      threadListUpdatedAt({
+        updatedAt: skewedUpdatedAt,
+        messages: [{ role: "user", content: "正式车源售价区间", ts: messageAt }],
+      }),
+    ).toBe(messageAt);
+
+    clearThreadsForTest();
+    const threadId = createThreadId();
+    await ensureThread(threadId, "user-a");
+    await appendThreadMessage(threadId, "user-a", {
+      role: "user",
+      content: "正式车源售价区间",
+      ts: messageAt,
+    });
+
+    const listed = await listUserThreadsPage({ userId: "user-a", pageSize: 10 });
+    expect(listed.items[0]?.updatedAt).toBe(new Date(messageAt).toISOString());
   });
 });
