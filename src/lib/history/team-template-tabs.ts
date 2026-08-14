@@ -22,6 +22,7 @@ const PREFERRED_CATEGORY_ORDER = [
   "求购线索",
   "订单成交",
   "运营报表",
+  "图表",
 ];
 
 export function catalogSeedAsTemplates(): TeamTemplate[] {

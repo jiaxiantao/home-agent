@@ -197,6 +197,30 @@ export const teamTemplateSeed: TeamTemplateSeed[] = [
   { category: "跨库综合", label: "测试数据识别", prompt: "去掉测试数据后，车源、求购、订单这些核心量是多少？" },
   { category: "跨库综合", label: "城市供需对比", prompt: "车源多的城市，成交是不是也高？" },
   { category: "跨库综合", label: "昨日业务概览", prompt: "汇总昨天新增车源、求购、订单、客户的核心指标" },
+
+  // —— 图表（问法需明确要求可视化，才会调用 build_chart）——
+  { category: "图表", label: "车源状态饼图", prompt: "统计各状态的正式车源数量，用饼图展示" },
+  { category: "图表", label: "车源品牌柱状图", prompt: "按品牌统计正式车源数量，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "车源城市柱状图", prompt: "按城市统计正式车源数量，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "车源上架趋势图", prompt: "最近 30 天每天上架了多少辆正式车源？画折线图" },
+  { category: "图表", label: "车源价格分布图", prompt: "正式车源售价大概落在哪些区间？各有多少辆？用柱状图展示" },
+  { category: "图表", label: "客户来源饼图", prompt: "这些 CRM 客户分别是从哪些渠道来的？各有多少？用饼图展示" },
+  { category: "图表", label: "客户城市柱状图", prompt: "按城市统计 CRM 客户数量，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "客户新增趋势图", prompt: "最近 7 天每天新进了多少 CRM 客户？画折线图" },
+  { category: "图表", label: "求购状态饼图", prompt: "按状态统计求购线索数量分布，用饼图展示" },
+  { category: "图表", label: "求购品牌柱状图", prompt: "求购线索里最受欢迎的品牌有哪些？看前 15 名，用柱状图展示" },
+  { category: "图表", label: "求购新增趋势图", prompt: "最近 7 天每天新增了多少条求购线索？画折线图" },
+  { category: "图表", label: "订单状态饼图", prompt: "按订单状态看一下主订单数量分布，用饼图展示" },
+  { category: "图表", label: "成交趋势折线图", prompt: "最近 30 天每天成交了多少单？画折线图" },
+  { category: "图表", label: "门店成交柱状图", prompt: "各门店成交订单数排行，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "会员类型饼图", prompt: "按会员类型看一下会员数量分布，用饼图展示" },
+  { category: "图表", label: "金融产品饼图", prompt: "按金融产品类型统计订单数量，用饼图展示" },
+  { category: "图表", label: "金融进件趋势图", prompt: "最近 7 天每天新进了多少金融进件？画折线图" },
+  { category: "图表", label: "合同签署饼图", prompt: "按签署状态看一下电子合同数量，用饼图展示" },
+  { category: "图表", label: "运营DAU趋势图", prompt: "最近 7 天运营日报里的 DAU 趋势怎样？画折线图" },
+  { category: "图表", label: "门店运营柱状图", prompt: "按门店对比最近 7 天新增车源和成交数，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "业务漏斗柱状图", prompt: "对比正式车源数、求购线索数、主订单数，看转化漏斗，用柱状图展示" },
+  { category: "图表", label: "城市供需柱状图", prompt: "按城市对比正式车源数和成交订单数，看前 15 名，用柱状图展示" },
 ];
 
 export const teamTemplateSeedCount = teamTemplateSeed.length;

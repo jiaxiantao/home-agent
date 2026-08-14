@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { userRequestedChart } from "@/lib/agent/chart-intent";
 import { teamTemplateSeed, teamTemplateSeedCount } from "@/lib/history/team-template-catalog";
 
 describe("team template seed", () => {
@@ -29,6 +30,14 @@ describe("team template seed", () => {
       expect(item.label, `${item.category}/${item.label}`).not.toMatch(
         /danube_|matador|super_mario|topcars|suez|anduin|库表|表结构|buy_car|main_order|operate_report|car表/i,
       );
+    }
+  });
+
+  it("chart category prompts explicitly request visualization", () => {
+    const chartPrompts = teamTemplateSeed.filter((item) => item.category === "图表");
+    expect(chartPrompts.length).toBeGreaterThanOrEqual(15);
+    for (const item of chartPrompts) {
+      expect(userRequestedChart(item.prompt), item.label).toBe(true);
     }
   });
 });
