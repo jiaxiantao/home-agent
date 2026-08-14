@@ -1,8 +1,17 @@
+import type { A2UISurface } from "@/lib/a2ui/types";
+import type {
+  ThreadActivityStep,
+  ThreadTurnStats,
+} from "@/lib/agent/thread-ui";
+
 export type ThreadMessage = {
   role: "user" | "assistant";
   content: string;
   ts: number;
   sql?: string;
+  surfaces?: A2UISurface[];
+  steps?: ThreadActivityStep[];
+  stats?: ThreadTurnStats | null;
 };
 
 export type AgentThread = {

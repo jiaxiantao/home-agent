@@ -63,6 +63,56 @@ describe("thread-store", () => {
     });
   });
 
+  it("persists surfaces and steps on assistant messages", async () => {
+    clearThreadsForTest();
+    const threadId = createThreadId();
+    await ensureThread(threadId, "user-a");
+    await appendThreadMessage(threadId, "user-a", {
+      role: "user",
+      content: "用饼图看签署状态",
+      ts: Date.now(),
+    });
+    await appendThreadMessage(threadId, "user-a", {
+      role: "assistant",
+      content: "饼图已生成",
+      ts: Date.now() + 1,
+      surfaces: [
+        {
+          surfaceId: "result_1",
+          title: "查询结果",
+          components: [
+            {
+              id: "chart",
+              type: "Chart",
+              chart: {
+                type: "pie",
+                title: "签署状态",
+                xKey: "name",
+                yKey: "value",
+                data: [{ name: "已完成", value: 8 }],
+              },
+            },
+          ],
+        },
+      ],
+      steps: [
+        { id: "plan_1", kind: "plan", title: "生成图表", status: "done" },
+      ],
+    });
+
+    const thread = await getUserThread(threadId, "user-a");
+    const turns = threadMessagesToTurns(thread?.messages ?? []);
+    expect(turns[0]?.surfaces).toHaveLength(1);
+    expect(turns[0]?.steps).toHaveLength(1);
+    expect(turns[0]?.surfaces[0]?.components[0]?.type).toBe("Chart");
+
+    await expect(deleteUserThread(threadId, "user-a")).resolves.toBe(true);
+    await expect(listUserThreadsPage({ userId: "user-a" })).resolves.toMatchObject({
+      total: 0,
+      items: [],
+    });
+  });
+
   it("hides empty threads from the history list", async () => {
     clearThreadsForTest();
     await ensureThread(createThreadId(), "user-b");

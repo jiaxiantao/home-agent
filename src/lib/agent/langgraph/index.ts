@@ -63,6 +63,10 @@ import {
   formatThreadForPlanner,
   getThreadMessages,
 } from "@/lib/agent/thread-store";
+import {
+  createTurnUiRecorder,
+  type TurnUiRecorder,
+} from "@/lib/agent/thread-ui";
 import type {
   AgentResumeAction,
   AgentTraceEvent,
@@ -95,6 +99,8 @@ export type RunDfcAgentLoopOptions = {
   sso?: SsoCredentials | null;
   /** 显式传入请求模型，避免心跳/工具异步边界丢失 ALS */
   llmProvider?: LlmProvider;
+  /** 本轮 UI 记录器：把图表/分析步骤写入会话，供历史还原 */
+  turnUi?: TurnUiRecorder;
   continueFrom?: {
     prior: AgentToolResult[];
     skipAppendUser?: boolean;
@@ -310,16 +316,19 @@ async function appendAssistantThreadMessage(
   threadId: string | undefined,
   userId: string | undefined,
   content: string,
-  sql?: string,
+  extra?: { sql?: string; turnUi?: TurnUiRecorder },
 ) {
   if (!threadId || !userId) {
     return;
   }
+  const snapshot = extra?.turnUi?.snapshot();
   await appendThreadMessage(threadId, userId, {
     role: "assistant",
     content,
-    sql,
+    sql: extra?.sql,
     ts: Date.now(),
+    surfaces: snapshot?.surfaces.length ? snapshot.surfaces : undefined,
+    steps: snapshot?.steps.length ? snapshot.steps : undefined,
   });
 }
 
@@ -370,7 +379,7 @@ async function* requeueSqlConfirm(
 
 async function* resumeConfirmedSql(
   resume: AgentResumeAction,
-  options: { signal?: AbortSignal; audit?: AuditContext },
+  options: { signal?: AbortSignal; audit?: AuditContext; turnUi?: TurnUiRecorder },
 ): AsyncGenerator<
   AgentTraceEvent,
   | {
@@ -427,6 +436,7 @@ async function* resumeConfirmedSql(
       cancelled?.threadId ?? peeked.threadId,
       cancelled?.userId ?? peeked.userId,
       "已取消 SQL 执行。",
+      { turnUi: options.turnUi },
     );
     yield { type: "answer", text: "已取消 SQL 执行。" };
     yield doneEvent(startedAt, 0, 0);
@@ -602,7 +612,7 @@ async function* resumeConfirmedSql(
       pending.threadId,
       pending.userId,
       answerText,
-      query.sql,
+      { sql: query.sql, turnUi: options.turnUi },
     );
 
     if (pending.userId) {
@@ -726,10 +736,20 @@ export async function* runDfcAgentLoop(
   message: string,
   options: RunDfcAgentLoopOptions = {},
 ): AsyncGenerator<AgentTraceEvent> {
+  if (!options.turnUi) {
+    const turnUi = createTurnUiRecorder();
+    for await (const event of runDfcAgentLoop(message, { ...options, turnUi })) {
+      turnUi.record(event);
+      yield event;
+    }
+    return;
+  }
+
   if (options.resume && !options.continueFrom) {
     const continuation = yield* resumeConfirmedSql(options.resume, {
       signal: options.signal,
       audit: options.audit,
+      turnUi: options.turnUi,
     });
     if (continuation) {
       yield* runDfcAgentLoop(continuation.message, {
@@ -890,6 +910,7 @@ export async function* runDfcAgentLoop(
           thread.threadId,
           userId,
           withSuggestions.answer,
+          { turnUi: options.turnUi },
         );
         await createServerHistory({
           userId,
@@ -945,7 +966,9 @@ export async function* runDfcAgentLoop(
         planMs,
         startedAt,
       });
-      await appendAssistantThreadMessage(thread.threadId, userId, answer);
+      await appendAssistantThreadMessage(thread.threadId, userId, answer, {
+        turnUi: options.turnUi,
+      });
       await createServerHistory({
         userId,
         threadId: thread.threadId,
@@ -1106,6 +1129,12 @@ export async function* runDfcAgentLoop(
           sql: data.sql,
           explanation: data.explanation,
         };
+        await appendAssistantThreadMessage(
+          thread.threadId,
+          userId,
+          data.explanation?.trim() || "请确认是否执行查询。",
+          { sql: data.sql, turnUi: options.turnUi },
+        );
         return;
       }
 
@@ -1138,7 +1167,9 @@ export async function* runDfcAgentLoop(
           });
           const answer = finalized.answer;
 
-          await appendAssistantThreadMessage(thread.threadId, userId, answer);
+          await appendAssistantThreadMessage(thread.threadId, userId, answer, {
+            turnUi: options.turnUi,
+          });
           yield answerEvent({
             text: answer,
             mock: finalized.mock ?? lastMock,
@@ -1159,6 +1190,7 @@ export async function* runDfcAgentLoop(
             thread.threadId,
             userId,
             withSuggestions.answer,
+            { turnUi: options.turnUi },
           );
           yield answerEvent({
             text: withSuggestions.answer,
@@ -1199,6 +1231,7 @@ export async function* runDfcAgentLoop(
     thread.threadId,
     userId,
     exhaustedWithSuggestions.answer,
+    { turnUi: options.turnUi },
   );
   yield answerEvent({
     text: exhaustedWithSuggestions.answer,
