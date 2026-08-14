@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { SiteHealthBadge } from "@/components/site-health-badge";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { BRAND_LOGO_PATH, PRODUCT_NAME_EN } from "@/lib/product";
 import { getDfcMarsAccountUrl } from "@/lib/security/sso-config";
 
@@ -63,7 +64,7 @@ function UserAvatar({ account }: { account: string }) {
 
   return (
     <div
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${palette} text-xs font-semibold tracking-wide text-slate-950 shadow-[0_0_0_1px_rgba(255,255,255,0.12)]`}
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${palette} text-xs font-semibold tracking-wide text-zinc-950 shadow-[0_0_0_1px_var(--border)]`}
       aria-hidden
     >
       {initial}
@@ -74,7 +75,7 @@ function UserAvatar({ account }: { account: string }) {
 function GuestAvatar() {
   return (
     <div
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-sm text-slate-400"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface text-sm text-muted"
       aria-hidden
     >
       ?
@@ -107,7 +108,7 @@ function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
       role="presentation"
       onClick={onCancel}
     >
@@ -115,19 +116,19 @@ function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-4 shadow-xl"
+        className="w-full max-w-sm rounded-2xl border border-border bg-elevated p-4 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 id="confirm-dialog-title" className="text-sm font-medium text-white">
+        <h2 id="confirm-dialog-title" className="text-sm font-medium text-foreground">
           {title}
         </h2>
-        <p className="mt-2 text-xs leading-5 text-slate-400">{message}</p>
+        <p className="mt-2 text-xs leading-5 text-muted">{message}</p>
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="rounded-lg px-3 py-1.5 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+            className="rounded-lg px-3 py-1.5 text-xs text-muted transition hover:bg-surface-hover hover:text-foreground disabled:opacity-50"
           >
             {cancelLabel}
           </button>
@@ -192,7 +193,7 @@ function DfcTokenSyncPanel({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full rounded-lg border border-dashed border-white/10 bg-white/[0.02] px-2 py-1.5 text-left text-[10px] text-slate-500 transition hover:border-brand/25 hover:bg-brand/[0.04] hover:text-brand-soft"
+        className="w-full rounded-lg border border-dashed border-border bg-surface px-2 py-1.5 text-left text-[10px] text-muted transition hover:border-brand/25 hover:bg-brand/[0.04] hover:text-brand-soft"
       >
         本地开发 · 粘贴 Token 同步登录
       </button>
@@ -201,13 +202,13 @@ function DfcTokenSyncPanel({
 
   return (
     <form
-      className="space-y-2 rounded-lg border border-white/[0.08] bg-black/20 p-2"
+      className="space-y-2 rounded-lg border border-border bg-surface p-2"
       onSubmit={(event) => void syncToken(event)}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[10px] leading-4 text-slate-500">
+        <p className="text-[10px] leading-4 text-muted">
           从 Mars DevTools 复制{" "}
-          <code className="rounded bg-white/[0.06] px-1 py-px font-mono text-[9px] text-slate-300">
+          <code className="rounded bg-surface-hover px-1 py-px font-mono text-[9px] text-foreground">
             _security_token
           </code>
         </p>
@@ -217,7 +218,7 @@ function DfcTokenSyncPanel({
             setOpen(false);
             setError(null);
           }}
-          className="shrink-0 text-[10px] text-slate-600 transition hover:text-slate-400"
+          className="shrink-0 text-[10px] text-muted-foreground transition hover:text-muted"
           aria-label="收起"
         >
           ✕
@@ -354,10 +355,10 @@ export function ConsoleSidebar({ activePath }: { activePath: string }) {
   }
 
   return (
-    <aside className="flex h-full w-[14rem] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-slate-950/50 px-4 py-6">
+    <aside className="flex h-full w-[14rem] shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar px-4 py-6">
       <Link
         href="/agents"
-        className="flex min-w-0 items-center gap-2.5 px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400 transition hover:text-white"
+        className="flex min-w-0 items-center gap-2.5 px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted transition hover:text-foreground"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -384,7 +385,7 @@ export function ConsoleSidebar({ activePath }: { activePath: string }) {
               className={`rounded-xl px-3 py-2.5 text-sm transition ${
                 active
                   ? "bg-brand/15 text-brand-soft"
-                  : "text-slate-300 hover:bg-white/5 hover:text-white"
+                  : "text-foreground hover:bg-surface-hover hover:text-foreground"
               }`}
             >
               {item.label}
@@ -394,11 +395,11 @@ export function ConsoleSidebar({ activePath }: { activePath: string }) {
       </nav>
 
       <div className="mt-auto grid min-w-0 gap-4 px-2 pt-6">
-        <div className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-black/25 transition hover:border-brand/30">
+        <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface transition hover:border-brand/30">
           {loading ? (
             <div className="flex min-w-0 items-center gap-2.5 p-3">
-              <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-white/10" />
-              <div className="h-3 min-w-0 flex-1 animate-pulse rounded bg-white/10" />
+              <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-surface-hover" />
+              <div className="h-3 min-w-0 flex-1 animate-pulse rounded bg-surface-hover" />
             </div>
           ) : (
             <>
@@ -406,7 +407,7 @@ export function ConsoleSidebar({ activePath }: { activePath: string }) {
                 href={marsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex min-w-0 items-start gap-2.5 p-3 transition hover:bg-black/40"
+                className="group flex min-w-0 items-start gap-2.5 p-3 transition hover:bg-surface-hover"
                 title="前往大风车 Mars 登录或切换账号"
               >
                 {isLoggedIn ? (
@@ -416,13 +417,13 @@ export function ConsoleSidebar({ activePath }: { activePath: string }) {
                 )}
                 <div className="min-w-0 flex-1 overflow-hidden">
                   <p
-                    className="truncate text-sm font-medium text-white"
+                    className="truncate text-sm font-medium text-foreground"
                     title={accountLabel}
                   >
                     {accountLabel}
                   </p>
                   <p
-                    className="mt-0.5 truncate text-[11px] text-slate-500 group-hover:text-brand-soft"
+                    className="mt-0.5 truncate text-[11px] text-muted group-hover:text-brand-soft"
                     title={accountSubtitle(dfcUser, isDfcLinked, authMode)}
                   >
                     {accountSubtitle(dfcUser, isDfcLinked, authMode)}
@@ -431,19 +432,19 @@ export function ConsoleSidebar({ activePath }: { activePath: string }) {
               </a>
 
               {authMode === "disabled" && !isDfcLinked ? (
-                <div className="border-t border-white/[0.06] px-3 py-2.5">
+                <div className="border-t border-border px-3 py-2.5">
                   <DfcTokenSyncPanel onSynced={setAuth} />
                 </div>
               ) : null}
 
               {((authMode === "token" && isLoggedIn) || isDfcLinked) && (
-                <div className="border-t border-white/[0.06] px-3 py-2">
+                <div className="border-t border-border px-3 py-2">
                   <button
                     type="button"
                     onClick={() =>
                       isDfcLinked ? setConfirmClearSync(true) : setConfirmLogout(true)
                     }
-                    className="text-xs text-slate-400 transition hover:text-brand-soft"
+                    className="text-xs text-muted transition hover:text-brand-soft"
                   >
                     {isDfcLinked ? "清除同步" : "退出登录"}
                   </button>
@@ -453,6 +454,9 @@ export function ConsoleSidebar({ activePath }: { activePath: string }) {
           )}
         </div>
 
+        <div className="min-w-0 overflow-hidden">
+          <ThemeToggle />
+        </div>
         <div className="min-w-0 overflow-hidden">
           <SiteHealthBadge layout="sidebar" />
         </div>

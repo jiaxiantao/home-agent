@@ -18,7 +18,7 @@
 | `execute_sql` | 用户确认后执行（不可由规划器直接触发） |
 | `build_chart` | 按用户意图生成 25 种常见图表（柱状/折线/饼/漏斗/K 线等），可下载 PNG/SVG |
 
-- 页面：`/agents`（`/` 自动跳转）
+- 页面：`/agents`（`/` 自动跳转）；支持亮色 / 暗黑主题（默认亮色）
 - API：`POST /api/agent`（SSE + resume 确认）
 - 协议：SSE 向 AG-UI 对齐；结果 UI 用 A2UI
 

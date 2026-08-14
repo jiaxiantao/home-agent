@@ -63,7 +63,7 @@ export function AgentComposer({
   }
 
   return (
-    <div className="shrink-0 border-t border-white/[0.05] bg-[#0a0a0c]/90 px-1 pt-3 pb-1 backdrop-blur-md">
+    <div className="shrink-0 border-t border-border bg-background/90 px-1 pt-3 pb-1 backdrop-blur-md">
       {!hasConversation ? (
         <AgentTemplateCategoryTabs
           selectedCategory={selectedCategory}
@@ -80,7 +80,7 @@ export function AgentComposer({
               onClick={() => onQuickPrompt(prompt)}
               onDoubleClick={() => onQuickPrompt(prompt, true)}
               title="点击填入，双击立即发送"
-              className="max-w-full truncate rounded-full px-2.5 py-1 text-[11px] text-zinc-500 transition hover:bg-brand/10 hover:text-brand-soft disabled:opacity-40"
+              className="max-w-full truncate rounded-full px-2.5 py-1 text-[11px] text-muted transition hover:bg-brand/10 hover:text-brand-soft disabled:opacity-40"
             >
               {prompt}
             </button>
@@ -90,8 +90,8 @@ export function AgentComposer({
 
       <div
         className={cn(
-          "rounded-2xl border border-white/[0.08] bg-[#111113]",
-          "shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_36px_rgba(0,0,0,0.35)]",
+          "rounded-2xl border border-border bg-elevated",
+          "shadow-[var(--shadow-lg)]",
           "transition focus-within:border-brand/30",
         )}
       >
@@ -113,7 +113,7 @@ export function AgentComposer({
               ? followUpPlaceholder
               : "用自然语言提问，例如：客户手机号为 13166990795 的客户信息"
           }
-          className="max-h-40 w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-[13px] leading-6 text-zinc-100 outline-none placeholder:text-zinc-600"
+          className="max-h-40 w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-[13px] leading-6 text-foreground outline-none placeholder:text-muted-foreground"
         />
 
         <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5">
@@ -134,14 +134,14 @@ export function AgentComposer({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="hidden text-[10px] text-zinc-600 sm:inline">
+            <span className="hidden text-[10px] text-muted-foreground sm:inline">
               ⌘↵
             </span>
             {running ? (
               <button
                 type="button"
                 onClick={onStop}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:bg-white/[0.08]"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-hover text-foreground transition hover:bg-surface-hover"
                 title="停止 (Esc)"
               >
                 <span className="h-2.5 w-2.5 rounded-[2px] bg-zinc-200" />

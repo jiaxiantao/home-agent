@@ -24,7 +24,7 @@ export function TemplateFavoriteButton({
       className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition disabled:opacity-40 ${
         favorited
           ? "text-amber-300 hover:bg-amber-400/10 hover:text-amber-200"
-          : "text-slate-500 hover:bg-white/5 hover:text-amber-200"
+          : "text-muted hover:bg-surface-hover hover:text-amber-200"
       }`}
     >
       <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden>

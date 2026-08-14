@@ -74,7 +74,7 @@ export function AgentTemplateCategoryTabs({
                 "shrink-0 rounded-full px-2.5 py-1 text-[11px] transition disabled:opacity-40",
                 selected
                   ? "bg-brand/15 text-brand-soft"
-                  : "text-zinc-500 hover:bg-brand/10 hover:text-brand-soft",
+                  : "text-muted hover:bg-brand/10 hover:text-brand-soft",
               )}
             >
               {tab.category}

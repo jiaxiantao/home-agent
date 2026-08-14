@@ -27,15 +27,15 @@ export function AgentFinalAnswer({
         <button
           type="button"
           onClick={() => void copyAnswer()}
-          className="rounded-md border border-white/10 bg-[#121214] px-2 py-1 text-[10px] text-zinc-400 transition hover:border-brand/25 hover:text-brand-soft"
+          className="rounded-md border border-border bg-code px-2 py-1 text-[10px] text-muted transition hover:border-brand/25 hover:text-brand-soft"
         >
           {copied ? "已复制" : "复制"}
         </button>
       </div>
-      <p className="whitespace-pre-wrap text-[13px] leading-7 text-zinc-200">
+      <p className="whitespace-pre-wrap text-[13px] leading-7 text-foreground">
         {text}
         {running ? (
-          <span className="streaming-cursor ml-0.5 text-zinc-400">▍</span>
+          <span className="streaming-cursor ml-0.5 text-muted">▍</span>
         ) : null}
       </p>
     </section>

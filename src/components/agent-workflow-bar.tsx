@@ -43,7 +43,7 @@ export function AgentWorkflowBar({
           )}
           aria-hidden
         />
-        <span className="text-[12px] text-zinc-400">{phaseLabels[phase]}</span>
+        <span className="text-[12px] text-muted">{phaseLabels[phase]}</span>
         {isMock ? (
           <span className="ui-chip-brand">
             规则模式
@@ -52,11 +52,11 @@ export function AgentWorkflowBar({
       </div>
 
       {stats ? (
-        <p className="font-mono text-[10px] text-zinc-600">
+        <p className="font-mono text-[10px] text-muted-foreground">
           {stats.steps} 步 · {stats.toolCalls} 工具 · {stats.totalMs} ms
         </p>
       ) : (
-        <p className="text-[10px] text-zinc-600">提问 → 确认 SQL → 结果</p>
+        <p className="text-[10px] text-muted-foreground">提问 → 确认 SQL → 结果</p>
       )}
     </div>
   );

@@ -89,7 +89,7 @@ function TemplateFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
       role="presentation"
       onClick={onClose}
     >
@@ -97,45 +97,45 @@ function TemplateFormModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="template-form-title"
-        className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 shadow-xl"
+        className="w-full max-w-lg rounded-2xl border border-border bg-elevated shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-white/10 px-5 py-4">
-          <h2 id="template-form-title" className="text-base font-medium text-white">
+        <div className="border-b border-border px-5 py-4">
+          <h2 id="template-form-title" className="text-base font-medium text-foreground">
             {title}
           </h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-muted">
             填写模板名称、分类与完整问法，保存后全员可在数据智能体中使用。
           </p>
         </div>
 
         <div className="space-y-3 px-5 py-4">
           <label className="block">
-            <span className="mb-1.5 block text-xs text-slate-400">模板名称</span>
+            <span className="mb-1.5 block text-xs text-muted">模板名称</span>
             <input
               value={draft.label}
               onChange={(event) =>
                 onChange({ ...draft, label: event.target.value })
               }
               placeholder="例如：本月放款合计"
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand/30"
+              className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-brand/30"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-xs text-slate-400">分类</span>
+            <span className="mb-1.5 block text-xs text-muted">分类</span>
             <DarkSelect
               value={draft.category}
               options={(categories.length ? categories : ["自定义"]).map(
                 (item) => ({ value: item, label: item }),
               )}
               onChange={(next) => onChange({ ...draft, category: next })}
-              buttonClassName="rounded-lg bg-black/30 py-2"
+              buttonClassName="rounded-lg bg-input py-2"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-xs text-slate-400">问法内容</span>
+            <span className="mb-1.5 block text-xs text-muted">问法内容</span>
             <textarea
               value={draft.prompt}
               onChange={(event) =>
@@ -143,17 +143,17 @@ function TemplateFormModal({
               }
               placeholder="例如：统计本月放款金额合计"
               rows={4}
-              className="w-full resize-y rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm leading-6 text-slate-200 outline-none focus:border-brand/30"
+              className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm leading-6 text-foreground outline-none focus:border-brand/30"
             />
           </label>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-white/10 px-5 py-4">
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg px-4 py-2 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+            className="rounded-lg px-4 py-2 text-sm text-muted transition hover:bg-surface-hover hover:text-foreground disabled:opacity-50"
           >
             取消
           </button>
@@ -161,7 +161,7 @@ function TemplateFormModal({
             type="button"
             disabled={saving || !draft.label.trim() || !draft.prompt.trim()}
             onClick={onSave}
-            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-slate-100 disabled:opacity-40"
+            className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90 disabled:opacity-40"
           >
             {saving ? "保存中…" : "保存"}
           </button>
@@ -190,18 +190,18 @@ function ConfirmDeleteDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
       role="presentation"
       onClick={onCancel}
     >
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-4 shadow-xl"
+        className="w-full max-w-sm rounded-2xl border border-border bg-elevated p-4 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 className="text-sm font-medium text-white">删除模板？</h2>
-        <p className="mt-2 text-xs leading-5 text-slate-400">
+        <h2 className="text-sm font-medium text-foreground">删除模板？</h2>
+        <p className="mt-2 text-xs leading-5 text-muted">
           确认删除「{label}」？删除后不可恢复。
         </p>
         <div className="mt-4 flex justify-end gap-2">
@@ -209,7 +209,7 @@ function ConfirmDeleteDialog({
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="rounded-lg px-3 py-1.5 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white"
+            className="rounded-lg px-3 py-1.5 text-xs text-muted transition hover:bg-surface-hover hover:text-foreground"
           >
             取消
           </button>
@@ -420,24 +420,24 @@ export function TeamTemplatesManagement() {
       <div className="mb-5 shrink-0">
         <Link
           href="/agents"
-          className="inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-brand-soft"
+          className="inline-flex items-center gap-1 text-xs text-muted transition hover:text-brand-soft"
         >
           <span aria-hidden>←</span>
           返回数据智能体
         </Link>
-        <h1 className="mt-3 text-2xl font-semibold text-white">团队模板</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="mt-3 text-2xl font-semibold text-foreground">团队模板</h1>
+        <p className="mt-1 text-sm text-muted">
           管理团队常用问法；点击星标可将问法放入个人「我的收藏」。
         </p>
       </div>
 
       <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
-        <div className="flex min-w-[280px] flex-1 items-stretch overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] focus-within:border-brand/30">
+        <div className="flex min-w-[280px] flex-1 items-stretch overflow-hidden rounded-xl border border-border bg-surface focus-within:border-brand/30">
           <input
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="按名称或问法搜索"
-            className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm text-slate-200 outline-none"
+            className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm text-foreground outline-none"
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 setQuery(searchInput);
@@ -452,7 +452,7 @@ export function TeamTemplatesManagement() {
               setQuery(searchInput);
               setPage(1);
             }}
-            className="inline-flex shrink-0 items-center gap-1.5 border-l border-white/10 px-4 text-sm text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+            className="inline-flex shrink-0 items-center gap-1.5 border-l border-border px-4 text-sm text-foreground transition hover:bg-surface-hover hover:text-foreground"
           >
             <svg
               viewBox="0 0 20 20"
@@ -488,7 +488,7 @@ export function TeamTemplatesManagement() {
         <button
           type="button"
           onClick={() => void refresh()}
-          className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-slate-300 transition hover:border-white/20 hover:text-white"
+          className="rounded-xl border border-border px-4 py-2.5 text-sm text-foreground transition hover:border-border-strong hover:text-foreground"
         >
           刷新
         </button>
@@ -497,14 +497,14 @@ export function TeamTemplatesManagement() {
           <>
             <Link
               href="/templates/categories"
-              className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-slate-300 transition hover:border-white/20 hover:text-white"
+              className="rounded-xl border border-border px-4 py-2.5 text-sm text-foreground transition hover:border-border-strong hover:text-foreground"
             >
               分类管理
             </Link>
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-slate-100"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-foreground px-4 py-2.5 text-sm font-medium text-background transition hover:opacity-90"
             >
               <span aria-hidden>+</span>
               新建模板
@@ -516,30 +516,30 @@ export function TeamTemplatesManagement() {
       <div className="ui-panel flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
         {loading ? (
-          <p className="px-5 py-12 text-center text-sm text-slate-500">加载中…</p>
+          <p className="px-5 py-12 text-center text-sm text-muted">加载中…</p>
         ) : templates.length ? (
-          <ul className="divide-y divide-white/[0.06]">
+          <ul className="divide-y divide-border">
             {templates.map((item) => (
                 <li
                   key={item.id}
-                  className="flex flex-wrap items-start justify-between gap-4 px-5 py-4 transition hover:bg-white/[0.02]"
+                  className="flex flex-wrap items-start justify-between gap-4 px-5 py-4 transition hover:bg-surface-hover"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-3">
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-[10px] font-semibold uppercase text-slate-400">
+                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-hover text-[10px] font-semibold uppercase text-muted">
                         QA
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-medium text-white">{item.label}</p>
+                          <p className="text-sm font-medium text-foreground">{item.label}</p>
                           <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-0.5 text-[10px] text-sky-300">
                             {templateTypeLabel(item)}
                           </span>
                         </div>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
                           {item.prompt}
                         </p>
-                        <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
+                        <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
                           <span>触发 {item.useCount ?? 0} 次</span>
                           <span>分类 {item.category ?? "通用"}</span>
                           <Link
@@ -557,10 +557,10 @@ export function TeamTemplatesManagement() {
                     <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] text-emerald-300">
                       可用
                     </span>
-                    <span className="text-[11px] text-slate-600">
+                    <span className="text-[11px] text-muted-foreground">
                       最近使用 {formatDateTime(item.lastUsedAt)}
                     </span>
-                    <span className="text-[11px] text-slate-600">
+                    <span className="text-[11px] text-muted-foreground">
                       创建 {formatDateTime(item.createdAt)}
                     </span>
                     <div className="mt-1 flex items-center gap-3 text-xs">
@@ -574,14 +574,14 @@ export function TeamTemplatesManagement() {
                           <button
                             type="button"
                             onClick={() => openEditModal(item)}
-                            className="text-slate-400 transition hover:text-white"
+                            className="text-muted transition hover:text-foreground"
                           >
                             编辑
                           </button>
                           <button
                             type="button"
                             onClick={() => setDeleteTarget(item)}
-                            className="text-slate-500 transition hover:text-rose-300"
+                            className="text-muted transition hover:text-rose-300"
                           >
                             删除
                           </button>
@@ -593,20 +593,20 @@ export function TeamTemplatesManagement() {
             ))}
           </ul>
         ) : (
-          <p className="px-5 py-12 text-center text-sm text-slate-500">
+          <p className="px-5 py-12 text-center text-sm text-muted">
             暂无匹配模板
           </p>
         )}
         </div>
       </div>
 
-      <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+      <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 text-sm text-muted">
         <p>
           第 {rangeStart}-{rangeEnd} 条，共 {total} 条
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-sm text-slate-500">
+          <div className="flex items-center gap-2 text-sm text-muted">
             <span>每页</span>
             <DarkSelect
               value={String(pageSize)}
@@ -630,18 +630,18 @@ export function TeamTemplatesManagement() {
               type="button"
               disabled={page <= 1 || loading}
               onClick={() => setPage((current) => Math.max(1, current - 1))}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-400 transition hover:text-white disabled:opacity-40"
+              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted transition hover:text-foreground disabled:opacity-40"
             >
               上一页
             </button>
-            <span className="min-w-12 text-center text-xs text-slate-400">
+            <span className="min-w-12 text-center text-xs text-muted">
               {page} / {totalPages}
             </span>
             <button
               type="button"
               disabled={page >= totalPages || loading}
               onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-400 transition hover:text-white disabled:opacity-40"
+              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted transition hover:text-foreground disabled:opacity-40"
             >
               下一页
             </button>

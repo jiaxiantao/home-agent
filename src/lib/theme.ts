@@ -22,4 +22,4 @@ export const radioSelectedClass =
   "border-brand bg-brand text-white";
 
 export const radioUnselectedClass =
-  "border-white/15 text-transparent";
+  "border-border-strong text-transparent";

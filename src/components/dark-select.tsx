@@ -73,17 +73,17 @@ export function DarkSelect({
         aria-controls={listId}
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left text-sm text-slate-200 outline-none transition hover:border-white/20 focus:border-brand/30 disabled:cursor-not-allowed disabled:opacity-40",
+          "flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-surface px-3 py-2.5 text-left text-sm text-foreground outline-none transition hover:border-border-strong focus:border-brand/30 disabled:cursor-not-allowed disabled:opacity-40",
           buttonClassName,
         )}
       >
-        <span className={cn("truncate", !selected && "text-slate-500")}>
+        <span className={cn("truncate", !selected && "text-muted")}>
           {selected?.label ?? placeholder}
         </span>
         <span
           className={cn(
-            "shrink-0 text-[10px] text-slate-500 transition",
-            open && "rotate-180 text-slate-300",
+            "shrink-0 text-[10px] text-muted transition",
+            open && "rotate-180 text-foreground",
           )}
           aria-hidden
         >
@@ -96,7 +96,7 @@ export function DarkSelect({
           id={listId}
           role="listbox"
           className={cn(
-            "absolute z-[60] max-h-64 min-w-full overflow-y-auto rounded-xl border border-white/10 bg-slate-950 py-1 shadow-[0_12px_40px_rgba(0,0,0,0.55)]",
+            "absolute z-[60] max-h-64 min-w-full overflow-y-auto rounded-xl border border-border bg-elevated py-1 shadow-[var(--shadow-lg)]",
             placement === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5",
             align === "right" ? "right-0" : "left-0",
           )}
@@ -115,7 +115,7 @@ export function DarkSelect({
                     "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition",
                     active
                       ? "bg-brand/15 text-brand-soft"
-                      : "text-slate-300 hover:bg-white/[0.06] hover:text-white",
+                      : "text-foreground hover:bg-surface-hover hover:text-foreground",
                   )}
                 >
                   <span className="truncate">{item.label}</span>

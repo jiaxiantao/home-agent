@@ -64,9 +64,9 @@ export function AgentHistoryPanel({
   return (
     <div className="ui-panel p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-slate-400">
+        <p className="text-xs font-medium text-muted">
           最近对话
-          <span className="ml-1 text-[10px] font-normal text-slate-600">
+          <span className="ml-1 text-[10px] font-normal text-muted-foreground">
             · 最近 {HISTORY_LIMIT} 条
           </span>
         </p>
@@ -74,7 +74,7 @@ export function AgentHistoryPanel({
           type="button"
           disabled={loading}
           onClick={() => void refresh()}
-          className="inline-flex items-center gap-1.5 text-[10px] text-slate-500 transition hover:text-slate-300 disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 text-[10px] text-muted transition hover:text-foreground disabled:opacity-60"
         >
           {loading ? (
             <>
@@ -91,7 +91,7 @@ export function AgentHistoryPanel({
       </div>
 
       {loading && !initialized ? (
-        <div className="mt-3 flex items-center justify-center gap-2 py-6 text-[11px] text-slate-500">
+        <div className="mt-3 flex items-center justify-center gap-2 py-6 text-[11px] text-muted">
           <span
             className="inline-block h-3.5 w-3.5 animate-spin rounded-full border border-brand/30 border-t-brand"
             aria-hidden
@@ -108,22 +108,22 @@ export function AgentHistoryPanel({
                 className={`rounded-lg border p-2.5 ${
                   active
                     ? "border-brand/30 bg-brand/[0.06]"
-                    : "border-white/5 bg-white/[0.02]"
+                    : "border-border bg-surface"
                 }`}
               >
                 <Link
                   href={`/agents?threadId=${encodeURIComponent(item.threadId)}`}
                   className="block w-full text-left"
                 >
-                  <p className="line-clamp-2 text-xs text-slate-200">
+                  <p className="line-clamp-2 text-xs text-foreground">
                     {item.title || "未命名对话"}
                   </p>
                   {item.preview ? (
-                    <p className="mt-1 line-clamp-1 text-[10px] text-slate-500">
+                    <p className="mt-1 line-clamp-1 text-[10px] text-muted">
                       {item.preview}
                     </p>
                   ) : null}
-                  <p className="mt-1 text-[10px] text-slate-500">
+                  <p className="mt-1 text-[10px] text-muted">
                     {formatTime(item.updatedAt)} · {item.messageCount} 条消息
                     {active ? " · 当前" : ""}
                   </p>
@@ -133,7 +133,7 @@ export function AgentHistoryPanel({
           })}
         </ul>
       ) : (
-        <p className="mt-3 text-[11px] text-zinc-500">暂无历史对话</p>
+        <p className="mt-3 text-[11px] text-muted">暂无历史对话</p>
       )}
     </div>
   );

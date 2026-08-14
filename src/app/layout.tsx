@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 
+import { ThemeProvider } from "@/components/theme-provider";
 import {
   PRODUCT_MISSION,
   PRODUCT_NAME_EN,
   PRODUCT_NAME_ZH,
 } from "@/lib/product";
+import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme-preference";
 
 import "./globals.css";
 
@@ -29,9 +32,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" className="h-full antialiased">
-      <body className="relative h-full overflow-hidden flex flex-col bg-transparent">
-        {children}
+    <html
+      lang="zh-CN"
+      className="h-full antialiased"
+      data-theme="light"
+      suppressHydrationWarning
+    >
+      <body className="relative flex h-full flex-col overflow-hidden bg-transparent">
+        <Script id="dfc-theme" strategy="beforeInteractive">
+          {THEME_BOOTSTRAP_SCRIPT}
+        </Script>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

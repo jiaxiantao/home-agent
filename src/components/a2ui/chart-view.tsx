@@ -46,8 +46,8 @@ import {
 import { BRAND_CHART_COLORS, BRAND_HEX } from "@/lib/theme";
 
 const PIE_COLORS = [...BRAND_CHART_COLORS];
-const AXIS = { stroke: "#71717a", fontSize: 11 } as const;
-const GRID = "#ffffff12";
+const AXIS = { stroke: "var(--chart-axis)", fontSize: 11 } as const;
+const GRID = "var(--chart-grid)";
 const CHART_HEIGHT = 280;
 
 function seriesKeysOf(chart: ChartSpec) {
@@ -289,7 +289,7 @@ function FunnelPlot({ chart }: { chart: ChartSpec }) {
           ))}
           <LabelList
             position="right"
-            fill="#e2e8f0"
+            fill="var(--chart-label)"
             stroke="none"
             dataKey={chart.xKey}
             fontSize={12}
@@ -311,8 +311,8 @@ function RadarPlot({ chart }: { chart: ChartSpec }) {
     <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
       <RadarChart data={data}>
         <PolarGrid stroke={GRID} />
-        <PolarAngleAxis dataKey={chart.xKey} tick={{ fill: "#a1a1aa", fontSize: 11 }} />
-        <PolarRadiusAxis tick={{ fill: "#71717a", fontSize: 10 }} />
+        <PolarAngleAxis dataKey={chart.xKey} tick={{ fill: "var(--chart-tick)", fontSize: 11 }} />
+        <PolarRadiusAxis tick={{ fill: "var(--chart-axis)", fontSize: 10 }} />
         {keys.map((key, index) => (
           <Radar
             key={key}
@@ -521,19 +521,19 @@ function GaugePlot({ chart }: { chart: ChartSpec }) {
           isAnimationActive={false}
         >
           <Cell fill={BRAND_HEX.primary} />
-          <Cell fill="#ffffff14" />
+          <Cell fill="var(--chart-gauge-track)" />
         </Pie>
         <text
           x="50%"
           y="72%"
           textAnchor="middle"
-          fill="#e4e4e7"
+          fill="var(--foreground)"
           fontSize="22"
           fontWeight={600}
         >
           {Number.isFinite(value) ? value.toLocaleString() : "—"}
         </text>
-        <text x="50%" y="84%" textAnchor="middle" fill="#71717a" fontSize="11">
+        <text x="50%" y="84%" textAnchor="middle" fill="var(--chart-axis)" fontSize="11">
           {String(chart.data[0]?.[chart.xKey] ?? chart.title ?? "")}
         </text>
       </PieChart>
@@ -578,7 +578,7 @@ function HeatmapPlot({ chart }: { chart: ChartSpec }) {
               x={84}
               y={16 + rowIndex * cellH + cellH / 2}
               textAnchor="end"
-              fill="#a1a1aa"
+              fill="var(--chart-tick)"
               fontSize="11"
               dominantBaseline="middle"
             >
@@ -601,7 +601,7 @@ function HeatmapPlot({ chart }: { chart: ChartSpec }) {
                     y={4 + rowIndex * cellH + (cellH - 4) / 2}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fill="#fafafa"
+                    fill="var(--foreground)"
                     fontSize="10"
                   >
                     {value}
@@ -618,7 +618,7 @@ function HeatmapPlot({ chart }: { chart: ChartSpec }) {
                 x={92 + colIndex * cellW + (cellW - 4) / 2}
                 y={24 + cellH * yLabels.length}
                 textAnchor="middle"
-                fill="#71717a"
+                fill="var(--chart-axis)"
                 fontSize="10"
               >
                 {x}
@@ -771,11 +771,11 @@ export function ChartCard({ chart }: { chart: ChartSpec }) {
   };
 
   return (
-    <div className="rounded-lg border border-white/8 bg-black/20 p-3">
+    <div className="rounded-lg border border-border bg-surface p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[12px] font-medium text-zinc-400">
+        <p className="text-[12px] font-medium text-muted">
           {title}
-          <span className="ml-2 font-normal text-zinc-600">{typeLabel}</span>
+          <span className="ml-2 font-normal text-muted-foreground">{typeLabel}</span>
         </p>
         <div className="flex shrink-0 gap-1">
           <button

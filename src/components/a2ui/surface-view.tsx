@@ -28,9 +28,9 @@ function TableView({
           导出 CSV
         </button>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-white/[0.08]">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table className="min-w-full text-left text-[12px]">
-          <thead className="bg-white/[0.03] text-zinc-500">
+          <thead className="bg-surface text-muted">
             <tr>
               {component.columns.map((column) => (
                 <th key={column} className="px-3 py-2 font-medium">
@@ -41,7 +41,7 @@ function TableView({
           </thead>
           <tbody>
             {component.rows.slice(0, 100).map((row, index) => (
-              <tr key={index} className="border-t border-white/[0.05] text-zinc-300">
+              <tr key={index} className="border-t border-border text-foreground">
                 {component.columns.map((column) => (
                   <td key={column} className="px-3 py-2 font-mono text-[11px]">
                     {row[column] === null || row[column] === undefined
@@ -82,8 +82,8 @@ function ComponentView({
             component.id.includes("error")
               ? "text-rose-300"
               : component.id.includes("hints")
-                ? "text-zinc-500"
-                : "text-zinc-300",
+                ? "text-muted"
+                : "text-foreground",
           )}
         >
           {component.text}
@@ -92,12 +92,12 @@ function ComponentView({
     case "Code":
       if (component.editable) {
         return (
-          <div className="overflow-hidden rounded-lg border border-white/[0.1] bg-[#0c0c0e]">
-            <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-1.5">
-              <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">
+          <div className="overflow-hidden rounded-lg border border-border bg-code">
+            <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-wide text-muted">
                 sql
               </span>
-              <span className="text-[10px] text-zinc-600">可编辑</span>
+              <span className="text-[10px] text-muted-foreground">可编辑</span>
             </div>
             <textarea
               value={editableSql ?? component.code}
@@ -106,7 +106,7 @@ function ComponentView({
                 12,
                 Math.max(4, (editableSql ?? component.code).split("\n").length + 1),
               )}
-              className="w-full resize-y bg-transparent px-3 py-2.5 font-mono text-[12px] leading-6 text-zinc-200 outline-none"
+              className="w-full resize-y bg-transparent px-3 py-2.5 font-mono text-[12px] leading-6 text-foreground outline-none"
               spellCheck={false}
             />
           </div>
@@ -114,13 +114,13 @@ function ComponentView({
       }
 
       return (
-        <div className="overflow-hidden rounded-lg border border-white/[0.08] bg-[#0c0c0e]">
-          <div className="border-b border-white/[0.06] px-3 py-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">
+        <div className="overflow-hidden rounded-lg border border-border bg-code">
+          <div className="border-b border-border px-3 py-1.5">
+            <span className="font-mono text-[10px] uppercase tracking-wide text-muted">
               sql
             </span>
           </div>
-          <pre className="overflow-x-auto px-3 py-2.5 font-mono text-[12px] leading-6 text-zinc-300">
+          <pre className="overflow-x-auto px-3 py-2.5 font-mono text-[12px] leading-6 text-foreground">
             {component.code}
           </pre>
         </div>
@@ -134,7 +134,7 @@ function ComponentView({
         <div
           className={cn(
             "flex flex-wrap gap-2",
-            variant === "approval" && "justify-end border-t border-white/[0.06] pt-3",
+            variant === "approval" && "justify-end border-t border-border pt-3",
           )}
         >
           {component.buttons.map((button) => {
@@ -149,7 +149,7 @@ function ComponentView({
                   "rounded-md px-3 py-1.5 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40",
                   isPrimary
                     ? "bg-brand text-white hover:bg-brand-hover"
-                    : "border border-white/10 text-zinc-300 hover:border-brand/25 hover:bg-brand/5 hover:text-brand-soft",
+                    : "border border-border text-foreground hover:border-brand/25 hover:bg-brand/5 hover:text-brand-soft",
                 )}
               >
                 {button.label}
@@ -226,7 +226,7 @@ export function A2UISurfaceView({
           <h3
             className={cn(
               "text-[12px] font-medium",
-              isApproval ? "text-brand-soft" : "text-zinc-300",
+              isApproval ? "text-brand-soft" : "text-foreground",
             )}
           >
             {surface.title}

@@ -62,14 +62,14 @@ export function AgentTracePanel({
   }
 
   return (
-    <section className="mb-2 overflow-hidden rounded-lg border border-white/[0.06]">
+    <section className="mb-2 overflow-hidden rounded-lg border border-border">
       <div className="flex w-full items-center justify-between gap-3 px-3 py-2">
         <button
           type="button"
           onClick={toggleExpanded}
-          className="min-w-0 flex-1 text-left transition hover:text-zinc-400"
+          className="min-w-0 flex-1 text-left transition hover:text-muted"
         >
-          <p className="text-[11px] text-zinc-500">
+          <p className="text-[11px] text-muted">
             原始事件流 · {lines.length} 条
             {running ? " · 实时" : ""}
           </p>
@@ -79,14 +79,14 @@ export function AgentTracePanel({
             type="button"
             onClick={() => void copyTrace()}
             disabled={!lines.length}
-            className="text-[10px] text-zinc-600 transition hover:text-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
+            className="text-[10px] text-muted-foreground transition hover:text-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
           >
             {copied ? "已复制" : "复制"}
           </button>
           <button
             type="button"
             onClick={toggleExpanded}
-            className="text-[10px] text-zinc-600 transition hover:text-zinc-400"
+            className="text-[10px] text-muted-foreground transition hover:text-muted"
           >
             {showExpanded ? "收起" : "展开"}
           </button>
@@ -94,7 +94,7 @@ export function AgentTracePanel({
       </div>
 
       {showExpanded ? (
-        <div className="max-h-40 overflow-y-auto border-t border-white/[0.05] px-3 py-2 font-mono text-[10px] leading-5 text-zinc-600">
+        <div className="max-h-40 overflow-y-auto border-t border-border px-3 py-2 font-mono text-[10px] leading-5 text-muted-foreground">
           <ul className="space-y-1">
             {lines.map((line) => (
               <li
@@ -104,7 +104,7 @@ export function AgentTracePanel({
                   line.kind === "error" && "text-rose-400",
                 )}
               >
-                <span className="text-zinc-700">[{line.kind}] </span>
+                <span className="text-muted">[{line.kind}] </span>
                 {line.text}
               </li>
             ))}

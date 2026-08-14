@@ -66,7 +66,7 @@ export function SiteAuthBadge() {
   }
 
   return (
-    <div className="flex items-center gap-2 text-xs text-slate-400">
+    <div className="flex items-center gap-2 text-xs text-muted">
       <span className="hidden sm:inline">
         {auth.user?.userName ?? auth.user?.userId}
       </span>
@@ -74,12 +74,12 @@ export function SiteAuthBadge() {
         <button
           type="button"
           onClick={() => void logout()}
-          className="rounded-full border border-white/10 px-2.5 py-1 transition hover:text-white"
+          className="rounded-full border border-border px-2.5 py-1 transition hover:text-foreground"
         >
           退出
         </button>
       ) : authMode === "sso" ? (
-        <span className="rounded-full border border-white/10 px-2.5 py-1 text-slate-500">
+        <span className="rounded-full border border-border px-2.5 py-1 text-muted">
           SSO
         </span>
       ) : null}

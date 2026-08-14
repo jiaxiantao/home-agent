@@ -117,12 +117,12 @@ export function AgentModelSwitcher({
         className={cn(
           "inline-flex max-w-[180px] items-center gap-1.5 rounded-md px-2 py-1 text-[11px] transition disabled:opacity-40",
           open
-            ? "bg-white/[0.08] text-zinc-100"
-            : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300",
+            ? "bg-surface-hover text-foreground"
+            : "text-muted hover:bg-surface-hover hover:text-foreground",
         )}
       >
-        <span className="shrink-0 text-zinc-600">模型</span>
-        <span className="truncate text-zinc-300" suppressHydrationWarning>
+        <span className="shrink-0 text-muted-foreground">模型</span>
+        <span className="truncate text-foreground" suppressHydrationWarning>
           {displaySelected.shortLabel}
         </span>
         <span
@@ -140,7 +140,7 @@ export function AgentModelSwitcher({
           aria-hidden
           viewBox="0 0 12 12"
           className={cn(
-            "h-2.5 w-2.5 shrink-0 text-zinc-600 transition",
+            "h-2.5 w-2.5 shrink-0 text-muted-foreground transition",
             open && "rotate-180",
           )}
         >
@@ -152,9 +152,9 @@ export function AgentModelSwitcher({
         <div
           id={listId}
           role="listbox"
-          className="absolute bottom-[calc(100%+6px)] left-0 z-50 w-[280px] overflow-hidden rounded-xl border border-white/[0.1] bg-[#161618] shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
+          className="absolute bottom-[calc(100%+6px)] left-0 z-50 w-[280px] overflow-hidden rounded-xl border border-border bg-elevated shadow-[var(--shadow-lg)]"
         >
-          <div className="border-b border-white/[0.06] px-3 py-2 text-[10px] leading-5 text-zinc-500">
+          <div className="border-b border-border px-3 py-2 text-[10px] leading-5 text-muted">
             切换规划模型（查询库由 Agent 自动选择）
           </div>
           <div className="max-h-72 overflow-y-auto py-1">
@@ -176,7 +176,7 @@ export function AgentModelSwitcher({
                   }}
                   className={cn(
                     "flex w-full items-start gap-2 px-3 py-2 text-left transition",
-                    active ? "bg-brand/10" : "hover:bg-white/[0.04]",
+                    active ? "bg-brand/10" : "hover:bg-surface-hover",
                     !item.configured && "cursor-not-allowed opacity-50",
                   )}
                 >
@@ -188,14 +188,14 @@ export function AgentModelSwitcher({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
-                      <span className="text-[12px] text-zinc-200">{item.label}</span>
+                      <span className="text-[12px] text-foreground">{item.label}</span>
                       {item.freeTier ? (
                         <span className="rounded bg-brand/15 px-1 py-0.5 text-[9px] text-brand-soft">
                           免费
                         </span>
                       ) : null}
                     </span>
-                    <span className="block truncate text-[10px] text-zinc-500">
+                    <span className="block truncate text-[10px] text-muted">
                       {item.model || "—"}
                       {!item.configured
                         ? item.signupUrl

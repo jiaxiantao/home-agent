@@ -46,18 +46,18 @@ function ConfirmDeleteDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
       role="presentation"
       onClick={onCancel}
     >
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-5 shadow-xl"
+        className="w-full max-w-sm rounded-2xl border border-border bg-elevated p-5 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 className="text-sm font-medium text-white">删除会话？</h2>
-        <p className="mt-2 text-xs leading-5 text-slate-400">
+        <h2 className="text-sm font-medium text-foreground">删除会话？</h2>
+        <p className="mt-2 text-xs leading-5 text-muted">
           确认删除「{label}」？删除后无法继续该对话。
         </p>
         <div className="mt-4 flex justify-end gap-2">
@@ -65,7 +65,7 @@ function ConfirmDeleteDialog({
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="rounded-lg px-3 py-1.5 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white"
+            className="rounded-lg px-3 py-1.5 text-xs text-muted transition hover:bg-surface-hover hover:text-foreground"
           >
             取消
           </button>
@@ -168,24 +168,24 @@ export function AgentSessionsManagement() {
       <div className="mb-5 shrink-0">
         <Link
           href="/agents"
-          className="inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-brand-soft"
+          className="inline-flex items-center gap-1 text-xs text-muted transition hover:text-brand-soft"
         >
           <span aria-hidden>←</span>
           返回数据智能体
         </Link>
-        <h1 className="mt-3 text-2xl font-semibold text-white">历史会话</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="mt-3 text-2xl font-semibold text-foreground">历史会话</h1>
+        <p className="mt-1 text-sm text-muted">
           数据智能体中的对话会写入 MySQL（未配置时回退 Redis/内存）。点「继续对话」可接着追问。
         </p>
       </div>
 
       <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
-        <div className="flex min-w-[280px] flex-1 items-stretch overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] focus-within:border-brand/30">
+        <div className="flex min-w-[280px] flex-1 items-stretch overflow-hidden rounded-xl border border-border bg-surface focus-within:border-brand/30">
           <input
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="按标题或对话内容搜索"
-            className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm text-slate-200 outline-none"
+            className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm text-foreground outline-none"
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 setQuery(searchInput);
@@ -200,7 +200,7 @@ export function AgentSessionsManagement() {
               setQuery(searchInput);
               setPage(1);
             }}
-            className="inline-flex shrink-0 items-center gap-1.5 border-l border-white/10 px-4 text-sm text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+            className="inline-flex shrink-0 items-center gap-1.5 border-l border-border px-4 text-sm text-foreground transition hover:bg-surface-hover hover:text-foreground"
           >
             搜索
           </button>
@@ -216,7 +216,7 @@ export function AgentSessionsManagement() {
         <button
           type="button"
           onClick={() => void refresh()}
-          className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-slate-300 transition hover:border-white/20 hover:text-white"
+          className="rounded-xl border border-border px-4 py-2.5 text-sm text-foreground transition hover:border-border-strong hover:text-foreground"
         >
           刷新
         </button>
@@ -225,20 +225,20 @@ export function AgentSessionsManagement() {
       <div className="ui-panel flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
           {loading ? (
-            <p className="px-5 py-12 text-center text-sm text-slate-500">加载中…</p>
+            <p className="px-5 py-12 text-center text-sm text-muted">加载中…</p>
           ) : items.length ? (
-            <ul className="divide-y divide-white/[0.06]">
+            <ul className="divide-y divide-border">
               {items.map((item) => (
                 <li
                   key={item.threadId}
-                  className="flex flex-wrap items-start justify-between gap-4 px-5 py-4 transition hover:bg-white/[0.02]"
+                  className="flex flex-wrap items-start justify-between gap-4 px-5 py-4 transition hover:bg-surface-hover"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-white">{item.title}</p>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                    <p className="text-sm font-medium text-foreground">{item.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
                       {item.preview || "暂无预览"}
                     </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
                       <span>{item.messageCount} 条消息</span>
                       <span>更新 {formatDateTime(item.updatedAt)}</span>
                       <span>开始 {formatDateTime(item.createdAt)}</span>
@@ -248,14 +248,14 @@ export function AgentSessionsManagement() {
                   <div className="flex shrink-0 items-center gap-3 text-xs">
                     <Link
                       href={`/agents?threadId=${encodeURIComponent(item.threadId)}`}
-                      className="rounded-lg bg-white/10 px-3 py-1.5 font-medium text-white transition hover:bg-white/15"
+                      className="rounded-lg bg-surface-hover px-3 py-1.5 font-medium text-foreground transition hover:bg-surface-hover"
                     >
                       继续对话
                     </Link>
                     <button
                       type="button"
                       onClick={() => setDeleteTarget(item)}
-                      className="text-slate-500 transition hover:text-rose-300"
+                      className="text-muted transition hover:text-rose-300"
                     >
                       删除
                     </button>
@@ -264,20 +264,20 @@ export function AgentSessionsManagement() {
               ))}
             </ul>
           ) : (
-            <p className="px-5 py-12 text-center text-sm text-slate-500">
+            <p className="px-5 py-12 text-center text-sm text-muted">
               暂无历史会话，去数据智能体聊一轮后会自动出现。
             </p>
           )}
         </div>
       </div>
 
-      <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+      <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 text-sm text-muted">
         <p>
           第 {rangeStart}-{rangeEnd} 条，共 {total} 条
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-sm text-slate-500">
+          <div className="flex items-center gap-2 text-sm text-muted">
             <span>每页</span>
             <DarkSelect
               value={String(pageSize)}
@@ -301,18 +301,18 @@ export function AgentSessionsManagement() {
               type="button"
               disabled={page <= 1 || loading}
               onClick={() => setPage((current) => Math.max(1, current - 1))}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-400 transition hover:text-white disabled:opacity-40"
+              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted transition hover:text-foreground disabled:opacity-40"
             >
               上一页
             </button>
-            <span className="min-w-12 text-center text-xs text-slate-400">
+            <span className="min-w-12 text-center text-xs text-muted">
               {page} / {totalPages}
             </span>
             <button
               type="button"
               disabled={page >= totalPages || loading}
               onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-400 transition hover:text-white disabled:opacity-40"
+              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted transition hover:text-foreground disabled:opacity-40"
             >
               下一页
             </button>

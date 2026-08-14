@@ -48,50 +48,50 @@ function CategoryFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
       role="presentation"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 shadow-xl"
+        className="w-full max-w-lg rounded-2xl border border-border bg-elevated shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-white/10 px-5 py-4">
-          <h2 className="text-base font-medium text-white">{title}</h2>
-          <p className="mt-1 text-xs text-slate-500">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-base font-medium text-foreground">{title}</h2>
+          <p className="mt-1 text-xs text-muted">
             分类名称会用于模板筛选与新建时的下拉选择。
           </p>
         </div>
 
         <div className="space-y-3 px-5 py-4">
           <label className="block">
-            <span className="mb-1.5 block text-xs text-slate-400">分类名称</span>
+            <span className="mb-1.5 block text-xs text-muted">分类名称</span>
             <input
               value={draft.name}
               onChange={(event) =>
                 onChange({ ...draft, name: event.target.value })
               }
               placeholder="例如：金融"
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand/30"
+              className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-brand/30"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-xs text-slate-400">说明（可选）</span>
+            <span className="mb-1.5 block text-xs text-muted">说明（可选）</span>
             <input
               value={draft.description}
               onChange={(event) =>
                 onChange({ ...draft, description: event.target.value })
               }
               placeholder="例如：贷款、放款相关问法"
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand/30"
+              className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-brand/30"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-xs text-slate-400">排序值</span>
+            <span className="mb-1.5 block text-xs text-muted">排序值</span>
             <input
               type="number"
               min={0}
@@ -99,20 +99,20 @@ function CategoryFormModal({
               onChange={(event) =>
                 onChange({ ...draft, sortOrder: event.target.value })
               }
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand/30"
+              className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-brand/30"
             />
-            <span className="mt-1 block text-[11px] text-slate-600">
+            <span className="mt-1 block text-[11px] text-muted-foreground">
               数值越小越靠前
             </span>
           </label>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-white/10 px-5 py-4">
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg px-4 py-2 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+            className="rounded-lg px-4 py-2 text-sm text-muted transition hover:bg-surface-hover hover:text-foreground disabled:opacity-50"
           >
             取消
           </button>
@@ -120,7 +120,7 @@ function CategoryFormModal({
             type="button"
             disabled={saving || !draft.name.trim()}
             onClick={onSave}
-            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-slate-100 disabled:opacity-40"
+            className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90 disabled:opacity-40"
           >
             {saving ? "保存中…" : "保存"}
           </button>
@@ -274,29 +274,29 @@ export function TeamTemplateCategoriesManagement() {
       <div className="mb-5 shrink-0">
         <Link
           href="/templates"
-          className="inline-flex items-center gap-1 text-xs text-slate-500 transition hover:text-brand-soft"
+          className="inline-flex items-center gap-1 text-xs text-muted transition hover:text-brand-soft"
         >
           <span aria-hidden>←</span>
           返回模板列表
         </Link>
-        <h1 className="mt-3 text-2xl font-semibold text-white">分类管理</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="mt-3 text-2xl font-semibold text-foreground">分类管理</h1>
+        <p className="mt-1 text-sm text-muted">
           维护团队模板分类。「我的收藏」为固定分类，用于个人收藏问法。
         </p>
       </div>
 
       <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
-        <div className="flex min-w-60 flex-1 items-stretch overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] focus-within:border-brand/30">
+        <div className="flex min-w-60 flex-1 items-stretch overflow-hidden rounded-xl border border-border bg-surface focus-within:border-brand/30">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="按分类名称搜索"
-            className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm text-slate-200 outline-none"
+            className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm text-foreground outline-none"
           />
           <button
             type="button"
             aria-label="搜索"
-            className="inline-flex shrink-0 items-center gap-1.5 border-l border-white/10 px-4 text-sm text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+            className="inline-flex shrink-0 items-center gap-1.5 border-l border-border px-4 text-sm text-foreground transition hover:bg-surface-hover hover:text-foreground"
           >
             <svg
               viewBox="0 0 20 20"
@@ -319,7 +319,7 @@ export function TeamTemplateCategoriesManagement() {
         <button
           type="button"
           onClick={() => void refresh()}
-          className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-slate-300 transition hover:border-white/20 hover:text-white"
+          className="rounded-xl border border-border px-4 py-2.5 text-sm text-foreground transition hover:border-border-strong hover:text-foreground"
         >
           刷新
         </button>
@@ -328,7 +328,7 @@ export function TeamTemplateCategoriesManagement() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-slate-100"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-foreground px-4 py-2.5 text-sm font-medium text-background transition hover:opacity-90"
           >
             <span aria-hidden>+</span>
             新建分类
@@ -345,17 +345,17 @@ export function TeamTemplateCategoriesManagement() {
       <div className="ui-panel flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
         {loading ? (
-          <p className="px-5 py-12 text-center text-sm text-slate-500">加载中…</p>
+          <p className="px-5 py-12 text-center text-sm text-muted">加载中…</p>
         ) : filtered.length ? (
-          <ul className="divide-y divide-white/6">
+          <ul className="divide-y divide-border">
             {filtered.map((item) => (
               <li
                 key={item.id}
-                className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition hover:bg-white/2"
+                className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition hover:bg-surface-hover"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-white">{item.name}</p>
+                    <p className="text-sm font-medium text-foreground">{item.name}</p>
                     <span className="rounded-full border border-brand/20 bg-brand/10 px-2 py-0.5 text-[10px] text-brand-soft">
                       {item.templateCount ?? 0} 条模板
                     </span>
@@ -366,9 +366,9 @@ export function TeamTemplateCategoriesManagement() {
                     ) : null}
                   </div>
                   {item.description ? (
-                    <p className="mt-1 text-xs text-slate-500">{item.description}</p>
+                    <p className="mt-1 text-xs text-muted">{item.description}</p>
                   ) : null}
-                  <p className="mt-1 text-[11px] text-slate-600">
+                  <p className="mt-1 text-[11px] text-muted-foreground">
                     排序 {item.sortOrder}
                   </p>
                 </div>
@@ -378,7 +378,7 @@ export function TeamTemplateCategoriesManagement() {
                     <button
                       type="button"
                       onClick={() => openEditModal(item)}
-                      className="text-slate-400 transition hover:text-white"
+                      className="text-muted transition hover:text-foreground"
                     >
                       编辑
                     </button>
@@ -388,19 +388,19 @@ export function TeamTemplateCategoriesManagement() {
                         setErrorMessage(null);
                         setDeleteTarget(item);
                       }}
-                      className="text-slate-500 transition hover:text-rose-300"
+                      className="text-muted transition hover:text-rose-300"
                     >
                       删除
                     </button>
                   </div>
                 ) : item.protected ? (
-                  <p className="text-[11px] text-slate-600">不可删除</p>
+                  <p className="text-[11px] text-muted-foreground">不可删除</p>
                 ) : null}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="px-5 py-12 text-center text-sm text-slate-500">
+          <p className="px-5 py-12 text-center text-sm text-muted">
             暂无分类
           </p>
         )}
@@ -419,7 +419,7 @@ export function TeamTemplateCategoriesManagement() {
 
       {deleteTarget ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
           role="presentation"
           onClick={() => {
             if (!deleting) {
@@ -430,11 +430,11 @@ export function TeamTemplateCategoriesManagement() {
           <div
             role="dialog"
             aria-modal="true"
-            className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-4 shadow-xl"
+            className="w-full max-w-sm rounded-2xl border border-border bg-elevated p-4 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2 className="text-sm font-medium text-white">删除分类？</h2>
-            <p className="mt-2 text-xs leading-5 text-slate-400">
+            <h2 className="text-sm font-medium text-foreground">删除分类？</h2>
+            <p className="mt-2 text-xs leading-5 text-muted">
               确认删除「{deleteTarget.name}」？
               {(deleteTarget.templateCount ?? 0) > 0
                 ? `该分类下还有 ${deleteTarget.templateCount} 条模板，无法删除。`
@@ -445,7 +445,7 @@ export function TeamTemplateCategoriesManagement() {
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deleting}
-                className="rounded-lg px-3 py-1.5 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white"
+                className="rounded-lg px-3 py-1.5 text-xs text-muted transition hover:bg-surface-hover hover:text-foreground"
               >
                 取消
               </button>

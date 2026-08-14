@@ -19,12 +19,12 @@ export function ConsoleShell({
         <div className="mb-5 flex shrink-0 flex-wrap items-end justify-between gap-4">
           <div>
             {title ? (
-              <h1 className="text-xl font-semibold text-white md:text-2xl">
+              <h1 className="text-xl font-semibold text-foreground md:text-2xl">
                 {title}
               </h1>
             ) : null}
             {description ? (
-              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-400">
+              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted">
                 {description}
               </p>
             ) : null}

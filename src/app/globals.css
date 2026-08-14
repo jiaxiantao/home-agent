@@ -1,12 +1,67 @@
 @import "tailwindcss";
 
-:root {
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --background: #f6f4f1;
+  --foreground: #18181b;
+  --muted: #52525b;
+  --muted-foreground: #71717a;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-hover: rgba(24, 24, 27, 0.05);
+  --surface-strong: #ffffff;
+  --elevated: #ffffff;
+  --sidebar: rgba(255, 255, 255, 0.78);
+  --header: rgba(255, 255, 255, 0.86);
+  --input: #ffffff;
+  --code: #f4f4f5;
+  --overlay: rgba(24, 24, 27, 0.45);
+  --border: rgba(24, 24, 27, 0.1);
+  --border-strong: rgba(24, 24, 27, 0.16);
+  --shadow-lg: 0 12px 40px rgba(24, 24, 27, 0.12);
+  --app-bg-image: radial-gradient(circle at top, rgba(255, 102, 0, 0.12), transparent 36%),
+    linear-gradient(180deg, #f6f4f1 0%, #f3efe9 55%, #f6f4f1 100%);
+  --chart-axis: #71717a;
+  --chart-grid: rgba(24, 24, 27, 0.08);
+  --chart-tick: #52525b;
+  --chart-label: #3f3f46;
+  --chart-bg: #ffffff;
+  --chart-gauge-track: rgba(24, 24, 27, 0.08);
+  --brand: #ff6600;
+  --brand-hover: #e65c00;
+  --brand-soft: #c2410c;
+  --brand-deep: #cc5200;
+  --brand-muted: rgba(255, 102, 0, 0.12);
+  --brand-subtle: rgba(255, 102, 0, 0.08);
+  --accent: var(--brand);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
   --background: #0a0a0c;
   --foreground: #e4e4e7;
-  --surface: rgba(20, 20, 22, 0.92);
+  --muted: #a1a1aa;
+  --muted-foreground: #71717a;
+  --surface: rgba(20, 20, 22, 0.72);
+  --surface-hover: rgba(255, 255, 255, 0.06);
   --surface-strong: rgba(16, 16, 18, 0.98);
+  --elevated: #161618;
+  --sidebar: rgba(9, 9, 11, 0.55);
+  --header: rgba(9, 9, 11, 0.8);
+  --input: rgba(0, 0, 0, 0.3);
+  --code: #0c0c0e;
+  --overlay: rgba(0, 0, 0, 0.6);
   --border: rgba(255, 255, 255, 0.08);
-  /* 搜车橙 / 大风车 */
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --app-bg-image: radial-gradient(circle at top, rgba(255, 102, 0, 0.18), transparent 36%),
+    linear-gradient(180deg, #0a0a0c 0%, #0c0a08 55%, #0a0a0c 100%);
+  --chart-axis: #71717a;
+  --chart-grid: rgba(255, 255, 255, 0.07);
+  --chart-tick: #a1a1aa;
+  --chart-label: #e2e8f0;
+  --chart-bg: #0c0c0e;
+  --chart-gauge-track: rgba(255, 255, 255, 0.08);
   --brand: #ff6600;
   --brand-hover: #ff8533;
   --brand-soft: #ffb380;
@@ -19,9 +74,19 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
   --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
   --color-surface-strong: var(--surface-strong);
+  --color-elevated: var(--elevated);
+  --color-sidebar: var(--sidebar);
+  --color-header: var(--header);
+  --color-input: var(--input);
+  --color-code: var(--code);
+  --color-overlay: var(--overlay);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-accent: var(--accent);
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
@@ -52,6 +117,11 @@
   }
 }
 
+.app-canvas {
+  background-color: var(--background);
+  background-image: var(--app-bg-image);
+}
+
 ::selection {
   background: rgba(255, 102, 0, 0.32);
   color: white;
@@ -63,11 +133,11 @@
   }
 
   .ui-btn-secondary {
-    @apply inline-flex items-center justify-center rounded-md border border-white/10 px-3 py-1.5 text-[12px] font-medium text-zinc-300 transition hover:border-brand/25 hover:bg-brand/5 hover:text-brand-soft disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex items-center justify-center rounded-md border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition hover:border-brand/25 hover:bg-brand/5 hover:text-brand-soft disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .ui-btn-ghost {
-    @apply rounded-md px-2 py-1 text-[11px] text-zinc-500 transition hover:bg-brand/5 hover:text-brand-soft disabled:opacity-40;
+    @apply rounded-md px-2 py-1 text-[11px] text-muted transition hover:bg-brand/5 hover:text-brand-soft disabled:opacity-40;
   }
 
   .ui-chip-brand {
@@ -75,7 +145,7 @@
   }
 
   .ui-panel {
-    @apply rounded-xl border border-white/[0.08] bg-white/[0.02];
+    @apply rounded-xl border border-border bg-surface;
   }
 
   .ui-panel-approval {
@@ -83,7 +153,7 @@
   }
 
   .ui-input {
-    @apply rounded-lg border border-white/10 bg-black/30 text-slate-200 outline-none transition focus:border-brand/40;
+    @apply rounded-lg border border-border bg-input text-foreground outline-none transition focus:border-brand/40;
   }
 
   .ui-radio-selected {
@@ -91,7 +161,7 @@
   }
 
   .ui-radio-unselected {
-    @apply border-white/15 text-transparent;
+    @apply border-border-strong text-transparent;
   }
 
   .ui-status-ok {
@@ -111,19 +181,19 @@
   }
 
   .ui-link-subtle {
-    @apply text-slate-500 transition hover:text-brand-soft;
+    @apply text-muted transition hover:text-brand-soft;
   }
 }
 
 .markdown {
-  color: rgb(203 213 225);
+  color: var(--muted);
 }
 
 .markdown h3 {
   margin-top: 1.25rem;
   font-size: 1.125rem;
   font-weight: 600;
-  color: white;
+  color: var(--foreground);
 }
 
 .markdown p,
@@ -148,7 +218,7 @@
 }
 
 .markdown strong {
-  color: white;
+  color: var(--foreground);
 }
 
 @keyframes streaming-cursor-blink {

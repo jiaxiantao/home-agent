@@ -41,12 +41,12 @@ export function LoginForm({ compact = false }: { compact?: boolean }) {
   return (
     <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
       {!compact ? (
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-muted">
           本地开发或内网部署可使用管理员分配的 AUTH_TOKEN。
         </p>
       ) : null}
       <div>
-        <label htmlFor="token" className="text-sm text-slate-300">
+        <label htmlFor="token" className="text-sm text-foreground">
           访问令牌
         </label>
         <input
@@ -55,7 +55,7 @@ export function LoginForm({ compact = false }: { compact?: boolean }) {
           value={token}
           onChange={(event) => setToken(event.target.value)}
           placeholder="向管理员索取 AUTH_TOKEN"
-          className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-brand/40"
+          className="mt-2 w-full rounded-xl border border-border bg-input px-4 py-3 text-sm text-foreground outline-none focus:border-brand/40"
           autoComplete="current-password"
           required
         />

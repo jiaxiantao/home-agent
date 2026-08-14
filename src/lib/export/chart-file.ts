@@ -9,6 +9,19 @@ export function chartDownloadBasename(title: string | undefined, typeLabel: stri
   return raw || "chart";
 }
 
+function chartBackgroundColor(override?: string) {
+  if (override) {
+    return override;
+  }
+  if (typeof document === "undefined") {
+    return "#ffffff";
+  }
+  return (
+    getComputedStyle(document.documentElement).getPropertyValue("--chart-bg").trim() ||
+    "#ffffff"
+  );
+}
+
 export function serializeChartSvg(
   svg: SVGSVGElement,
   options?: { background?: string },
@@ -17,6 +30,7 @@ export function serializeChartSvg(
   const box = svg.getBoundingClientRect();
   const width = Math.max(Math.round(box.width) || Number(svg.getAttribute("width")) || 0, 640);
   const height = Math.max(Math.round(box.height) || Number(svg.getAttribute("height")) || 0, 280);
+  const backgroundColor = chartBackgroundColor(options?.background);
 
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   clone.setAttribute("width", String(width));
@@ -26,7 +40,7 @@ export function serializeChartSvg(
   const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
   background.setAttribute("width", "100%");
   background.setAttribute("height", "100%");
-  background.setAttribute("fill", options?.background ?? "#0c0c0e");
+  background.setAttribute("fill", backgroundColor);
   clone.insertBefore(background, clone.firstChild);
 
   return new XMLSerializer().serializeToString(clone);
@@ -53,6 +67,7 @@ export function downloadChartPng(svg: SVGSVGElement, filename: string) {
   const box = svg.getBoundingClientRect();
   const width = Math.max(Math.round(box.width), 640);
   const height = Math.max(Math.round(box.height), 280);
+  const backgroundColor = chartBackgroundColor();
 
   return new Promise<void>((resolve, reject) => {
     image.onload = () => {
@@ -65,7 +80,7 @@ export function downloadChartPng(svg: SVGSVGElement, filename: string) {
         return;
       }
 
-      context.fillStyle = "#0c0c0e";
+      context.fillStyle = backgroundColor;
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       canvas.toBlob((blob) => {

@@ -204,7 +204,7 @@ export function AgentOrchestratorDemo({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0.5 py-2 [scrollbar-gutter:stable]">
           {restoring ? (
-            <p className="px-2 py-10 text-center text-sm text-zinc-500">
+            <p className="px-2 py-10 text-center text-sm text-muted">
               正在恢复历史会话…
             </p>
           ) : (
@@ -256,8 +256,8 @@ export function AgentOrchestratorDemo({
           currentThreadId={threadId}
         />
 
-        <div className="ui-panel p-3 text-[11px] leading-5 text-zinc-500">
-          <p className="font-medium text-zinc-400">快捷操作</p>
+        <div className="ui-panel p-3 text-[11px] leading-5 text-muted">
+          <p className="font-medium text-muted">快捷操作</p>
           <ul className="mt-1.5 list-inside list-disc space-y-1">
             <li>⌘↵ 发送 · Esc 停止</li>
             <li>确认前可编辑 SQL</li>

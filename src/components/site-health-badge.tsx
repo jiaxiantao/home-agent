@@ -14,7 +14,7 @@ function StatusDot({
 }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-slate-400"
+      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] text-muted"
       title={title ?? label}
     >
       <span
@@ -36,7 +36,7 @@ export function SiteHealthBadge({ layout = "inline" }: { layout?: "inline" | "si
 
   if (loading) {
     return (
-      <span className="inline-flex h-5 w-20 animate-pulse rounded-full bg-white/10" aria-hidden />
+      <span className="inline-flex h-5 w-20 animate-pulse rounded-full bg-surface-hover" aria-hidden />
     );
   }
 

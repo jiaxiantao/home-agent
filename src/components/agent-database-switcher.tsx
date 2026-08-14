@@ -86,17 +86,17 @@ export function AgentDatabaseSwitcher({
         className={cn(
           "inline-flex max-w-[168px] items-center gap-1.5 rounded-md px-2 py-1 text-[11px] transition disabled:opacity-40",
           open
-            ? "bg-white/[0.08] text-zinc-100"
-            : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300",
+            ? "bg-surface-hover text-foreground"
+            : "text-muted hover:bg-surface-hover hover:text-foreground",
         )}
       >
-        <span className="shrink-0 text-zinc-600">库</span>
-        <span className="truncate text-zinc-300">{label}</span>
+        <span className="shrink-0 text-muted-foreground">库</span>
+        <span className="truncate text-foreground">{label}</span>
         <svg
           aria-hidden
           viewBox="0 0 12 12"
           className={cn(
-            "h-2.5 w-2.5 shrink-0 text-zinc-600 transition",
+            "h-2.5 w-2.5 shrink-0 text-muted-foreground transition",
             open && "rotate-180",
           )}
         >
@@ -116,11 +116,11 @@ export function AgentDatabaseSwitcher({
           id={listId}
           role="listbox"
           aria-label="偏好数据库"
-          className="absolute bottom-[calc(100%+6px)] left-0 z-50 w-[272px] overflow-hidden rounded-xl border border-white/[0.1] bg-[#161618] shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
+          className="absolute bottom-[calc(100%+6px)] left-0 z-50 w-[272px] overflow-hidden rounded-xl border border-border bg-elevated shadow-[var(--shadow-lg)]"
         >
-          <div className="border-b border-white/[0.06] px-3 py-2">
-            <p className="text-[11px] font-medium text-zinc-300">查询范围</p>
-            <p className="mt-0.5 text-[10px] leading-4 text-zinc-500">
+          <div className="border-b border-border px-3 py-2">
+            <p className="text-[11px] font-medium text-foreground">查询范围</p>
+            <p className="mt-0.5 text-[10px] leading-4 text-muted">
               默认交给 Agent 自动规划，一般无需手动指定
             </p>
           </div>
@@ -181,7 +181,7 @@ function OptionRow({
       onClick={onSelect}
       className={cn(
         "flex w-full items-start gap-2.5 px-3 py-2 text-left transition",
-        selected ? "bg-brand/10" : "hover:bg-white/[0.04]",
+        selected ? "bg-brand/10" : "hover:bg-surface-hover",
         muted && "opacity-50",
       )}
     >
@@ -206,14 +206,14 @@ function OptionRow({
 
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <span className="truncate text-[12px] text-zinc-200">{title}</span>
+          <span className="truncate text-[12px] text-foreground">{title}</span>
           {badge ? (
-            <span className="shrink-0 rounded px-1 py-px text-[9px] tracking-wide text-zinc-500 ring-1 ring-white/[0.08]">
+            <span className="shrink-0 rounded px-1 py-px text-[9px] tracking-wide text-muted ring-1 ring-border">
               {badge}
             </span>
           ) : null}
         </span>
-        <span className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-zinc-500">
+        <span className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted">
           {subtitle}
         </span>
       </span>
