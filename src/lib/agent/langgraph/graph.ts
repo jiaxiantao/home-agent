@@ -1,6 +1,9 @@
 import { END, START, StateGraph } from "@langchain/langgraph";
 
+import { HumanMessage } from "@langchain/core/messages";
+
 import type { ThreadTurn } from "@/lib/agent/planner";
+import type { AgentToolResult } from "@/lib/agent/types";
 import { DfcAgentState, type DfcAgentStateType } from "@/lib/agent/langgraph/state";
 import {
   afterToolsRoute,
@@ -10,6 +13,7 @@ import {
   shouldUseTools,
 } from "@/lib/agent/langgraph/nodes/plan-or-act";
 import { createToolsNodeHandler } from "@/lib/agent/langgraph/graph-runner";
+import { formatPriorContinuationPrompt } from "@/lib/agent/planner-context";
 
 export type CompileGraphOptions = {
   conversation?: ThreadTurn[];
@@ -41,11 +45,17 @@ export function compileDfcAgentGraph(options: CompileGraphOptions = {}) {
 export function createGraphInput(
   userMessage: string,
   conversation: ThreadTurn[] = [],
+  prior: AgentToolResult[] = [],
 ): DfcAgentStateType {
+  const messages = buildInitialMessages(userMessage, conversation);
+  if (prior.length) {
+    messages.push(new HumanMessage(formatPriorContinuationPrompt(userMessage, prior)));
+  }
+
   return {
     userMessage,
-    messages: buildInitialMessages(userMessage, conversation),
-    priorToolResults: [],
+    messages,
+    priorToolResults: prior,
     stepCount: 0,
     mock: false,
     pendingSql: null,

@@ -1,4 +1,4 @@
-import { AIMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { compileDfcAgentGraph, createGraphInput } from "@/lib/agent/langgraph/graph";
@@ -26,6 +26,26 @@ describe("langgraph graph", () => {
 
   it("compiles StateGraph without error", () => {
     expect(() => compileDfcAgentGraph()).not.toThrow();
+  });
+
+  it("keeps prior tool results when continuing after SQL", () => {
+    const prior = [
+      {
+        tool: "execute_sql" as const,
+        args: { sql: "SELECT 1" },
+        output: "1 row",
+        data: {
+          columns: ["total_cnt"],
+          rows: [{ total_cnt: 4081 }],
+          rowCount: 1,
+        },
+      },
+    ];
+    const state = createGraphInput("用柱状图展示售价区间", [], prior);
+    expect(state.priorToolResults).toHaveLength(1);
+    const last = state.messages.at(-1);
+    expect(last).toBeInstanceOf(HumanMessage);
+    expect(String((last as HumanMessage).content)).toMatch(/无法出图/);
   });
 
   it("mock planner routes catalog questions to list_schema", async () => {

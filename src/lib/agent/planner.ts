@@ -92,7 +92,7 @@ ${formatServiceRepoMapForPrompt()}
 - sample_table_rows: { table, database?, limit? }
 - list_schema: {} — 仅核心表手写口径，不能替代跨库探索
 - propose_sql: { sql, explanation } — 待确认只读 SQL（禁止直接 execute_sql）
-- build_chart: { columns, rows, title?, chartType? } — **仅当用户明确要求图表/可视化时**调用
+- build_chart: { columns, rows, title?, chartType? } — **仅当用户明确要求图表/可视化时**调用。图表问法的 SQL 必须返回分类列+数值列且多于 1 行，禁止用单行 MIN/MAX/AVG 结束。
 
 ## SQL 规则
 - 单条只读 SELECT/SHOW/DESCRIBE/EXPLAIN；禁止 USE / 多语句

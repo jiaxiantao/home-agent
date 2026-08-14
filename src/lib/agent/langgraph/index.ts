@@ -15,7 +15,7 @@ import {
   fixSqlFromExecutionError,
   sanitizeAgentSql,
 } from "@/lib/analytics/sql-sanitize";
-import { userRequestedChart } from "@/lib/agent/chart-intent";
+import { userRequestedChart, inferPreferredChartType } from "@/lib/agent/chart-intent";
 import { getAgentMaxSteps } from "@/lib/agent/config";
 import type { DfcAgentStateType } from "@/lib/agent/langgraph/state";
 import { createGraphInput } from "@/lib/agent/langgraph/graph";
@@ -95,6 +95,13 @@ export type RunDfcAgentLoopOptions = {
   sso?: SsoCredentials | null;
   /** 显式传入请求模型，避免心跳/工具异步边界丢失 ALS */
   llmProvider?: LlmProvider;
+  continueFrom?: {
+    prior: AgentToolResult[];
+    skipAppendUser?: boolean;
+    startedAt?: number;
+    steps?: number;
+    toolCalls?: number;
+  };
 };
 
 
@@ -364,7 +371,19 @@ async function* requeueSqlConfirm(
 async function* resumeConfirmedSql(
   resume: AgentResumeAction,
   options: { signal?: AbortSignal; audit?: AuditContext },
-): AsyncGenerator<AgentTraceEvent> {
+): AsyncGenerator<
+  AgentTraceEvent,
+  | {
+      message: string;
+      prior: AgentToolResult[];
+      threadId?: string;
+      userId?: string;
+      startedAt: number;
+      steps: number;
+      toolCalls: number;
+    }
+  | undefined
+> {
   const startedAt = performance.now();
   const runId = String(resume.payload?.runId ?? "");
 
@@ -503,6 +522,7 @@ async function* resumeConfirmedSql(
     const chart = wantsChart
       ? buildChartSpecFromRows(query.columns, query.rows, {
           title: "查询结果",
+          preferredType: inferPreferredChartType(pending.message),
         })
       : null;
 
@@ -518,6 +538,7 @@ async function* resumeConfirmedSql(
         columns: query.columns,
         rows: query.rows,
         title: "查询结果",
+        chartType: inferPreferredChartType(pending.message),
       });
       prior.push({
         tool: "build_chart",
@@ -545,6 +566,23 @@ async function* resumeConfirmedSql(
         summary,
       }),
     };
+
+    if (wantsChart && !chart) {
+      yield {
+        type: "trace",
+        phase: "plan",
+        message: "当前结果无法生成图表，继续规划分组/区间统计",
+      };
+      return {
+        message: pending.message,
+        prior,
+        threadId: pending.threadId,
+        userId: pending.userId,
+        startedAt,
+        steps,
+        toolCalls,
+      };
+    }
 
     yield { type: "trace", phase: "answer", message: "基于查询结果合成最终回答" };
 
@@ -688,44 +726,66 @@ export async function* runDfcAgentLoop(
   message: string,
   options: RunDfcAgentLoopOptions = {},
 ): AsyncGenerator<AgentTraceEvent> {
-  if (options.resume) {
-    yield* resumeConfirmedSql(options.resume, {
+  if (options.resume && !options.continueFrom) {
+    const continuation = yield* resumeConfirmedSql(options.resume, {
       signal: options.signal,
       audit: options.audit,
     });
+    if (continuation) {
+      yield* runDfcAgentLoop(continuation.message, {
+        ...options,
+        resume: undefined,
+        threadId: continuation.threadId ?? options.threadId,
+        continueFrom: {
+          ...continuation,
+          skipAppendUser: true,
+        },
+      });
+    }
     return;
   }
 
-  const startedAt = performance.now();
+  const continueFrom = options.continueFrom;
+  const startedAt = continueFrom?.startedAt ?? performance.now();
   const llmProvider = resolveLlmProvider(options.llmProvider);
   const userId = options.audit?.user.userId ?? "unknown";
   const thread = await ensureThread(options.threadId, userId);
   yield { type: "thread", threadId: thread.threadId };
-  yield { type: "trace", phase: "start", message: "LangGraph Agent 循环启动" };
-  yield { type: "trace", phase: "start", message: "加载会话上下文…" };
+  if (!continueFrom) {
+    yield { type: "trace", phase: "start", message: "LangGraph Agent 循环启动" };
+    yield { type: "trace", phase: "start", message: "加载会话上下文…" };
+  }
 
-  await appendThreadMessage(thread.threadId, userId, {
-    role: "user",
-    content: message,
-    ts: Date.now(),
-  });
+  if (!continueFrom?.skipAppendUser) {
+    await appendThreadMessage(thread.threadId, userId, {
+      role: "user",
+      content: message,
+      ts: Date.now(),
+    });
+  }
 
   const conversation = formatThreadForPlanner(
     await getThreadMessages(thread.threadId, userId),
   );
 
-  auditFromContext(options.audit, {
-    event: "agent.run.start",
-    message,
-    outcome: "success",
-  });
+  if (!continueFrom) {
+    auditFromContext(options.audit, {
+      event: "agent.run.start",
+      message,
+      outcome: "success",
+    });
+  }
 
   const runTools = createToolsNodeHandler(
     options.sso ?? getSsoRequestContext(),
   );
-  let state: DfcAgentStateType = createGraphInput(message, conversation);
-  let steps = 0;
-  let toolCalls = 0;
+  let state: DfcAgentStateType = createGraphInput(
+    message,
+    conversation,
+    continueFrom?.prior ?? [],
+  );
+  let steps = continueFrom?.steps ?? 0;
+  let toolCalls = continueFrom?.toolCalls ?? 0;
   let lastMock = false;
   const maxSteps = getAgentMaxSteps();
 

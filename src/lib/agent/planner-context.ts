@@ -95,3 +95,17 @@ export function truncatePriorForPlanner(
     };
   });
 }
+
+export function formatPriorContinuationPrompt(
+  userMessage: string,
+  prior: AgentToolResult[],
+) {
+  return [
+    `用户问题：${userMessage}`,
+    "已执行过以下工具，请基于结果继续完成用户问题。",
+    "若用户要求图表，且当前结果无法出图（单行汇总、缺少分类列），必须立刻 propose_sql 写出可出图的分组/区间统计（CASE WHEN 分桶 + GROUP BY），不要再探 MIN/MAX，也不要直接回答。",
+    "",
+    "工具结果：",
+    JSON.stringify(truncatePriorForPlanner(prior), null, 2),
+  ].join("\n");
+}
