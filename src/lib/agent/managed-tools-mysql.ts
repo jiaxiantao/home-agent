@@ -1,3 +1,4 @@
+import { agentToolCatalog } from "@/lib/agent/tool-catalog";
 import { executeAppMysql, getAppMysqlPool, queryAppMysql } from "@/lib/app-mysql/client";
 import type { RowDataPacket } from "mysql2/promise";
 
@@ -37,6 +38,7 @@ const CREATE_SQL = `CREATE TABLE IF NOT EXISTS agent_tools (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
 
 let ensured = false;
+let seeded = false;
 
 async function ensureTable() {
   if (ensured) {
@@ -44,6 +46,47 @@ async function ensureTable() {
   }
   await getAppMysqlPool().query(CREATE_SQL);
   ensured = true;
+}
+
+export async function seedBuiltinToolsIfMissing() {
+  await ensureTable();
+  if (seeded) {
+    return;
+  }
+
+  const rows = await queryAppMysql<RowDataPacket & { name: string }>(
+    `SELECT name FROM agent_tools WHERE builtin = 1`,
+  );
+  const existing = new Set(rows.map((row) => row.name));
+  const createdAt = "1970-01-01T00:00:00.000Z";
+  const updatedAt = createdAt;
+
+  for (const item of agentToolCatalog) {
+    if (existing.has(item.name)) {
+      continue;
+    }
+
+    const tool: ManagedAgentTool = {
+      id: item.name,
+      name: item.name,
+      label: item.label,
+      description: item.description,
+      args: { ...item.args },
+      enabled: true,
+      kind: "builtin",
+      builtin: true,
+      createdAt,
+      updatedAt,
+      createdBy: "system",
+    };
+    await upsertMysqlManagedTool(tool);
+  }
+
+  seeded = true;
+}
+
+export async function ensureAgentToolsTableAndSeed() {
+  await seedBuiltinToolsIfMissing();
 }
 
 function parseJson<T>(value: T | string | null | undefined, fallback: T): T {
@@ -133,4 +176,5 @@ export async function deleteMysqlManagedTool(id: string) {
 
 export function resetMysqlManagedToolsEnsure() {
   ensured = false;
+  seeded = false;
 }

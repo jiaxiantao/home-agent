@@ -13,6 +13,7 @@ const navItems = [
   { href: "/sessions", label: "历史会话" },
   { href: "/templates", label: "团队模板" },
   { href: "/tools", label: "工具管理" },
+  { href: "/apis", label: "接口目录" },
 ];
 
 const AVATAR_PALETTES = [

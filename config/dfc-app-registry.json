@@ -21,6 +21,8 @@
     "car-model": { "repo": "base-car/car-model", "database": "car_model", "baseUrlEnvKey": "DFC_API_CAR_MODEL_BASE_URL" },
     "car-model-mapping": { "repo": "base-car/car-model-mapping", "database": "car_model_mapping", "baseUrlEnvKey": "DFC_API_CAR_MODEL_MAPPING_BASE_URL" },
     "ai-scrm": { "repo": "ai-robot/ai-scrm", "database": "marketing_scrm", "baseUrlEnvKey": "DFC_API_AI_SCRM_BASE_URL" },
+    "ai-backend-algorithm": { "repo": "ai-backend-algorithm", "database": "ai_robot", "baseUrlEnvKey": "DFC_API_AI_BACKEND_ALGORITHM_BASE_URL" },
+    "ai-open-platform": { "repo": "ai-open-platform", "database": "ai_robot", "baseUrlEnvKey": "DFC_API_AI_OPEN_PLATFORM_BASE_URL" },
     "dfc-scrm": { "repo": "ai-robot/dfc-scrm", "database": "marketing_scrm", "baseUrlEnvKey": "DFC_API_DFC_SCRM_BASE_URL" },
     "ai-super-call": { "repo": "ai-robot/super-call", "database": "ai_robot", "baseUrlEnvKey": "DFC_API_AI_SUPER_CALL_BASE_URL" },
     "cheniu-user": { "repo": "niu/backends/cheniu-user", "database": "cheniu_user", "baseUrlEnvKey": "DFC_API_CHENIU_USER_BASE_URL" },

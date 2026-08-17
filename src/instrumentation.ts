@@ -3,6 +3,9 @@ export async function register() {
     return;
   }
 
+  const { loadDfcApiEnv } = await import("@/lib/config/load-project-env");
+  loadDfcApiEnv();
+
   const { validateProductionConfig } = await import(
     "@/lib/security/production-config"
   );

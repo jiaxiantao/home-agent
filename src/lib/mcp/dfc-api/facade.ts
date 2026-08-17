@@ -11,6 +11,7 @@ import {
   buildSuggestedSqlForEndpoint,
   callBackendApi,
 } from "@/lib/analytics/backend-api-client";
+import { recordDfcApiAgentCall } from "@/lib/analytics/dfc-api-endpoints-mysql";
 import { getDevSsoCredentials, primaryHeaderForCookie } from "@/lib/security/sso-config";
 import {
   applyLoggedInUserToApiParams,
@@ -126,6 +127,8 @@ export async function dfcMcpCallHttpApi(
       message: `未知 endpointId：${endpointId}`,
     };
   }
+
+  void recordDfcApiAgentCall(endpoint.id).catch(() => {});
 
   if (endpoint.kind === "dubbo" || !endpoint.http) {
     const params = {

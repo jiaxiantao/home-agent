@@ -7,6 +7,7 @@ import {
 } from "@/lib/agent/tool-catalog";
 import {
   deleteMysqlManagedTool,
+  ensureAgentToolsTableAndSeed,
   listMysqlManagedTools,
   upsertMysqlManagedTool,
 } from "@/lib/agent/managed-tools-mysql";
@@ -79,8 +80,24 @@ function builtinSnapshot(): ManagedAgentTool[] {
   }));
 }
 
+function sortManagedTools(items: ManagedAgentTool[]) {
+  return [...items].sort((a, b) => {
+    if (a.builtin !== b.builtin) {
+      return a.builtin ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function enforceCoreToolRules(items: ManagedAgentTool[]) {
+  return items.map((item) =>
+    CORE_AGENT_TOOLS.has(item.name) ? { ...item, enabled: true } : item,
+  );
+}
+
 async function readStored(): Promise<ManagedAgentTool[]> {
   if (isAppMysqlConfigured()) {
+    await ensureAgentToolsTableAndSeed();
     return listMysqlManagedTools();
   }
 
@@ -146,6 +163,10 @@ function mergeTools(stored: ManagedAgentTool[]): ManagedAgentTool[] {
 }
 
 export async function listManagedTools() {
+  if (isAppMysqlConfigured()) {
+    await ensureAgentToolsTableAndSeed();
+    return sortManagedTools(enforceCoreToolRules(await listMysqlManagedTools()));
+  }
   return mergeTools(await readStored());
 }
 

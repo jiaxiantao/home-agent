@@ -63,7 +63,7 @@
 
 未配置 `DFC_API_*` 时 Agent 仍会识别推荐接口，并自动用等价 SQL 回退（如 `super_mario.customer` 按 `phone` / `weichat` 查询）。
 
-接口目录见 `config/dfc-api-catalog.json`、`docs/dfc-backend-apis.md` 与 `docs/dfc-backend-repos.md`。
+接口目录运行时从 MySQL 表 `dfc_api_endpoints` 加载（见 `/apis` 管理页）；JSON 仅用于导入/备份：`pnpm db:sync-apis`、`pnpm db:export-apis`。详见 `docs/dfc-backend-apis.md`。
 
 输入框上方是**模板分类 Tab**（只展示热度最高的 6 个，超出横向滚动）；点击分类会填入该分类下使用最多的问法。
 

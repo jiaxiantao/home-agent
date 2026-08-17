@@ -1,10 +1,21 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
 
 import { createDfcApiMcpServer } from "@/lib/mcp/dfc-api/create-server";
+import {
+  resetDfcApiCatalogForTests,
+  warmDfcApiCatalogFromJsonForTests,
+} from "@/lib/analytics/dfc-api-catalog-test-setup";
 
 describe("dfc api mcp server", () => {
+  beforeAll(() => {
+    warmDfcApiCatalogFromJsonForTests();
+  });
+
+  afterAll(() => {
+    resetDfcApiCatalogForTests();
+  });
   it("lists tools and returns catalog stats", async () => {
     const server = createDfcApiMcpServer();
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

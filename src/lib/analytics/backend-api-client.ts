@@ -1,5 +1,6 @@
 import type { ApiRouteParams, DfcApiEndpoint } from "@/lib/analytics/api-catalog";
-import { getDevSsoCredentials } from "@/lib/security/sso-config";
+import { httpMethodAllowsBody } from "@/lib/analytics/http-methods";
+import { getDevSsoCredentials, getSsoCookieNames } from "@/lib/security/sso-config";
 import { getSsoRequestContext } from "@/lib/security/sso-context";
 
 export type BackendApiFailureKind =
@@ -19,7 +20,10 @@ export type BackendApiCallResult = {
     url: string;
     query?: Record<string, string>;
     body?: unknown;
+    headers?: Record<string, string>;
   };
+  httpStatus?: number;
+  responseHeaders?: Record<string, string>;
   response?: unknown;
   /** 归一化为表格，便于与 SQL 结果一致展示 */
   table?: { columns: string[]; rows: Record<string, unknown>[] };
@@ -49,6 +53,22 @@ function resolveBaseUrl(endpoint: DfcApiEndpoint): string | undefined {
     return `${generic.replace(/\/$/, "")}/${endpoint.appCode}`;
   }
   return undefined;
+}
+
+/** 与 danube-plug-in-web 等后端默认 host 一致：https://{appCode}.dasouche.net */
+export function inferDefaultBaseUrlForApp(appCode: string): string {
+  return `https://${appCode}.dasouche.net`;
+}
+
+export function formatNotConfiguredBaseUrlMessage(baseUrlEnvKey: string): string {
+  if (baseUrlEnvKey === "DFC_API_GATEWAY_BASE_URL") {
+    return "未配置 DFC_API_GATEWAY_BASE_URL（或在 config/dfc-app-registry.json 为该 app 配置独立 DFC_API_*_BASE_URL）";
+  }
+  return `未配置 ${baseUrlEnvKey}（亦未配置 DFC_API_GATEWAY_BASE_URL 作为兜底）`;
+}
+
+export function isDfcApiEndpointEnvConfigured(endpoint: DfcApiEndpoint): boolean {
+  return Boolean(resolveBaseUrl(endpoint));
 }
 
 function currentApiEnv() {
@@ -194,18 +214,140 @@ export type CallBackendApiOptions = {
   extraBody?: Record<string, unknown>;
   /** 覆盖 DFC_API_SERVICE_CHAIN（MCP 透传） */
   serviceChain?: string;
+  /** 测试页额外请求头（覆盖 SSO 等默认值） */
+  extraHeaders?: Record<string, string>;
+  /** 测试页 Cookie（合并进 Cookie 头） */
+  extraCookies?: Record<string, string>;
+  /** 控制台接口测试允许调用非只读接口 */
+  allowWrite?: boolean;
 };
+
+function mergeCookieHeader(
+  headers: Record<string, string>,
+  cookies?: Record<string, string>,
+) {
+  if (!cookies || !Object.keys(cookies).length) {
+    return;
+  }
+  const parts = Object.entries(cookies)
+    .filter(([key]) => key.trim())
+    .map(([key, value]) => `${key.trim()}=${value}`);
+  if (!parts.length) {
+    return;
+  }
+  const extra = parts.join("; ");
+  headers.Cookie = headers.Cookie?.trim()
+    ? `${headers.Cookie.trim()}; ${extra}`
+    : extra;
+}
+
+export function buildBackendApiHeaders(
+  endpoint: DfcApiEndpoint,
+  options?: Pick<
+    CallBackendApiOptions,
+    "serviceChain" | "extraHeaders" | "extraCookies"
+  >,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+
+  const sso = getSsoRequestContext() ?? getDevSsoCredentials();
+  if (sso) {
+    applySsoHeaders(headers, sso);
+  } else {
+    const token = process.env.DFC_API_AUTH_TOKEN?.trim();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  }
+
+  if (needsWebSourceCode(endpoint.appCode)) {
+    headers._source_code = "WEB";
+  }
+
+  const serviceChain =
+    options?.serviceChain?.trim() || process.env.DFC_API_SERVICE_CHAIN?.trim();
+  if (serviceChain) {
+    headers["X-Souche-ServiceChain"] = serviceChain;
+  }
+
+  if (options?.extraHeaders) {
+    for (const [key, value] of Object.entries(options.extraHeaders)) {
+      if (key.trim()) {
+        headers[key.trim()] = value;
+      }
+    }
+  }
+
+  mergeCookieHeader(headers, options?.extraCookies);
+
+  return headers;
+}
+
+export function buildBackendApiRequest(
+  endpoint: DfcApiEndpoint,
+  params: ApiRouteParams,
+  options?: CallBackendApiOptions,
+): { method: string; url: string; query?: Record<string, string>; body?: unknown } | null {
+  return buildRequest(endpoint, params, options);
+}
+
+export function previewBackendApiCall(
+  endpoint: DfcApiEndpoint,
+  params: ApiRouteParams,
+  options?: CallBackendApiOptions,
+) {
+  const request = buildRequest(endpoint, params, options);
+  if (!request) {
+    return null;
+  }
+  const headers = buildBackendApiHeaders(endpoint, options);
+  return {
+    method: request.method,
+    url: request.url,
+    query: request.query,
+    body: request.body,
+    headers,
+  };
+}
+
+/** 预览用：环境变量未配置时仍展示推断 URL（https://{appCode}.dasouche.net） */
+export function previewBackendApiCallWithFallback(
+  endpoint: DfcApiEndpoint,
+  params: ApiRouteParams,
+  options?: CallBackendApiOptions,
+) {
+  const configuredBase = resolveBaseUrl(endpoint);
+  const previewBase =
+    configuredBase ?? inferDefaultBaseUrlForApp(endpoint.appCode);
+  const request = buildRequest(endpoint, params, options, previewBase);
+  if (!request) {
+    return null;
+  }
+  const headers = buildBackendApiHeaders(endpoint, options);
+  return {
+    method: request.method,
+    url: request.url,
+    query: request.query,
+    body: request.body,
+    headers,
+    baseUrlConfigured: Boolean(configuredBase),
+  };
+}
 
 function buildRequest(
   endpoint: DfcApiEndpoint,
   params: ApiRouteParams,
   options?: CallBackendApiOptions,
+  baseOverride?: string,
 ): { url: string; method: string; query?: Record<string, string>; body?: unknown } | null {
   if (!endpoint.http) {
     return null;
   }
 
-  const base = resolveBaseUrl(endpoint);
+  const base = baseOverride ?? resolveBaseUrl(endpoint);
   if (!base) {
     return null;
   }
@@ -241,7 +383,7 @@ function buildRequest(
         (_, key: string) => String(params[key as keyof ApiRouteParams] ?? ""),
       ),
     );
-  } else if (options?.extraBody && endpoint.http.method === "POST") {
+  } else if (options?.extraBody && httpMethodAllowsBody(endpoint.http.method)) {
     body = options.extraBody;
   }
 
@@ -249,7 +391,7 @@ function buildRequest(
     url: url.toString(),
     method: endpoint.http.method,
     query: Object.keys(query).length ? query : undefined,
-    body: endpoint.http.method === "POST" ? body : undefined,
+    body: httpMethodAllowsBody(endpoint.http.method) ? body : undefined,
   };
 }
 
@@ -301,6 +443,44 @@ function withSqlFallback(
   };
 }
 
+function collectResponseHeaders(response: Response) {
+  const out: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    out[key] = value;
+  });
+  return out;
+}
+
+function hasSecurityTokenInCookies(cookies?: Record<string, string>) {
+  if (!cookies) {
+    return false;
+  }
+  for (const name of getSsoCookieNames()) {
+    if (cookies[name]?.trim()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasUpstreamAuth(options?: CallBackendApiOptions) {
+  if (getSsoRequestContext() ?? getDevSsoCredentials()) {
+    return true;
+  }
+  if (process.env.DFC_API_AUTH_TOKEN?.trim()) {
+    return true;
+  }
+  if (hasSecurityTokenInCookies(options?.extraCookies)) {
+    return true;
+  }
+  if (!options?.extraHeaders) {
+    return false;
+  }
+  return Object.entries(options.extraHeaders).some(([key]) =>
+    /authorization|cookie|token/i.test(key),
+  );
+}
+
 export async function callBackendApi(
   endpoint: DfcApiEndpoint,
   params: ApiRouteParams,
@@ -323,7 +503,7 @@ export async function callBackendApi(
     );
   }
 
-  if (!endpoint.readOnly) {
+  if (!endpoint.readOnly && !options?.allowWrite) {
     return withSqlFallback(
       {
         status: "skipped",
@@ -346,7 +526,7 @@ export async function callBackendApi(
         failureKind: "not_configured",
         endpointId: endpoint.id,
         appCode: endpoint.appCode,
-        message: `未配置 ${endpoint.baseUrlEnvKey} 或 DFC_API_GATEWAY_BASE_URL。参数已齐全时请直接 propose_sql，勿向用户索取额外参数。`,
+        message: `${formatNotConfiguredBaseUrlMessage(endpoint.baseUrlEnvKey)}。参数已齐全时请直接 propose_sql，勿向用户索取额外参数。`,
         sqlFallback,
       },
       endpoint,
@@ -457,49 +637,29 @@ export async function callBackendApi(
     }
   }
 
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  };
+  const headers = buildBackendApiHeaders(endpoint, options);
 
-  const sso = getSsoRequestContext() ?? getDevSsoCredentials();
-  if (sso) {
-    applySsoHeaders(headers, sso);
-  } else {
-    const token = process.env.DFC_API_AUTH_TOKEN?.trim();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    } else {
-      return withSqlFallback(
-        {
-          status: "error",
-          failureKind: "auth",
-          endpointId: endpoint.id,
-          appCode: endpoint.appCode,
-          request: {
-            method: request.method,
-            url: request.url,
-            query: request.query,
-            body: request.body,
-          },
-          message:
-            "缺少大风车 SSO：请在侧栏「同步大风车登录」写入 _security_token，或配置 DFC_API_DEV_SSO_TOKEN 后再经 MCP 调用 HTTP。参数已齐全，也可 propose_sql 使用 suggestedSql。",
-          sqlFallback,
+  if (!hasUpstreamAuth(options)) {
+    return withSqlFallback(
+      {
+        status: "error",
+        failureKind: "auth",
+        endpointId: endpoint.id,
+        appCode: endpoint.appCode,
+        request: {
+          method: request.method,
+          url: request.url,
+          query: request.query,
+          body: request.body,
+          headers,
         },
-        endpoint,
-        params,
-      );
-    }
-  }
-
-  if (needsWebSourceCode(endpoint.appCode)) {
-    headers._source_code = "WEB";
-  }
-
-  const serviceChain =
-    options?.serviceChain?.trim() || process.env.DFC_API_SERVICE_CHAIN?.trim();
-  if (serviceChain) {
-    headers["X-Souche-ServiceChain"] = serviceChain;
+        message:
+          "缺少大风车 SSO：请侧栏「同步大风车登录」，或在 .env 配置 DFC_API_DEV_SSO_TOKEN，或在测试 Cookies 中填写 _security_token。",
+        sqlFallback,
+      },
+      endpoint,
+      params,
+    );
   }
 
   const timeoutMs = Number(process.env.DFC_API_TIMEOUT_MS ?? 12000);
@@ -518,6 +678,16 @@ export async function callBackendApi(
     });
     clearTimeout(timer);
 
+    const responseHeaders = collectResponseHeaders(response);
+    const httpStatus = response.status;
+    const requestMeta = {
+      method: request.method,
+      url: request.url,
+      query: request.query,
+      body: request.body,
+      headers,
+    };
+
     const location = response.headers.get("location");
     if (isAuthRedirect(response.status, location)) {
       return withSqlFallback(
@@ -526,12 +696,9 @@ export async function callBackendApi(
           failureKind: "auth",
           endpointId: endpoint.id,
           appCode: endpoint.appCode,
-          request: {
-            method: request.method,
-            url: request.url,
-            query: request.query,
-            body: request.body,
-          },
+          request: requestMeta,
+          httpStatus,
+          responseHeaders,
           message:
             "大风车 HTTP 返回 SSO 登录跳转：当前 token 无效或未登录。请侧栏重新同步大风车登录 / 更新 DFC_API_DEV_SSO_TOKEN 后重试 MCP 调用。",
           sqlFallback,
@@ -556,12 +723,10 @@ export async function callBackendApi(
           failureKind: "auth",
           endpointId: endpoint.id,
           appCode: endpoint.appCode,
-          request: {
-            method: request.method,
-            url: request.url,
-            query: request.query,
-            body: request.body,
-          },
+          request: requestMeta,
+          httpStatus,
+          responseHeaders,
+          response: payload,
           message:
             "大风车 HTTP 返回登录页 HTML（非 JSON）：SSO 未生效。请同步大风车登录后再经 MCP 调用。",
           sqlFallback,
@@ -586,12 +751,9 @@ export async function callBackendApi(
           failureKind: "auth",
           endpointId: endpoint.id,
           appCode: endpoint.appCode,
-          request: {
-            method: request.method,
-            url: request.url,
-            query: request.query,
-            body: request.body,
-          },
+          request: requestMeta,
+          httpStatus,
+          responseHeaders,
           response: payload,
           message: `大风车业务鉴权失败（${msg}）。请侧栏重新同步测试环境 SSO / 更新 DFC_API_DEV_SSO_TOKEN 后重试。`,
           sqlFallback,
@@ -613,12 +775,9 @@ export async function callBackendApi(
           failureKind: network ? "network" : "http",
           endpointId: endpoint.id,
           appCode: endpoint.appCode,
-          request: {
-            method: request.method,
-            url: request.url,
-            query: request.query,
-            body: request.body,
-          },
+          request: requestMeta,
+          httpStatus,
+          responseHeaders,
           response: payload,
           message: network
             ? `HTTP ${response.status} 服务不可达（网关 upstream 失败）。请求参数已齐全（见 URL query），不是缺参。请检查：① 是否已连公司 VPN/内网；② 测试环境 ${endpoint.baseUrlEnvKey} 是否与前端一致（CRM：http://super-mario.stable.dasouche.net；勿用线上 *.souche.com；裸 super-mario.dasouche.net 常 503）；③ 侧栏是否已同步大风车 SSO。然后立即 propose_sql 使用 suggestedSql，禁止向用户索取 shop_code。`
@@ -636,12 +795,9 @@ export async function callBackendApi(
       status: "success",
       endpointId: endpoint.id,
       appCode: endpoint.appCode,
-      request: {
-        method: request.method,
-        url: request.url,
-        query: request.query,
-        body: request.body,
-      },
+      request: requestMeta,
+      httpStatus,
+      responseHeaders,
       response: payload,
       table,
       message: `已通过 ${endpoint.appCode} HTTP 接口返回 ${table.rows.length} 条记录。`,
@@ -649,6 +805,7 @@ export async function callBackendApi(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const headers = buildBackendApiHeaders(endpoint, options);
     return withSqlFallback(
       {
         status: "error",
@@ -660,6 +817,7 @@ export async function callBackendApi(
           url: request.url,
           query: request.query,
           body: request.body,
+          headers,
         },
         message: `网络调用失败：${message}。参数已齐全，请立即 propose_sql 使用 suggestedSql，禁止向用户索取 shop_code。`,
         sqlFallback,

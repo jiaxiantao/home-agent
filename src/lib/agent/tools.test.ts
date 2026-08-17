@@ -1,8 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
 
 import { runAgentTool } from "@/lib/agent/tools";
+import {
+  resetDfcApiCatalogForTests,
+  warmDfcApiCatalogFromJsonForTests,
+} from "@/lib/analytics/dfc-api-catalog-test-setup";
 
 describe("runAgentTool", () => {
+  beforeAll(() => {
+    warmDfcApiCatalogFromJsonForTests();
+  });
+
+  afterAll(() => {
+    resetDfcApiCatalogForTests();
+  });
   it("proposes read-only sql", async () => {
     const result = await runAgentTool("propose_sql", {
       sql: "SELECT COUNT(*) AS c FROM car",

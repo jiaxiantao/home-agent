@@ -1,6 +1,6 @@
 /**
- * 大风车全量接口检索与路由（config/dfc-api-catalog.json，约 1 万条）。
- * 生成：pnpm generate:api-catalog
+ * 大风车全量接口检索与路由（MySQL dfc_api_endpoints，约 1 万条）。
+ * 同步：pnpm db:sync-apis；导出：pnpm db:export-apis
  */
 
 import { matchBusinessEntities } from "@/lib/analytics/business-glossary";
@@ -367,7 +367,7 @@ export function formatApiCatalogForPrompt(question?: string) {
       return `- ${ep.appCode} / ${ep.title}：${call}`;
     });
 
-  return `全库 ${total} 条 HTTP+Dubbo 接口（config/dfc-api-catalog.json）。明细与聚合均请先 route_api / search_api；能调 HTTP 就调，多接口组装后再答，无合适接口才 SQL。\n${prefer.join("\n")}`;
+  return `全库 ${total} 条 HTTP+Dubbo 接口（MySQL dfc_api_endpoints）。明细与聚合均请先 route_api / search_api；能调 HTTP 就调，多接口组装后再答，无合适接口才 SQL。\n${prefer.join("\n")}`;
 }
 
 function formatEndpointLine(item: ApiRouteMatch) {

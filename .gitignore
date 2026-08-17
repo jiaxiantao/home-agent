@@ -55,3 +55,11 @@ next-env.d.ts
 !docs/deployment.md
 !docs/analyst-guide.md
 !docs/mcp-dfc-api.md
+
+/抓包记录
+
+# 由 generate / export 生成的接口目录快照（运行时读 MySQL）
+/config/dfc-api-catalog.json
+
+# 本地覆盖后端域名（可选；默认使用已提交的 config/dfc-api.env）
+# /config/dfc-api.local.env

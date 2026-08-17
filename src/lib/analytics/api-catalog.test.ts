@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
 
 import {
   extractApiParams,
@@ -8,8 +8,25 @@ import {
   pickBestApiForQuestion,
   rankApisForQuestion,
 } from "@/lib/analytics/api-catalog";
+import {
+  resetDfcApiCatalogCache,
+  setDfcApiCatalogCache,
+} from "@/lib/analytics/api-catalog-store";
+import { loadDfcApiCatalogFromJsonFile } from "@/lib/analytics/dfc-api-catalog-json";
 
 describe("api-catalog", () => {
+  beforeAll(() => {
+    try {
+      const endpoints = loadDfcApiCatalogFromJsonFile();
+      setDfcApiCatalogCache(endpoints, { total: endpoints.length });
+    } catch {
+      setDfcApiCatalogCache([], { total: 0 });
+    }
+  });
+
+  afterAll(() => {
+    resetDfcApiCatalogCache();
+  });
   it("extracts phone from natural language", () => {
     expect(extractPhoneFromQuestion("查询客户手机号为16612341112的客户信息")).toBe(
       "16612341112",

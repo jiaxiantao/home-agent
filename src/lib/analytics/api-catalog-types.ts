@@ -2,6 +2,10 @@
  * 大风车后端接口目录类型（全量 catalog 由 scripts/generate-dfc-api-catalog.mjs 生成）。
  */
 
+import type { HttpMethod } from "@/lib/analytics/http-methods";
+
+export type { HttpMethod };
+
 export type DfcApiKind = "http" | "dubbo";
 
 export type DfcApiEndpoint = {
@@ -17,7 +21,7 @@ export type DfcApiEndpoint = {
   readOnly: boolean;
   preferOverSql: boolean;
   http?: {
-    method: "GET" | "POST";
+    method: HttpMethod;
     path: string;
     queryParams?: Record<string, string>;
     bodyTemplate?: Record<string, unknown>;

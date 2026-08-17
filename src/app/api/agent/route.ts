@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ensureDfcApiCatalogFromDatabase } from "@/lib/analytics/dfc-api-endpoints";
 import { runDfcAgentLoop } from "@/lib/agent/langgraph";
 import {
   resolveAnalyticsEnvId,
@@ -54,6 +55,8 @@ export async function POST(request: Request) {
       userName: "Development",
       authMode: "disabled" as const,
     };
+
+    await ensureDfcApiCatalogFromDatabase();
 
     const rate = await checkAgentRateLimit(authUser.userId);
 

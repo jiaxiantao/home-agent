@@ -36,8 +36,12 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "generate:api-catalog": "node scripts/generate-dfc-api-catalog.mjs",
+    "generate:dfc-api-env": "node scripts/generate-dfc-api-env.mjs",
     "mcp:dfc-api": "tsx scripts/mcp-dfc-api/server.ts",
     "db:seed-templates": "tsx scripts/seed-team-templates.ts",
+    "db:sync-apis": "tsx scripts/sync-dfc-api-catalog.ts",
+    "db:export-apis": "tsx scripts/export-dfc-api-catalog.ts",
+    "db:backfill-test-config": "tsx scripts/backfill-dfc-api-test-config.ts",
     "smoke": "tsx scripts/smoke-api.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"

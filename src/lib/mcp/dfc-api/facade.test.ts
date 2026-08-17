@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
 
 import {
   dfcMcpCallHttpApi,
@@ -7,8 +7,19 @@ import {
   dfcMcpRouteApi,
   dfcMcpSearchApis,
 } from "@/lib/mcp/dfc-api/facade";
+import {
+  resetDfcApiCatalogForTests,
+  warmDfcApiCatalogFromJsonForTests,
+} from "@/lib/analytics/dfc-api-catalog-test-setup";
 
 describe("dfc mcp facade", () => {
+  beforeAll(() => {
+    warmDfcApiCatalogFromJsonForTests();
+  });
+
+  afterAll(() => {
+    resetDfcApiCatalogForTests();
+  });
   it("returns catalog stats", () => {
     const result = dfcMcpCatalogStats();
     expect(result.catalogSize).toBeGreaterThan(1000);

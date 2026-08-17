@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { getDefaultTestArgs } from "@/lib/agent/tool-test-defaults";
 
 type ManagedToolItem = {
   id: string;
@@ -19,6 +21,16 @@ type ManagedToolItem = {
   };
   builtin: boolean;
   updatedAt: string;
+};
+
+type ToolTestResult = {
+  name: string;
+  label: string;
+  ok: boolean;
+  durationMs: number;
+  output?: string;
+  error?: string;
+  warning?: string;
 };
 
 type Draft = {
@@ -305,6 +317,163 @@ function ToolFormModal({
   );
 }
 
+function ToolTestModal({
+  open,
+  tool,
+  testing,
+  allowExecuteSql,
+  argsText,
+  result,
+  batchResults,
+  error,
+  onChangeArgs,
+  onChangeAllowExecuteSql,
+  onClose,
+  onRun,
+}: {
+  open: boolean;
+  tool: ManagedToolItem | null;
+  testing: boolean;
+  allowExecuteSql: boolean;
+  argsText: string;
+  result: ToolTestResult | null;
+  batchResults: ToolTestResult[] | null;
+  error: string | null;
+  onChangeArgs: (value: string) => void;
+  onChangeAllowExecuteSql: (value: boolean) => void;
+  onClose: () => void;
+  onRun: () => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  const title = tool
+    ? `测试工具 · ${tool.label}`
+    : batchResults
+      ? "批量测试结果"
+      : "测试工具";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-elevated shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-base font-medium text-foreground">{title}</h2>
+          {tool ? (
+            <p className="mt-1 font-mono text-xs text-muted">{tool.name}</p>
+          ) : null}
+        </div>
+
+        <div className="space-y-3 px-5 py-4">
+          {tool ? (
+            <>
+              <label className="block">
+                <span className="mb-1.5 block text-xs text-muted">测试参数 JSON</span>
+                <textarea
+                  value={argsText}
+                  onChange={(event) => onChangeArgs(event.target.value)}
+                  rows={8}
+                  className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 font-mono text-xs leading-5 text-foreground outline-none focus:border-brand/30"
+                />
+              </label>
+              {tool.name === "execute_sql" ? (
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={allowExecuteSql}
+                    onChange={(event) => onChangeAllowExecuteSql(event.target.checked)}
+                  />
+                  允许执行 SQL（仅测试环境）
+                </label>
+              ) : null}
+            </>
+          ) : null}
+
+          {error ? <p className="text-xs text-amber-400">{error}</p> : null}
+
+          {result ? (
+            <div
+              className={`rounded-xl border px-4 py-3 text-xs ${
+                result.ok
+                  ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-200"
+                  : "border-rose-400/20 bg-rose-400/5 text-rose-200"
+              }`}
+            >
+              <p className="font-medium">
+                {result.ok ? "通过" : "失败"} · {result.durationMs}ms
+              </p>
+              {result.warning ? (
+                <p className="mt-1 text-muted">{result.warning}</p>
+              ) : null}
+              {result.error ? <p className="mt-1">{result.error}</p> : null}
+              {result.output ? (
+                <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-foreground">
+                  {result.output}
+                </pre>
+              ) : null}
+            </div>
+          ) : null}
+
+          {batchResults?.length ? (
+            <ul className="max-h-80 space-y-2 overflow-y-auto">
+              {batchResults.map((item) => (
+                <li
+                  key={item.name}
+                  className={`rounded-lg border px-3 py-2 text-xs ${
+                    item.ok
+                      ? "border-emerald-400/20 bg-emerald-400/5"
+                      : "border-rose-400/20 bg-rose-400/5"
+                  }`}
+                >
+                  <p className="font-medium text-foreground">
+                    {item.label}{" "}
+                    <span className="font-mono text-muted">({item.name})</span>
+                  </p>
+                  <p className="mt-0.5 text-muted">
+                    {item.ok ? "通过" : "失败"} · {item.durationMs}ms
+                    {item.warning ? ` · ${item.warning}` : ""}
+                    {item.error ? ` · ${item.error}` : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={testing}
+            className="rounded-lg px-4 py-2 text-sm text-muted transition hover:bg-surface-hover hover:text-foreground disabled:opacity-50"
+          >
+            关闭
+          </button>
+          {tool ? (
+            <button
+              type="button"
+              disabled={testing}
+              onClick={onRun}
+              className="rounded-lg bg-brand/20 px-4 py-2 text-sm font-medium text-brand-soft transition hover:bg-brand/30 disabled:opacity-40"
+            >
+              {testing ? "测试中…" : "运行测试"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AgentToolsManagement() {
   const [tools, setTools] = useState<ManagedToolItem[]>([]);
   const [canManage, setCanManage] = useState(false);
@@ -324,9 +493,24 @@ export function AgentToolsManagement() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
+  const [testModalOpen, setTestModalOpen] = useState(false);
+  const [testingTool, setTestingTool] = useState<ManagedToolItem | null>(null);
+  const [testArgsText, setTestArgsText] = useState("{}");
+  const [allowExecuteSql, setAllowExecuteSql] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<ToolTestResult | null>(null);
+  const [batchTestResults, setBatchTestResults] = useState<ToolTestResult[] | null>(
+    null,
+  );
+  const [testError, setTestError] = useState<string | null>(null);
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, total);
+  const pageNames = useMemo(() => tools.map((item) => item.name), [tools]);
+  const allPageSelected =
+    pageNames.length > 0 && pageNames.every((name) => selectedNames.has(name));
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -374,6 +558,34 @@ export function AgentToolsManagement() {
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
+  function toggleSelectAllPage() {
+    setSelectedNames((current) => {
+      const next = new Set(current);
+      if (allPageSelected) {
+        for (const name of pageNames) {
+          next.delete(name);
+        }
+      } else {
+        for (const name of pageNames) {
+          next.add(name);
+        }
+      }
+      return next;
+    });
+  }
+
+  function toggleSelect(name: string) {
+    setSelectedNames((current) => {
+      const next = new Set(current);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }
+
   function openCreateModal() {
     setCreating(true);
     setEditingId(null);
@@ -398,6 +610,99 @@ export function AgentToolsManagement() {
     });
     setFormError(null);
     setModalOpen(true);
+  }
+
+  function openTestModal(item: ManagedToolItem) {
+    setTestingTool(item);
+    setTestArgsText(
+      prettyJson(getDefaultTestArgs(item.name, item)) || "{}",
+    );
+    setAllowExecuteSql(false);
+    setTestResult(null);
+    setBatchTestResults(null);
+    setTestError(null);
+    setTestModalOpen(true);
+  }
+
+  function closeTestModal() {
+    if (testing) {
+      return;
+    }
+    setTestModalOpen(false);
+    setTestingTool(null);
+    setTestResult(null);
+    setBatchTestResults(null);
+    setTestError(null);
+  }
+
+  async function runSingleTest() {
+    if (!testingTool) {
+      return;
+    }
+
+    setTesting(true);
+    setTestError(null);
+    setTestResult(null);
+    try {
+      const args = parseJsonObject(testArgsText, "测试参数");
+      const response = await fetch("/api/agent-tools/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: testingTool.name,
+          args,
+          allowExecuteSql,
+        }),
+      });
+      const payload = (await response.json()) as {
+        result?: ToolTestResult;
+        error?: string;
+      };
+      if (!response.ok) {
+        setTestError(payload.error ?? "测试失败");
+        return;
+      }
+      setTestResult(payload.result ?? null);
+    } catch (error) {
+      setTestError(error instanceof Error ? error.message : "测试失败");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function runBatchTest() {
+    const names = [...selectedNames];
+    if (!names.length) {
+      return;
+    }
+
+    setTesting(true);
+    setTestError(null);
+    setTestResult(null);
+    setBatchTestResults(null);
+    setTestingTool(null);
+    setTestModalOpen(true);
+
+    try {
+      const response = await fetch("/api/agent-tools/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ names }),
+      });
+      const payload = (await response.json()) as {
+        results?: ToolTestResult[];
+        error?: string;
+      };
+      if (!response.ok) {
+        setTestError(payload.error ?? "批量测试失败");
+        return;
+      }
+      setBatchTestResults(payload.results ?? []);
+    } catch (error) {
+      setTestError(error instanceof Error ? error.message : "批量测试失败");
+    } finally {
+      setTesting(false);
+    }
   }
 
   function closeModal() {
@@ -510,7 +815,11 @@ export function AgentToolsManagement() {
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-foreground">工具管理</h1>
         <p className="mt-1 text-sm text-muted">
-          查看 Agent 可调用的全部工具；可修改说明与启停，也可新增只读 HTTP 工具。
+          查看 Agent 可调用的全部工具；支持单测与批量测试，内置工具已持久化到 MySQL。
+          {" "}
+          <Link href="/apis" className="text-brand-soft transition hover:text-brand">
+            大风车接口目录 →
+          </Link>
         </p>
       </div>
 
@@ -546,6 +855,17 @@ export function AgentToolsManagement() {
           刷新
         </button>
 
+        {canManage && selectedNames.size > 0 ? (
+          <button
+            type="button"
+            disabled={testing}
+            onClick={() => void runBatchTest()}
+            className="rounded-xl border border-brand/30 bg-brand/10 px-4 py-2.5 text-sm text-brand-soft transition hover:bg-brand/20 disabled:opacity-40"
+          >
+            {testing ? "测试中…" : `批量测试 (${selectedNames.size})`}
+          </button>
+        ) : null}
+
         {canManage ? (
           <button
             type="button"
@@ -568,55 +888,86 @@ export function AgentToolsManagement() {
             <p className="px-5 py-12 text-center text-sm text-muted">加载中…</p>
           ) : tools.length ? (
             <ul className="divide-y divide-border">
+              {canManage ? (
+                <li className="flex items-center gap-3 px-5 py-2 text-xs text-muted">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectAllPage}
+                    aria-label="全选当前页"
+                  />
+                  <span>全选当前页</span>
+                </li>
+              ) : null}
               {tools.map((item) => (
                 <li
                   key={item.id}
                   className="flex flex-wrap items-start justify-between gap-4 px-5 py-4 transition hover:bg-surface-hover"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium text-foreground">{item.label}</p>
-                      <span className="rounded-full border border-border bg-surface-hover px-2 py-0.5 font-mono text-[10px] text-muted">
-                        {item.name}
-                      </span>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] ${
-                          item.builtin
-                            ? "border-sky-400/20 bg-sky-400/10 text-sky-300"
-                            : "border-violet-400/20 bg-violet-400/10 text-violet-300"
-                        }`}
-                      >
-                        {item.builtin ? "内置" : "HTTP"}
-                      </span>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] ${
-                          item.enabled
-                            ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
-                            : "border-slate-500/30 bg-slate-500/10 text-muted"
-                        }`}
-                      >
-                        {item.enabled ? "启用" : "停用"}
-                      </span>
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    {canManage ? (
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={selectedNames.has(item.name)}
+                        onChange={() => toggleSelect(item.name)}
+                        aria-label={`选择 ${item.label}`}
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">{item.label}</p>
+                        <span className="rounded-full border border-border bg-surface-hover px-2 py-0.5 font-mono text-[10px] text-muted">
+                          {item.name}
+                        </span>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] ${
+                            item.builtin
+                              ? "border-sky-400/20 bg-sky-400/10 text-sky-300"
+                              : "border-violet-400/20 bg-violet-400/10 text-violet-300"
+                          }`}
+                        >
+                          {item.builtin ? "内置" : "HTTP"}
+                        </span>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] ${
+                            item.enabled
+                              ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                              : "border-slate-500/30 bg-slate-500/10 text-muted"
+                          }`}
+                        >
+                          {item.enabled ? "启用" : "停用"}
+                        </span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
+                        {item.description}
+                      </p>
+                      <p className="mt-2 font-mono text-[11px] text-muted-foreground">
+                        {Object.keys(item.args).length
+                          ? Object.entries(item.args)
+                              .map(([key, value]) => `${key}:${value}`)
+                              .join(" · ")
+                          : "无参数"}
+                        {item.http?.url ? ` · ${item.http.method} ${item.http.url}` : ""}
+                      </p>
                     </div>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
-                      {item.description}
-                    </p>
-                    <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-                      {Object.keys(item.args).length
-                        ? Object.entries(item.args)
-                            .map(([key, value]) => `${key}:${value}`)
-                            .join(" · ")
-                        : "无参数"}
-                      {item.http?.url ? ` · ${item.http.method} ${item.http.url}` : ""}
-                    </p>
                   </div>
 
                   <div className="flex shrink-0 flex-col items-end gap-2 text-right">
                     <span className="text-[11px] text-muted-foreground">
                       更新 {formatDateTime(item.updatedAt)}
                     </span>
-                    {canManage ? (
-                      <div className="mt-1 flex items-center gap-3 text-xs">
+                    <div className="mt-1 flex items-center gap-3 text-xs">
+                      {canManage ? (
+                        <button
+                          type="button"
+                          onClick={() => openTestModal(item)}
+                          className="text-brand-soft transition hover:text-brand"
+                        >
+                          测试
+                        </button>
+                      ) : null}
+                      {canManage ? (
                         <button
                           type="button"
                           onClick={() => openEditModal(item)}
@@ -624,26 +975,26 @@ export function AgentToolsManagement() {
                         >
                           编辑
                         </button>
-                        {!CORE_TOOLS.has(item.name) ? (
-                          <button
-                            type="button"
-                            onClick={() => void toggleEnabled(item)}
-                            className="text-muted transition hover:text-foreground"
-                          >
-                            {item.enabled ? "停用" : "启用"}
-                          </button>
-                        ) : null}
-                        {!item.builtin ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleDelete(item)}
-                            className="text-muted transition hover:text-rose-300"
-                          >
-                            删除
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
+                      ) : null}
+                      {canManage && !CORE_TOOLS.has(item.name) ? (
+                        <button
+                          type="button"
+                          onClick={() => void toggleEnabled(item)}
+                          className="text-muted transition hover:text-foreground"
+                        >
+                          {item.enabled ? "停用" : "启用"}
+                        </button>
+                      ) : null}
+                      {canManage && !item.builtin ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(item)}
+                          className="text-muted transition hover:text-rose-300"
+                        >
+                          删除
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </li>
               ))}
@@ -659,6 +1010,7 @@ export function AgentToolsManagement() {
       <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3 text-sm text-muted">
         <p>
           第 {rangeStart}-{rangeEnd} 条，共 {total} 条
+          {selectedNames.size > 0 ? ` · 已选 ${selectedNames.size} 项` : ""}
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <select
@@ -707,6 +1059,21 @@ export function AgentToolsManagement() {
         onChange={setDraft}
         onClose={closeModal}
         onSave={() => void handleSave()}
+      />
+
+      <ToolTestModal
+        open={testModalOpen}
+        tool={testingTool}
+        testing={testing}
+        allowExecuteSql={allowExecuteSql}
+        argsText={testArgsText}
+        result={testResult}
+        batchResults={batchTestResults}
+        error={testError}
+        onChangeArgs={setTestArgsText}
+        onChangeAllowExecuteSql={setAllowExecuteSql}
+        onClose={closeTestModal}
+        onRun={() => void runSingleTest()}
       />
     </div>
   );
