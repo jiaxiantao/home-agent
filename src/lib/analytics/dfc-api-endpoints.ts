@@ -177,10 +177,12 @@ export async function resolveTestConfigForEndpoint(
     body?: Record<string, unknown>;
   },
 ): Promise<DfcApiTestConfig> {
+  const backendRoot = process.env.DFC_BACKEND_ROOT?.trim() || undefined;
+
   if (!isAppMysqlConfigured()) {
     const cached = getDfcApiEndpointById(endpointId);
     if (cached) {
-      const inferred = inferDefaultTestConfig(cached);
+      const inferred = inferDefaultTestConfig(cached, { backendRoot });
       return {
         params: { ...inferred.params, ...(override?.params ?? {}) },
         headers: { ...inferred.headers, ...(override?.headers ?? {}) },
@@ -213,24 +215,54 @@ export async function resolveTestConfigForEndpoint(
     };
   }
 
+  if (record.defaultTestConfig.body) {
+    return {
+      params: {
+        ...record.defaultTestConfig.params,
+        ...(override?.params ?? {}),
+      },
+      headers: {
+        ...record.defaultTestConfig.headers,
+        ...(override?.headers ?? {}),
+      },
+      query: {
+        ...record.defaultTestConfig.query,
+        ...(override?.query ?? {}),
+      },
+      cookies: {
+        ...(record.defaultTestConfig.cookies ?? {}),
+        ...(override?.cookies ?? {}),
+      },
+      body: override?.body ?? record.defaultTestConfig.body,
+    };
+  }
+
+  const inferred = backendRoot
+    ? inferDefaultTestConfig(record.endpoint, { backendRoot })
+    : inferDefaultTestConfig(record.endpoint, { skipJavaSource: true });
+
   return {
     params: {
+      ...inferred.params,
       ...record.defaultTestConfig.params,
       ...(override?.params ?? {}),
     },
     headers: {
+      ...inferred.headers,
       ...record.defaultTestConfig.headers,
       ...(override?.headers ?? {}),
     },
     query: {
+      ...inferred.query,
       ...record.defaultTestConfig.query,
       ...(override?.query ?? {}),
     },
     cookies: {
+      ...(inferred.cookies ?? {}),
       ...(record.defaultTestConfig.cookies ?? {}),
       ...(override?.cookies ?? {}),
     },
-    body: override?.body ?? record.defaultTestConfig.body,
+    body: override?.body ?? inferred.body,
   };
 }
 

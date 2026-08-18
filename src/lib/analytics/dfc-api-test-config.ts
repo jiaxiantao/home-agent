@@ -9,7 +9,7 @@ export type DfcApiTestConfig = {
   params: ApiRouteParams;
   headers: Record<string, string>;
   query: Record<string, string>;
-  body?: Record<string, unknown>;
+  body?: unknown;
   cookies?: Record<string, string>;
 };
 
@@ -19,11 +19,14 @@ const CRM_WEB_APPS =
 const SAMPLE_BY_FIELD: Record<string, unknown> = {
   businessId: "demo_business_001",
   recordId: "LYa4PsNN4J",
+  leagueId: "LYa4PsNN4J",
+  leagueCarId: "LYa4PsNN4J",
   contact: "16612341112",
   phone: "16612341112",
   weichat: "wx_demo",
   wechat: "wx_demo",
   shopCode: "demo_shop",
+  leagueShopCode: "demo_shop",
   groupCode: "demo_group",
   orgCode: "demo_org",
   departmentCode: "demo_dept",
@@ -32,13 +35,30 @@ const SAMPLE_BY_FIELD: Record<string, unknown> = {
   source: "test",
   params: "{}",
   rtTime: 1.0,
+  name: "demo_league",
+  pageNo: 1,
+  pageSize: 20,
 };
 
 function defaultBackendRoot() {
-  return (
-    process.env.DFC_BACKEND_ROOT?.trim() ||
-    path.resolve(process.cwd(), "../dafengche-backend")
-  );
+  const fromEnv = process.env.DFC_BACKEND_ROOT?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  try {
+    const catalogPath = path.join(process.cwd(), "config/dfc-api-catalog.json");
+    if (fs.existsSync(catalogPath)) {
+      const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8")) as {
+        sourceRoot?: string;
+      };
+      if (catalog.sourceRoot && fs.existsSync(catalog.sourceRoot)) {
+        return catalog.sourceRoot;
+      }
+    }
+  } catch {
+    // ignore malformed catalog
+  }
+  return path.resolve(process.cwd(), "../dafengche-backend");
 }
 
 function needsWebSourceCode(appCode: string) {
@@ -89,7 +109,12 @@ function fillBodyTemplate(
   return filled;
 }
 
-function sampleValueForJavaField(type: string, fieldName: string): unknown {
+function sampleValueForJavaField(
+  type: string,
+  fieldName: string,
+  backendRoot: string,
+  visited = new Set<string>(),
+): unknown {
   if (fieldName in SAMPLE_BY_FIELD) {
     return SAMPLE_BY_FIELD[fieldName];
   }
@@ -97,23 +122,67 @@ function sampleValueForJavaField(type: string, fieldName: string): unknown {
   if (lower.includes("phone")) return SAMPLE_BY_FIELD.phone;
   if (lower.endsWith("id") || lower.includes("record")) return SAMPLE_BY_FIELD.recordId;
   if (lower.includes("plate") || lower.includes("license")) return SAMPLE_BY_FIELD.plate;
+  if (lower.includes("name") && !lower.includes("user")) return SAMPLE_BY_FIELD.name;
+  if (lower.includes("pageno") || lower === "page") return SAMPLE_BY_FIELD.pageNo;
+  if (lower.includes("pagesize")) return SAMPLE_BY_FIELD.pageSize;
   if (type.includes("List") || type.includes("Set")) return [];
   if (type.includes("Map")) return {};
   if (/Boolean|boolean/.test(type)) return false;
+  if (/\bByte\b/.test(type)) return 1;
   if (/Integer|int|Long|long|Short|short/.test(type)) return 1;
   if (/Double|double|Float|float/.test(type)) return 1.0;
   if (/BigDecimal/.test(type)) return 0;
   if (/Date/.test(type)) return "2024-01-01T00:00:00+08:00";
+
+  const simpleType = type.replace(/<.*>/, "").split(".").pop() ?? type;
+  if (/DTO|Param|VO|Request|Query/i.test(simpleType) && !visited.has(simpleType)) {
+    const nestedPath = resolveJavaFile(backendRoot, simpleType);
+    if (nestedPath) {
+      return parseDtoBody(nestedPath, backendRoot, visited);
+    }
+  }
+
   return "demo";
 }
 
-function parseDtoBody(dtoPath: string): Record<string, unknown> | undefined {
+function parseDtoBody(
+  dtoPath: string,
+  backendRoot: string,
+  visited = new Set<string>(),
+): Record<string, unknown> | undefined {
+  const cacheKey = `${backendRoot}:${dtoPath}`;
+  if (visited.size === 0 && dtoBodyCache.has(cacheKey)) {
+    return dtoBodyCache.get(cacheKey);
+  }
+
   if (!fs.existsSync(dtoPath)) {
+    if (visited.size === 0) {
+      dtoBodyCache.set(cacheKey, undefined);
+    }
     return undefined;
   }
+
+  const className = path.basename(dtoPath, ".java");
+  if (visited.has(className)) {
+    return undefined;
+  }
+  visited.add(className);
+
   const content = fs.readFileSync(dtoPath, "utf8");
   const body: Record<string, unknown> = {};
-  for (const match of content.matchAll(/private\s+([\w<>,\[\].\s]+?)\s+(\w+)\s*;/g)) {
+
+  const extendsMatch = content.match(/extends\s+([\w.]+)/);
+  if (extendsMatch) {
+    const parentName = extendsMatch[1].split(".").pop() ?? extendsMatch[1];
+    const parentPath = resolveJavaFile(backendRoot, parentName);
+    if (parentPath) {
+      Object.assign(body, parseDtoBody(parentPath, backendRoot, visited) ?? {});
+    }
+  }
+
+  for (const match of content.matchAll(
+    /(?:^|\n)\s*(?:@\w+(?:\([^)]*\))?\s*)*(?:private|protected|public)?\s*([\w<>,\[\].\s]+?)\s+(\w+)\s*;/gm,
+  )) {
     const type = match[1].trim();
     const name = match[2];
     if (name === "serialVersionUID") {
@@ -122,53 +191,107 @@ function parseDtoBody(dtoPath: string): Record<string, unknown> | undefined {
     if (/Service$|Mapper$|Repository$|Controller$|Client$/.test(type)) {
       continue;
     }
-    body[name] = sampleValueForJavaField(type, name);
+    body[name] = sampleValueForJavaField(type, name, backendRoot, visited);
   }
-  return Object.keys(body).length ? body : undefined;
+
+  const result = Object.keys(body).length ? body : undefined;
+  if (visited.size <= 1) {
+    dtoBodyCache.set(cacheKey, result);
+  }
+  return result;
 }
 
+const javaFileCache = new Map<string, string | undefined>();
+const dtoBodyCache = new Map<string, Record<string, unknown> | undefined>();
+
 function resolveJavaFile(backendRoot: string, className: string, sourceFile?: string) {
+  const cacheKey = `${backendRoot}:${className}:${sourceFile ?? ""}`;
+  if (javaFileCache.has(cacheKey)) {
+    return javaFileCache.get(cacheKey);
+  }
+
+  let resolved: string | undefined;
   if (sourceFile) {
     const fromSource = path.join(backendRoot, sourceFile);
     if (
       fs.existsSync(fromSource) &&
       path.basename(fromSource, ".java") === className
     ) {
-      return fromSource;
+      resolved = fromSource;
     }
   }
 
-  const matches: string[] = [];
-  function walk(dir: string) {
-    if (!fs.existsSync(dir)) return;
-    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (ent.name === "target" || ent.name === ".git" || ent.name === "node_modules") {
-        continue;
-      }
-      const full = path.join(dir, ent.name);
-      if (ent.isDirectory()) {
-        walk(full);
-      } else if (ent.name === `${className}.java`) {
-        matches.push(full);
+  if (!resolved) {
+    const matches: string[] = [];
+    function walk(dir: string) {
+      if (!fs.existsSync(dir)) return;
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (ent.name === "target" || ent.name === ".git" || ent.name === "node_modules") {
+          continue;
+        }
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+          walk(full);
+        } else if (ent.name === `${className}.java`) {
+          matches.push(full);
+        }
       }
     }
+    walk(backendRoot);
+    resolved = matches[0];
   }
-  walk(backendRoot);
-  return matches[0];
+
+  javaFileCache.set(cacheKey, resolved);
+  return resolved;
 }
 
 function extractMethodParamsBlock(content: string, methodName: string) {
-  const re = new RegExp(
-    `public\\s+[\\w<>,\\s\\[\\]?.]+\\s+${methodName}\\s*\\(([^)]*)\\)`,
+  const sigRe = new RegExp(
+    `public\\s+[\\w<>,\\s\\[\\]?.]+\\s+${methodName}\\s*\\(`,
     "s",
   );
-  return re.exec(content)?.[1] ?? "";
+  const sigMatch = sigRe.exec(content);
+  if (!sigMatch) {
+    return "";
+  }
+
+  let depth = 1;
+  let index = sigMatch.index + sigMatch[0].length;
+  const start = index;
+  while (index < content.length && depth > 0) {
+    const char = content[index];
+    if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+    }
+    index += 1;
+  }
+  return content.slice(start, index - 1);
+}
+
+function extractRequestBodyType(paramsBlock: string): { kind: "object" | "array"; typeName: string } | null {
+  const listMatch = paramsBlock.match(
+    /@RequestBody(?:\s+@[\w.]+(?:\([^)]*\))?)*\s+List<([\w.]+)>/,
+  );
+  if (listMatch?.[1]) {
+    return { kind: "array", typeName: listMatch[1].split(".").pop() ?? listMatch[1] };
+  }
+
+  const objectMatch = paramsBlock.match(
+    /@RequestBody(?:\s+@[\w.]+(?:\([^)]*\))?)*\s+([\w.]+)/,
+  );
+  if (objectMatch?.[1]) {
+    return { kind: "object", typeName: objectMatch[1].split(".").pop() ?? objectMatch[1] };
+  }
+
+  return null;
 }
 
 function inferBodyFromJavaSource(
   endpoint: DfcApiEndpoint,
   backendRoot: string,
-): Record<string, unknown> | undefined {
+): unknown | undefined {
   if (!endpoint.methodName || !endpoint.sourceFile) {
     return undefined;
   }
@@ -184,17 +307,22 @@ function inferBodyFromJavaSource(
     return undefined;
   }
 
-  const requestBodyMatch =
-    paramsBlock.match(/@RequestBody\s+(?:@Valid\s+)?(\w+)/) ??
-    paramsBlock.match(/@Json\s*\([^)]*\)\s*@RequestBody\s+(?:@Valid\s+)?(\w+)/);
-  if (requestBodyMatch) {
-    const dtoPath = resolveJavaFile(backendRoot, requestBodyMatch[1]);
-    if (dtoPath) {
-      return parseDtoBody(dtoPath);
-    }
+  const requestBody = extractRequestBodyType(paramsBlock);
+  if (!requestBody) {
+    return undefined;
   }
 
-  return undefined;
+  const dtoPath = resolveJavaFile(backendRoot, requestBody.typeName);
+  if (!dtoPath) {
+    return undefined;
+  }
+
+  const dtoBody = parseDtoBody(dtoPath, backendRoot);
+  if (!dtoBody) {
+    return undefined;
+  }
+
+  return requestBody.kind === "array" ? [dtoBody] : dtoBody;
 }
 
 function inferQueryFromJavaSource(
@@ -245,16 +373,19 @@ function inferQueryFromJavaSource(
 
 export function inferDefaultTestConfig(
   endpoint: DfcApiEndpoint,
-  options?: { backendRoot?: string },
+  options?: { backendRoot?: string; skipJavaSource?: boolean },
 ): DfcApiTestConfig {
+  const scanJava = !options?.skipJavaSource && Boolean(options?.backendRoot);
   const backendRoot = options?.backendRoot ?? defaultBackendRoot();
   const params = inferDefaultTestParams(endpoint);
   const headers = inferDefaultHeaders(endpoint);
-  const query = inferQueryFromJavaSource(endpoint, backendRoot, params);
+  const query = scanJava
+    ? inferQueryFromJavaSource(endpoint, backendRoot, params)
+    : buildDefaultQuery(endpoint, params);
 
   let body =
     fillBodyTemplate(endpoint.http?.bodyTemplate, params) ??
-    inferBodyFromJavaSource(endpoint, backendRoot);
+    (scanJava ? inferBodyFromJavaSource(endpoint, backendRoot) : undefined);
 
   if (
     !body &&
@@ -287,8 +418,8 @@ export function parseStoredTestConfig(value: unknown): DfcApiTestConfig | null {
     query: (raw.query as Record<string, string>) ?? {},
     cookies: (raw.cookies as Record<string, string>) ?? {},
     body:
-      raw.body && typeof raw.body === "object" && !Array.isArray(raw.body)
-        ? (raw.body as Record<string, unknown>)
+      raw.body !== undefined && typeof raw.body === "object"
+        ? raw.body
         : undefined,
   };
 }
