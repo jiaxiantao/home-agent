@@ -50,6 +50,7 @@ describe("api-endpoint-test", () => {
       "blocked",
       "skipped",
       "upstream_unavailable",
+      "auth",
     ]).toContain(result.status);
   });
 });

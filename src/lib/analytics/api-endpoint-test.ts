@@ -268,6 +268,25 @@ export async function testDfcApiEndpoint(
     };
   }
 
+  if (result.failureKind === "auth") {
+    return {
+      endpointId: endpoint.id,
+      title: endpoint.title,
+      kind: "http",
+      ok: true,
+      durationMs,
+      status: "auth",
+      envConfigured: true,
+      message: result.message,
+      warning:
+        endpoint.appCode === "anduin"
+          ? "上游可达。anduin CRM 运营接口需要企业微信 access_token，不是大风车 Mars SSO；勿改 default_test_config。"
+          : "上游可达，但当前登录态不被该服务接受。请侧栏同步对应环境 SSO；不是缺参。",
+      request: httpRequest,
+      response,
+    };
+  }
+
   if (result.failureKind === "network") {
     return {
       endpointId: endpoint.id,

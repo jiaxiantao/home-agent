@@ -827,7 +827,10 @@ export async function callBackendApi(
           httpStatus,
           responseHeaders,
           response: payload,
-          message: `大风车业务鉴权失败（${msg}）。请侧栏重新同步测试环境 SSO / 更新 DFC_API_DEV_SSO_TOKEN 后重试。`,
+          message:
+            endpoint.appCode === "anduin"
+              ? `大风车业务鉴权失败（${msg}）。anduin 走企业微信 WxLoginInterceptor，需要 Cookie/Header access_token，Mars _security_token 无法通过。上游已可达，勿改 default_test_config；请 propose_sql。`
+              : `大风车业务鉴权失败（${msg}）。请侧栏重新同步测试环境 SSO / 更新 DFC_API_DEV_SSO_TOKEN 后重试。`,
           sqlFallback,
         },
         endpoint,
