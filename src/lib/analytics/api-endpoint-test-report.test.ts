@@ -57,5 +57,6 @@ describe("api-endpoint-test-report", () => {
     expect(report).toContain("## 通过接口");
     expect(report).toContain("若大量失败为 HTTP 503");
     expect(report).toContain("若失败为 HTTP 5xx");
+    expect(report).toContain("Spring HTTP 404");
   });
 });

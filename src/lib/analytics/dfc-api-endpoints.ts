@@ -73,9 +73,12 @@ export async function listDfcApiEndpointsPage(options?: {
   requireAppMysql();
   await ensureDfcApiCatalogFromDatabase();
   const result = await listMysqlDfcApiEndpointsPage(options);
+  const visible = result.items.filter(
+    (item) => !isDfcApiCatalogNoiseEndpoint(item.endpoint),
+  );
   return {
-    items: result.items.map(toListItem),
-    total: result.total,
+    items: visible.map(toListItem),
+    total: Math.max(0, result.total - (result.items.length - visible.length)),
     page: result.page,
     pageSize: result.pageSize,
     catalogSize: result.catalogSize,

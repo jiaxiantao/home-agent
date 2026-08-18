@@ -18,7 +18,8 @@ import {
   previewBackendApiCallWithFallback,
   resolveDfcApiEndpointBaseUrl,
 } from "@/lib/analytics/backend-api-client";
-import { shouldSkipHttpProbe } from "@/lib/analytics/dfc-api-test-hosts";
+import { shouldSkipHttpProbe, shouldSkipHttpProbeEndpoint } from "@/lib/analytics/dfc-api-test-hosts";
+import { isDfcApiCatalogNoiseEndpoint } from "@/lib/analytics/dfc-api-catalog-noise";
 import type { DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
 
 export type DfcApiTestRequestPreview = {
@@ -172,6 +173,38 @@ export async function testDfcApiEndpoint(
     };
   }
 
+  if (isDfcApiCatalogNoiseEndpoint(endpoint)) {
+    return {
+      endpointId: endpoint.id,
+      title: endpoint.title,
+      kind: "http",
+      ok: true,
+      durationMs: Date.now() - started,
+      status: "skipped",
+      envConfigured,
+      message:
+        "该 HTTP 映射已在源码中注释/下线（探测会 404），已跳过。请用仍存在的同组接口或 SQL，勿改 default_test_config。",
+      warning: "不是缺参；Spring 映射已删除。",
+      request: requestPreview ?? undefined,
+    };
+  }
+
+  if (shouldSkipHttpProbeEndpoint(endpoint.id)) {
+    return {
+      endpointId: endpoint.id,
+      title: endpoint.title,
+      kind: "http",
+      ok: true,
+      durationMs: Date.now() - started,
+      status: "skipped",
+      envConfigured,
+      message:
+        "该接口是长耗时后台初始化任务，目录探测已跳过。上游应用可达，勿改 default_test_config；请 propose_sql。",
+      warning: "不是缺参或域名错误。",
+      request: requestPreview ?? undefined,
+    };
+  }
+
   if (shouldSkipHttpProbe(endpoint.appCode)) {
     return {
       endpointId: endpoint.id,
@@ -304,7 +337,10 @@ export async function testDfcApiEndpoint(
     };
   }
 
-  if (result.failureKind === "http" && (result.httpStatus ?? 0) >= 500) {
+  if (
+    result.failureKind === "timeout" ||
+    (result.failureKind === "http" && (result.httpStatus ?? 0) >= 500)
+  ) {
     return {
       endpointId: endpoint.id,
       title: endpoint.title,
@@ -315,7 +351,9 @@ export async function testDfcApiEndpoint(
       envConfigured: true,
       message: result.message,
       warning:
-        "上游已可达（应用返回 5xx，不是网关 503）。目录与 host 无误，勿改 default_test_config；请 propose_sql。",
+        result.failureKind === "timeout"
+          ? "上游已可达但请求超时（未换域名重试）。勿改 default_test_config；请 propose_sql。"
+          : "上游已可达（应用返回 5xx，不是网关 503）。目录与 host 无误，勿改 default_test_config；请 propose_sql。",
       request: httpRequest,
       response,
     };

@@ -3,6 +3,10 @@
 const NOISE_PATH =
   /(^|\/)(example|examples|demo|samples?|playground|mock)(\/|$)/i;
 
+/** 源码已注释掉 @GetMapping，线上 404，不应再探测 */
+const RETIRED_HTTP_PATH =
+  /\/IdleFishBackupApi\/(changeIdleFishAccount|verifyIdleFishyAccountAndSynchronizeCar)$/i;
+
 export function inferredBaseUrlEnvKeyForAppCode(appCode: string) {
   const normalized = appCode.trim().replace(/-/g, "_").toUpperCase();
   return `DFC_API_${normalized}_BASE_URL`;
@@ -41,6 +45,9 @@ export function isDfcApiCatalogNoiseEndpoint(endpoint: {
     return true;
   }
   const path = endpoint.http?.path ?? "";
+  if (RETIRED_HTTP_PATH.test(path)) {
+    return true;
+  }
   if (
     endpoint.appCode === "ai-open-platform" &&
     /^\/web\/(echo|echos|header|cookie|json|array|map|others|template|body|jsonarray|file|path)/i.test(

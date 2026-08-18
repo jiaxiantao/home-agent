@@ -237,6 +237,7 @@ export function formatDfcApiBatchTestReport(
     "若为 missing_params，补充业务入参样例。",
     "若大量失败为 HTTP 503 / upstream connect error：这是测试域名或集群未部署，不是缺参。优先把 DFC_API_*_BASE_URL 改成 *.stable.dasouche.net（或 config/dfc-api-test-hosts.json 中的例外）；仍 503 则加入 skipHttpProbe，勿改 default_test_config，走 SQL。",
     "若失败为 HTTP 5xx（应用 JSON，如 SYSTEM UNKNOWN ERROR）：host 已可达，勿改 default_test_config，走 SQL。",
+    "若失败为 Spring HTTP 404 Not Found：映射已在源码注释/下线，从目录排除，勿改 default_test_config。",
     "",
     "## 全部失败明细（完整请求/响应）",
   );

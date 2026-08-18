@@ -29,6 +29,36 @@ describe("dfc-api-catalog-noise", () => {
     ).toBe(false);
   });
 
+  it("drops retired commented IdleFish backup mappings", () => {
+    expect(
+      isDfcApiCatalogNoiseEndpoint({
+        appCode: "matador",
+        className: "IdleFishBackupApi",
+        http: {
+          path: "/api/backup/idlefish/IdleFishBackupApi/changeIdleFishAccount",
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isDfcApiCatalogNoiseEndpoint({
+        appCode: "matador",
+        className: "IdleFishBackupApi",
+        http: {
+          path: "/api/backup/idlefish/IdleFishBackupApi/verifyIdleFishyAccountAndSynchronizeCar",
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isDfcApiCatalogNoiseEndpoint({
+        appCode: "matador",
+        className: "IdleFishBackupApi",
+        http: {
+          path: "/api/backup/idlefish/IdleFishBackupApi/verifyIdleFishAccountAndSynchronizeCarByJob",
+        },
+      }),
+    ).toBe(false);
+  });
+
   it("rewrites gateway fallback env keys to per-app keys", () => {
     expect(
       resolveEndpointBaseUrlEnvKey("danube-plug-in-web", "DFC_API_GATEWAY_BASE_URL"),

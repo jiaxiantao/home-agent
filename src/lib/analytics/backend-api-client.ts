@@ -14,8 +14,18 @@ export type BackendApiFailureKind =
   | "not_configured"
   | "network"
   | "http"
+  | "timeout"
   | "auth"
   | "skipped";
+
+function isAbortError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const name = "name" in error ? String(error.name) : "";
+  const message = "message" in error ? String(error.message) : "";
+  return name === "AbortError" || /aborted/i.test(message);
+}
 
 export type BackendApiCallResult = {
   status: "success" | "not_configured" | "skipped" | "error";
@@ -739,7 +749,7 @@ export async function callBackendApi(
       } catch (error) {
         lastError = error;
         usedUrl = candidateUrl;
-        if (index === candidateUrls.length - 1) {
+        if (isAbortError(error) || index === candidateUrls.length - 1) {
           throw error;
         }
       } finally {
@@ -880,10 +890,11 @@ export async function callBackendApi(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const timeout = isAbortError(error);
     return withSqlFallback(
       {
         status: "error",
-        failureKind: "network",
+        failureKind: timeout ? "timeout" : "network",
         endpointId: endpoint.id,
         appCode: endpoint.appCode,
         request: {
@@ -893,7 +904,9 @@ export async function callBackendApi(
           body: request.body,
           headers,
         },
-        message: `网络调用失败：${message}。参数已齐全，请立即 propose_sql 使用 suggestedSql，禁止向用户索取 shop_code。`,
+        message: timeout
+          ? `上游请求超时。host 已可达，该接口可能是长任务；勿改 default_test_config，请 propose_sql。`
+          : `网络调用失败：${message}。参数已齐全，请立即 propose_sql 使用 suggestedSql，禁止向用户索取额外参数。`,
         sqlFallback,
       },
       endpoint,

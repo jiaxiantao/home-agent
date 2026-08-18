@@ -4,6 +4,7 @@ import {
   alternateTestRequestUrls,
   inferDefaultBaseUrlForApp,
   shouldSkipHttpProbe,
+  shouldSkipHttpProbeEndpoint,
 } from "@/lib/analytics/dfc-api-test-hosts";
 
 describe("dfc-api-test-hosts", () => {
@@ -33,6 +34,17 @@ describe("dfc-api-test-hosts", () => {
     expect(shouldSkipHttpProbe("cheniu-user")).toBe(true);
     expect(shouldSkipHttpProbe("customer-biz-data-system")).toBe(true);
     expect(shouldSkipHttpProbe("anduin")).toBe(false);
+  });
+
+  it("skips long-running matador idlefish init endpoint", () => {
+    expect(
+      shouldSkipHttpProbeEndpoint(
+        "matador:http:GET:/api/backup/idlefish/IdleFishBackupApi/initCarSourceDivision:initCarSourceDivision",
+      ),
+    ).toBe(true);
+    expect(shouldSkipHttpProbeEndpoint("matador:http:GET:/api/common/VinApi/checkVin:checkVin")).toBe(
+      false,
+    );
   });
 
   it("alternates bare dasouche.net to stable then inc", () => {

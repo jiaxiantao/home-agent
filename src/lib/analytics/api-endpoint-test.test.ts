@@ -49,6 +49,42 @@ describe("api-endpoint-test", () => {
     expect(result.message).toMatch(/customer-biz-data-system/);
   });
 
+  it("skips retired and long-running matador idlefish backup endpoints", async () => {
+    const endpoints = loadDfcApiCatalogFromJsonFile();
+    const retired = {
+      id: "matador:http:GET:/api/backup/idlefish/IdleFishBackupApi/changeIdleFishAccount:changeIdleFishAccount",
+      appCode: "matador",
+      repo: "niu/backends/cheniu",
+      entity: "car",
+      title: "changeIdleFishAccount",
+      description: "",
+      matchPatterns: [],
+      kind: "http" as const,
+      readOnly: true,
+      preferOverSql: false,
+      http: {
+        method: "GET" as const,
+        path: "/api/backup/idlefish/IdleFishBackupApi/changeIdleFishAccount",
+      },
+      keywords: [],
+      sqlFallback: { database: "matador", table: "*", hint: "" },
+      baseUrlEnvKey: "DFC_API_MATADOR_BASE_URL",
+    };
+    setDfcApiCatalogCache([...endpoints, retired], { total: endpoints.length + 1 });
+
+    const retiredResult = await testDfcApiEndpoint(retired.id);
+    expect(retiredResult.ok).toBe(true);
+    expect(retiredResult.status).toBe("skipped");
+    expect(retiredResult.message).toMatch(/注释|下线/);
+
+    const initJob = await testDfcApiEndpoint(
+      "matador:http:GET:/api/backup/idlefish/IdleFishBackupApi/initCarSourceDivision:initCarSourceDivision",
+    );
+    expect(initJob.ok).toBe(true);
+    expect(initJob.status).toBe("skipped");
+    expect(initJob.message).toMatch(/初始化/);
+  });
+
   it("validates http endpoint catalog entry", async () => {
     const result = await testDfcApiEndpoint(
       "super-mario:http:GET:/v1/customerAction/crmQueryCustomerInfo.json:crmQueryCustomerInfo",

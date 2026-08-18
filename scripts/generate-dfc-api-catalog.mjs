@@ -180,7 +180,8 @@ function extractSpringMethodMappings(
     const lineStart = content.lastIndexOf("\n", m.index) + 1;
     const lineEnd = content.indexOf("\n", m.index);
     const line = content.slice(lineStart, lineEnd < 0 ? content.length : lineEnd);
-    if (line.includes("import ")) {
+    const trimmedLine = line.trimStart();
+    if (line.includes("import ") || trimmedLine.startsWith("//") || trimmedLine.startsWith("*")) {
       continue;
     }
     const afterMapping = content.slice(m.index + mappingName.length + 1).trimStart();
@@ -227,6 +228,12 @@ function extractOptimusRest(content, className, appCode, repo, database, baseUrl
     /@Rest\s*\(\s*value\s*=\s*"([^"]*)"\s*,\s*method\s*=\s*OptimusRequestMethod\.(GET|POST|PUT|DELETE)/g;
   let m;
   while ((m = re.exec(content))) {
+    const lineStart = content.lastIndexOf("\n", m.index) + 1;
+    const lineEnd = content.indexOf("\n", m.index);
+    const line = content.slice(lineStart, lineEnd < 0 ? content.length : lineEnd).trimStart();
+    if (line.startsWith("//") || line.startsWith("*")) {
+      continue;
+    }
     const pathStr = m[1].startsWith("/") ? m[1] : `/${m[1]}`;
     const method = m[2];
     const after = content.slice(m.index, m.index + 800);
@@ -291,6 +298,12 @@ function extractSpringMappings(content, className, appCode, repo, database, base
     /@RequestMapping\s*\(\s*(?:value|path)\s*=\s*["']([^"']*)["']\s*,\s*method\s*=\s*RequestMethod\.(GET|POST|PUT|DELETE|PATCH)/g;
   let m;
   while ((m = reqRe.exec(content))) {
+    const lineStart = content.lastIndexOf("\n", m.index) + 1;
+    const lineEnd = content.indexOf("\n", m.index);
+    const line = content.slice(lineStart, lineEnd < 0 ? content.length : lineEnd).trimStart();
+    if (line.startsWith("//") || line.startsWith("*")) {
+      continue;
+    }
     const method = m[2];
     const pathStr = joinPaths(classBase, m[1]);
     const after = content.slice(m.index, m.index + 600);

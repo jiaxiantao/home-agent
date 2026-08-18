@@ -6,6 +6,7 @@ export type DfcApiTestHostsFile = {
   defaultTemplate: string;
   apps: Record<string, string>;
   skipHttpProbe?: string[];
+  skipHttpProbeEndpoints?: string[];
 };
 
 function defaultHostsPath() {
@@ -35,6 +36,10 @@ export function inferDefaultBaseUrlForApp(appCode: string): string {
 
 export function shouldSkipHttpProbe(appCode: string): boolean {
   return (loadDfcApiTestHosts().skipHttpProbe ?? []).includes(appCode);
+}
+
+export function shouldSkipHttpProbeEndpoint(endpointId: string): boolean {
+  return (loadDfcApiTestHosts().skipHttpProbeEndpoints ?? []).includes(endpointId);
 }
 
 function rewriteRequestOrigin(requestUrl: string, origin: string): string | undefined {
