@@ -12,14 +12,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const REGISTRY = path.join(ROOT, "config/dfc-app-registry.json");
 const CATALOG = path.join(ROOT, "config/dfc-api-catalog.json");
+const HOSTS = path.join(ROOT, "config/dfc-api-test-hosts.json");
 const OUT = path.join(ROOT, "config/dfc-api.env");
 
-/** 与 src/lib/analytics/dfc-app-registry.ts 保持一致 */
-const APP_TEST_HOST_HINTS = {
-  "super-mario": "http://super-mario.stable.dasouche.net",
-  "crazyracing-kartrider": "https://crazyracing-kartrider.stable.dasouche.net",
-  matador: "http://matador.dasouche.net",
-};
+const TEST_HOSTS = JSON.parse(fs.readFileSync(HOSTS, "utf8"));
 
 function inferBaseUrlEnvKey(appCode, registry) {
   return (
@@ -29,7 +25,12 @@ function inferBaseUrlEnvKey(appCode, registry) {
 }
 
 function resolveTestBaseUrl(appCode) {
-  return APP_TEST_HOST_HINTS[appCode] ?? `https://${appCode}.dasouche.net`;
+  const hint = TEST_HOSTS.apps?.[appCode]?.trim();
+  if (hint) {
+    return hint.replace(/\/$/, "");
+  }
+  const template = TEST_HOSTS.defaultTemplate || "https://{app}.stable.dasouche.net";
+  return template.replaceAll("{app}", appCode).replace(/\/$/, "");
 }
 
 function collectAppCodes(registry, catalog) {
@@ -72,8 +73,9 @@ function main() {
 
   const appCodes = collectAppCodes(registry, catalog);
   const lines = [
-    "# 大风车后端 HTTP 接口（测试环境 *.dasouche.net；线上才是 *.souche.com）",
-    "# 由 pnpm generate:dfc-api-env 根据 registry + 接口目录生成，可手工覆盖",
+    "# 大风车后端 HTTP 接口（测试环境 *.dasouche.net / *.dasouche-inc.net；线上才是 *.souche.com）",
+    "# 由 pnpm generate:dfc-api-env 根据 config/dfc-api-test-hosts.json + registry 生成，可手工覆盖",
+    "# 默认 {app}.stable.dasouche.net（裸 {app}.dasouche.net 常 503）。改完需重启 pnpm dev",
     "# SSO：侧栏「同步大风车登录」或 .env 中的 DFC_API_DEV_SSO_TOKEN",
     "",
     "DFC_API_ENABLED=1",

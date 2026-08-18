@@ -188,20 +188,6 @@
           "queryRecordPageInfo"
         ]
       }
-    },
-    {
-      "id": "matador:dubbo:com.souche.cheniu.api.remote.user.MemberInfoRemote:queryUserInfoByPhone",
-      "patch": {
-        "preferOverSql": true,
-        "title": "车牛用户按手机号查询",
-        "entity": "cheniu_user",
-        "sqlFallback": {
-          "database": "matador",
-          "table": "cheniu_user",
-          "hint": "WHERE phone = ? AND date_delete IS NULL"
-        },
-        "matchPatterns": ["车牛用户.*手机", "用户.*手机", "queryUserInfoByPhone"]
-      }
     }
   ]
 }

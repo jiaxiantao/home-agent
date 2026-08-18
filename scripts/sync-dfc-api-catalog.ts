@@ -32,13 +32,15 @@ async function main() {
 
   await ensureDfcApiEndpointsTable();
   const before = await countMysqlDfcApiEndpoints();
-  const catalog = loadDfcApiCatalogFromJsonFile(jsonPath);
-  console.log(`Loaded ${catalog.length} endpoints from ${jsonPath}`);
+  const catalog = loadDfcApiCatalogFromJsonFile(jsonPath).filter(
+    (item) => item.kind === "http" && item.http,
+  );
+  console.log(`Loaded ${catalog.length} HTTP endpoints from ${jsonPath}`);
 
-  const affected = await syncDfcApiEndpointsToDatabase(catalog);
+  const { affected, removed } = await syncDfcApiEndpointsToDatabase(catalog);
   const after = await countMysqlDfcApiEndpoints();
   console.log(
-    `Synced dfc_api_endpoints: ${before} -> ${after} rows (${affected} write ops)`,
+    `Synced dfc_api_endpoints: ${before} -> ${after} rows (${affected} write ops, removed ${removed} stale/dubbo)`,
   );
 }
 

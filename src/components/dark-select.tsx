@@ -9,6 +9,7 @@ export type DarkSelectOption = {
   label: string;
   badge?: string;
   badgeTone?: "success" | "warning" | "muted";
+  mono?: boolean;
 };
 
 function badgeToneClass(tone: DarkSelectOption["badgeTone"]) {
@@ -20,6 +21,25 @@ function badgeToneClass(tone: DarkSelectOption["badgeTone"]) {
     default:
       return "border-border bg-surface text-muted";
   }
+}
+
+function SelectChevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      className={cn("h-3.5 w-3.5 shrink-0 text-muted transition", open && "rotate-180 text-foreground")}
+      aria-hidden
+    >
+      <path
+        d="M4 6l4 4 4-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 export function DarkSelect({
@@ -34,6 +54,7 @@ export function DarkSelect({
   placement = "bottom",
   searchable = false,
   searchPlaceholder = "搜索…",
+  emptyLabel = "无匹配项",
 }: {
   value: string;
   options: DarkSelectOption[];
@@ -46,6 +67,7 @@ export function DarkSelect({
   placement?: "top" | "bottom";
   searchable?: boolean;
   searchPlaceholder?: string;
+  emptyLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -135,15 +157,7 @@ export function DarkSelect({
             </span>
           ) : null}
         </span>
-        <span
-          className={cn(
-            "shrink-0 text-[10px] text-muted transition",
-            open && "rotate-180 text-foreground",
-          )}
-          aria-hidden
-        >
-          ▾
-        </span>
+        <SelectChevron open={open} />
       </button>
 
       {open ? (
@@ -190,7 +204,12 @@ export function DarkSelect({
                           : "text-foreground hover:bg-surface-hover hover:text-foreground",
                       )}
                     >
-                      <span className="truncate font-mono text-[12px]">
+                      <span
+                        className={cn(
+                          "truncate text-[13px]",
+                          item.mono && "font-mono text-[12px]",
+                        )}
+                      >
                         {item.label}
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
@@ -215,7 +234,7 @@ export function DarkSelect({
                 );
               })
             ) : (
-              <li className="px-3 py-4 text-center text-xs text-muted">无匹配服务</li>
+              <li className="px-3 py-4 text-center text-xs text-muted">{emptyLabel}</li>
             )}
           </ul>
         </div>

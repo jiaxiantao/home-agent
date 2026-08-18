@@ -41,13 +41,35 @@ describe("buildMockPlan", () => {
     }
   });
 
-  it("falls back to route_question after API catalog miss", () => {
+  it("expands search_api after route_api miss before SQL fallback", () => {
     const plan = buildMockPlan("大风车正式车源一共有多少辆？", [
       {
         tool: "route_api",
         args: { question: "大风车正式车源一共有多少辆？" },
         output: "未命中可调用 HTTP",
         data: { bestMatch: null, candidates: [] },
+      },
+    ]);
+
+    expect(plan.action).toBe("tool");
+    if (plan.action === "tool") {
+      expect(plan.tool).toBe("search_api");
+    }
+  });
+
+  it("falls back to route_question after route_api and search_api miss", () => {
+    const plan = buildMockPlan("大风车正式车源一共有多少辆？", [
+      {
+        tool: "route_api",
+        args: { question: "大风车正式车源一共有多少辆？" },
+        output: "未命中可调用 HTTP",
+        data: { bestMatch: null, candidates: [] },
+      },
+      {
+        tool: "search_api",
+        args: { question: "大风车正式车源一共有多少辆？" },
+        output: "无命中",
+        data: { matches: [] },
       },
     ]);
 
@@ -64,6 +86,12 @@ describe("buildMockPlan", () => {
         args: { question: "大风车正式车源一共有多少辆？" },
         output: "未命中可调用 HTTP",
         data: { bestMatch: null, candidates: [] },
+      },
+      {
+        tool: "search_api",
+        args: { question: "大风车正式车源一共有多少辆？" },
+        output: "无命中",
+        data: { matches: [] },
       },
       {
         tool: "route_question",

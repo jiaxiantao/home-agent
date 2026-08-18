@@ -70,12 +70,5 @@ describe("dfc mcp facade", () => {
     expect(result.bestMatch?.httpCallable).toBe(true);
   });
 
-  it("skips dubbo calls in phase-1", async () => {
-    const id =
-      "ai-privacy-number:dubbo:com.souche.aiprivacynumber.api.AiPrivacyNumberService:bindAxB";
-    const result = await dfcMcpCallHttpApi({ endpointId: id });
-    expect(result.status).toBe("skipped");
-    expect(result.failureKind).toBe("skipped");
-    expect(result.message).toMatch(/Dubbo/);
-  });
+
 });

@@ -16,7 +16,9 @@ import {
   formatNotConfiguredBaseUrlMessage,
   isDfcApiEndpointEnvConfigured,
   previewBackendApiCallWithFallback,
+  resolveDfcApiEndpointBaseUrl,
 } from "@/lib/analytics/backend-api-client";
+import { shouldSkipHttpProbe } from "@/lib/analytics/dfc-api-test-hosts";
 import type { DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
 
 export type DfcApiTestRequestPreview = {
@@ -119,17 +121,8 @@ export async function previewDfcApiEndpointRequest(
   const config = await resolveTestConfigForEndpoint(trimmed, options);
   const envConfigured = resolveEnvConfigured(endpoint);
 
-  if (endpoint.kind === "dubbo" || !endpoint.http) {
-    return {
-      kind: "dubbo",
-      dubbo: {
-        interfaceName: endpoint.dubbo?.interfaceName ?? "",
-        method: endpoint.dubbo?.method ?? "",
-        params: config.params,
-      },
-      envConfigured,
-      baseUrlEnvKey: endpoint.baseUrlEnvKey,
-    };
+  if (!endpoint.http) {
+    return null;
   }
 
   return (
@@ -165,28 +158,32 @@ export async function testDfcApiEndpoint(
   const envConfigured = resolveEnvConfigured(endpoint);
   const requestPreview = await previewDfcApiEndpointRequest(trimmed, options);
 
-  if (endpoint.kind === "dubbo" || !endpoint.http) {
+  if (!endpoint.http) {
     return {
       endpointId: endpoint.id,
       title: endpoint.title,
-      kind: "dubbo",
+      kind: "http",
+      ok: false,
+      durationMs: Date.now() - started,
+      status: "missing",
+      envConfigured,
+      message: "接口缺少 HTTP 定义，无法探测",
+      request: requestPreview ?? undefined,
+    };
+  }
+
+  if (shouldSkipHttpProbe(endpoint.appCode)) {
+    return {
+      endpointId: endpoint.id,
+      title: endpoint.title,
+      kind: "http",
       ok: true,
       durationMs: Date.now() - started,
-      status: "catalog",
+      status: "skipped",
       envConfigured,
-      message: `Dubbo 接口已登记：${endpoint.dubbo?.interfaceName}.${endpoint.dubbo?.method}`,
-      warning: envConfigured
-        ? "RPC 无法直连，目录与环境变量配置正常"
-        : `未配置 ${endpoint.baseUrlEnvKey}，仅目录可达`,
+      message: `${endpoint.appCode} 测试集群无可用 HTTP 实例（网关 503），已跳过探测。目录保留供 SQL 回退，勿改 default_test_config。`,
+      warning: "不是缺参；该服务当前未部署到可探测的测试网关。",
       request: requestPreview ?? undefined,
-      response: {
-        body: {
-          note: "Dubbo RPC 无法通过 HTTP 探测，仅展示登记信息与入参",
-          params: config.params,
-          body: config.body,
-          cookies: config.cookies,
-        },
-      },
     };
   }
 
@@ -204,9 +201,9 @@ export async function testDfcApiEndpoint(
     };
   }
 
-  const baseProbe = process.env[endpoint.baseUrlEnvKey]?.trim();
-  if (baseProbe) {
-    const unsafe = assertTestSafeUpstreamUrl(baseProbe);
+  const baseUrl = resolveDfcApiEndpointBaseUrl(endpoint);
+  if (baseUrl) {
+    const unsafe = assertTestSafeUpstreamUrl(baseUrl);
     if (unsafe) {
       return {
         endpointId: endpoint.id,
@@ -231,6 +228,9 @@ export async function testDfcApiEndpoint(
   });
   const durationMs = Date.now() - started;
   const httpRequest = requestPreview ?? mapHttpPreview(endpoint, config, options?.headers);
+  if (httpRequest && result.request?.url) {
+    httpRequest.url = result.request.url;
+  }
   const response = {
     httpStatus: result.httpStatus,
     headers: result.responseHeaders,
@@ -263,6 +263,23 @@ export async function testDfcApiEndpoint(
       envConfigured: true,
       message: result.message,
       warning: "上游可达，但缺少业务参数；可在编辑接口时补充 default_test_params",
+      request: httpRequest,
+      response,
+    };
+  }
+
+  if (result.failureKind === "network") {
+    return {
+      endpointId: endpoint.id,
+      title: endpoint.title,
+      kind: "http",
+      ok: false,
+      durationMs,
+      status: "upstream_unavailable",
+      envConfigured: true,
+      message: result.message,
+      warning:
+        "网关 503 / upstream 失败，不是缺参。优先改 DFC_API_*_BASE_URL 为 *.stable.dasouche.net；若仍 503 则测试集群未部署，请走 SQL，勿改 default_test_config。",
       request: httpRequest,
       response,
     };
@@ -315,4 +332,38 @@ export async function testDfcApiEndpointsBatch(
     failed: results.filter((item) => !item.ok).length,
     results,
   };
+}
+
+export async function* testDfcApiEndpointsBatchStream(
+  endpointIds: string[],
+  options?: {
+    params?: ApiRouteParams;
+    paramsByEndpoint?: Record<string, ApiRouteParams>;
+    concurrency?: number;
+  },
+): AsyncGenerator<
+  { type: "testing"; endpointId: string } | { type: "result"; result: DfcApiTestResult }
+> {
+  const unique = [...new Set(endpointIds.map((item) => item.trim()).filter(Boolean))];
+  const concurrency = Math.min(Math.max(options?.concurrency ?? 2, 1), 4);
+  const paramsMap = await resolveTestParamsForEndpoints(
+    unique,
+    options?.params,
+    options?.paramsByEndpoint,
+  );
+
+  for (let index = 0; index < unique.length; index += concurrency) {
+    const chunk = unique.slice(index, index + concurrency);
+    for (const endpointId of chunk) {
+      yield { type: "testing", endpointId };
+    }
+    const chunkResults = await Promise.all(
+      chunk.map((endpointId) =>
+        testDfcApiEndpoint(endpointId, { params: paramsMap[endpointId] }),
+      ),
+    );
+    for (const result of chunkResults) {
+      yield { type: "result", result };
+    }
+  }
 }

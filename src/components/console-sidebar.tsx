@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 
-import { SiteHealthBadge } from "@/components/site-health-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BRAND_LOGO_PATH, PRODUCT_NAME_EN } from "@/lib/product";
 import { getDfcMarsAccountUrl } from "@/lib/security/sso-config";
@@ -463,9 +462,6 @@ export function ConsoleSidebar({ activePath }: { activePath: string }) {
 
         <div className="min-w-0 overflow-hidden">
           <ThemeToggle />
-        </div>
-        <div className="min-w-0 overflow-hidden">
-          <SiteHealthBadge layout="sidebar" />
         </div>
       </div>
 

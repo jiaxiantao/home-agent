@@ -28,7 +28,7 @@ export function takeSseBlocks(buffer: string) {
   return { blocks, rest };
 }
 
-export function parseSseBlock(block: string) {
+export function parseSseBlockData(block: string) {
   let event = "message";
   let data = "";
 
@@ -45,8 +45,16 @@ export function parseSseBlock(block: string) {
   }
 
   try {
-    return { event, payload: JSON.parse(data) as AgentTraceEvent };
+    return { event, payload: JSON.parse(data) as unknown };
   } catch {
     return null;
   }
+}
+
+export function parseSseBlock(block: string) {
+  const parsed = parseSseBlockData(block);
+  if (!parsed) {
+    return null;
+  }
+  return { event: parsed.event, payload: parsed.payload as AgentTraceEvent };
 }

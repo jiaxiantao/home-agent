@@ -216,7 +216,7 @@ function inferQueryFromJavaSource(
   const paramsBlock = extractMethodParamsBlock(content, endpoint.methodName);
   const query = { ...fromCatalog };
 
-  for (const match of paramsBlock.matchAll(/@Param\s*\(\s*"([^"]+)"\s*\)/g)) {
+  for (const match of paramsBlock.matchAll(/@Param\s*\(\s*(?:value\s*=\s*)?"([^"]+)"/g)) {
     const key = match[1];
     if (query[key]) {
       continue;

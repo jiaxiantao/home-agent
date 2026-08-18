@@ -248,7 +248,7 @@ export async function listTeamTemplatesPage(
   options: TeamTemplateListQuery = {},
 ): Promise<TeamTemplateListResult> {
   const page = Math.max(1, options.page ?? 1);
-  const pageSize = Math.min(50, Math.max(1, options.pageSize ?? 10));
+  const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 10));
   const sort = options.sort ?? "popular";
 
   const favoriteIds = options.viewerUserId

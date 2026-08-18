@@ -1,4 +1,5 @@
 import type { AgentToolResult } from "@/lib/agent/types";
+import { slimBackendApiDataForPlanner } from "@/lib/agent/backend-api-tool-guide";
 
 const MAX_OUTPUT_CHARS = 1200;
 const MAX_JSON_CHARS = 2400;
@@ -84,6 +85,15 @@ export function truncatePriorForPlanner(
         args,
         output,
         data: slimExecuteData(dataRecord),
+      };
+    }
+
+    if (item.tool === "call_backend_api") {
+      return {
+        tool: item.tool,
+        args,
+        output,
+        data: slimBackendApiDataForPlanner(dataRecord),
       };
     }
 

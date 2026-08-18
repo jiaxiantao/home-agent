@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 扫描本地 dafengche-backend 仓库，生成全量 HTTP / Dubbo 接口目录。
+ * 扫描本地 dafengche-backend 仓库，生成 HTTP 接口目录。
  *
  *   DFC_BACKEND_ROOT=/path/to/dafengche-backend node scripts/generate-dfc-api-catalog.mjs
  *   pnpm generate:api-catalog
@@ -26,6 +26,13 @@ const SKIP_DIRS = new Set([
   ".idea",
   "test-classes",
   "generated-sources",
+  "example",
+  "examples",
+  "demo",
+  "samples",
+  "sample",
+  "playground",
+  "mock",
 ]);
 
 const WRITE_KEYWORDS = /\b(save|update|delete|remove|create|insert|modify|batch|activate|cancel|submit|approve|reject|send|upload|import|export|sync|publish|bind|unbind|disable|enable|add|edit)\b/i;
@@ -107,9 +114,111 @@ function joinPaths(base, sub) {
 
 function extractClassBaseMapping(content) {
   const req = content.match(
-    /@RequestMapping\s*\(\s*(?:value\s*=\s*)?["']([^"']*)["']/,
+    /@RequestMapping\s*\(\s*(?:value|path)\s*=\s*["']([^"']*)["']/,
   );
-  return req?.[1] ?? "";
+  if (req) {
+    return req[1];
+  }
+  const positional = content.match(/@RequestMapping\s*\(\s*["']([^"']*)["']/);
+  return positional?.[1] ?? "";
+}
+
+function extractMethodMappingPath(annotationTail) {
+  const afterName = annotationTail.replace(/^@\w+/, "");
+  if (!afterName.trimStart().startsWith("(")) {
+    return "";
+  }
+  const parenStart = annotationTail.indexOf("(");
+  let depth = 0;
+  let parenEnd = parenStart;
+  for (; parenEnd < annotationTail.length; parenEnd += 1) {
+    const ch = annotationTail[parenEnd];
+    if (ch === "(") depth += 1;
+    else if (ch === ")") {
+      depth -= 1;
+      if (depth === 0) break;
+    }
+  }
+  if (depth !== 0) {
+    return null;
+  }
+  const inner = annotationTail.slice(parenStart + 1, parenEnd);
+  const named = inner.match(/(?:value|path)\s*=\s*"([^"]*)"/);
+  if (named) {
+    return named[1];
+  }
+  const positional = inner.match(/^\s*"([^"]*)"/);
+  if (positional) {
+    return positional[1];
+  }
+  const positionalSingle = inner.match(/^\s*'([^']*)'/);
+  if (positionalSingle) {
+    return positionalSingle[1];
+  }
+  if (/^\s*$/.test(inner)) {
+    return "";
+  }
+  return null;
+}
+
+function extractSpringMethodMappings(
+  content,
+  className,
+  appCode,
+  repo,
+  database,
+  baseUrlEnvKey,
+  sourceFile,
+  mappingName,
+  method,
+) {
+  const endpoints = [];
+  const classBase = extractClassBaseMapping(content);
+  const re = new RegExp(`@${mappingName}\\b`, "g");
+  let m;
+  while ((m = re.exec(content))) {
+    const lineStart = content.lastIndexOf("\n", m.index) + 1;
+    const lineEnd = content.indexOf("\n", m.index);
+    const line = content.slice(lineStart, lineEnd < 0 ? content.length : lineEnd);
+    if (line.includes("import ")) {
+      continue;
+    }
+    const afterMapping = content.slice(m.index + mappingName.length + 1).trimStart();
+    if (afterMapping.startsWith(";")) {
+      continue;
+    }
+    const subPath = extractMethodMappingPath(content.slice(m.index));
+    if (subPath === null) {
+      continue;
+    }
+    const pathStr = joinPaths(classBase, subPath);
+    const after = content.slice(m.index, m.index + 600);
+    const methodMatch = after.match(/public\s+[\w<>,\s\[\]]+\s+(\w+)\s*\(/);
+    const methodName = methodMatch?.[1] ?? subPath.split("/").pop() ?? "unknown";
+    const apiOp = after.match(/@ApiOperation\s*\(\s*(?:value\s*=\s*)?"([^"]*)"/);
+    const readOnly = inferReadOnly(method, methodName, pathStr);
+    const entity = inferEntity(`${className} ${methodName} ${pathStr} ${apiOp?.[1] ?? ""}`);
+    const keywords = tokenizeForSearch(className, methodName, pathStr, apiOp?.[1], entity);
+    endpoints.push({
+      id: slugId([appCode, "http", method, pathStr, methodName]),
+      appCode,
+      repo,
+      kind: "http",
+      method,
+      path: pathStr,
+      className,
+      methodName,
+      summary: apiOp?.[1] ?? methodName,
+      entity,
+      readOnly,
+      preferOverSql: readOnly && READ_KEYWORDS.test(`${methodName}${pathStr}`),
+      keywords,
+      sqlFallback: { database, table: "*", hint: "见 business-glossary / route_question" },
+      baseUrlEnvKey,
+      sourceFile: path.relative(BACKEND_ROOT, sourceFile),
+    });
+  }
+  return endpoints;
 }
 
 function extractOptimusRest(content, className, appCode, repo, database, baseUrlEnvKey, sourceFile) {
@@ -153,88 +262,64 @@ function extractOptimusRest(content, className, appCode, repo, database, baseUrl
 
 function extractSpringMappings(content, className, appCode, repo, database, baseUrlEnvKey, sourceFile) {
   const endpoints = [];
-  const classBase = extractClassBaseMapping(content);
-
-  const patterns = [
-    { re: /@GetMapping\s*\(\s*(?:value\s*=\s*)?["']([^"']*)["']/g, method: "GET" },
-    { re: /@PostMapping\s*\(\s*(?:value\s*=\s*)?["']([^"']*)["']/g, method: "POST" },
-    { re: /@PutMapping\s*\(\s*(?:value\s*=\s*)?["']([^"']*)["']/g, method: "PUT" },
-    { re: /@DeleteMapping\s*\(\s*(?:value\s*=\s*)?["']([^"']*)["']/g, method: "DELETE" },
-    { re: /@RequestMapping\s*\(\s*(?:value\s*=\s*)?["']([^"']*)["']\s*,\s*method\s*=\s*RequestMethod\.(GET|POST|PUT|DELETE)/g, method: null },
+  const mappingDefs = [
+    { name: "GetMapping", method: "GET" },
+    { name: "PostMapping", method: "POST" },
+    { name: "PutMapping", method: "PUT" },
+    { name: "DeleteMapping", method: "DELETE" },
+    { name: "PatchMapping", method: "PATCH" },
   ];
 
-  for (const { re, method: fixedMethod } of patterns) {
-    let m;
-    while ((m = re.exec(content))) {
-      const method = fixedMethod ?? m[2];
-      const pathStr = joinPaths(classBase, m[1]);
-      const after = content.slice(m.index, m.index + 600);
-      const methodMatch = after.match(/public\s+[\w<>,\s\[\]]+\s+(\w+)\s*\(/);
-      const methodName = methodMatch?.[1] ?? m[1].split("/").pop() ?? "unknown";
-      const apiOp = after.match(/@ApiOperation\s*\(\s*(?:value\s*=\s*)?"([^"]*)"/);
-      const readOnly = inferReadOnly(method, methodName, pathStr);
-      const entity = inferEntity(`${className} ${methodName} ${pathStr} ${apiOp?.[1] ?? ""}`);
-      const keywords = tokenizeForSearch(className, methodName, pathStr, apiOp?.[1], entity);
-      endpoints.push({
-        id: slugId([appCode, "http", method, pathStr, methodName]),
+  for (const { name, method } of mappingDefs) {
+    endpoints.push(
+      ...extractSpringMethodMappings(
+        content,
+        className,
         appCode,
         repo,
-        kind: "http",
-        method,
-        path: pathStr,
-        className,
-        methodName,
-        summary: apiOp?.[1] ?? methodName,
-        entity,
-        readOnly,
-        preferOverSql: readOnly && READ_KEYWORDS.test(`${methodName}${pathStr}`),
-        keywords,
-        sqlFallback: { database, table: "*", hint: "见 business-glossary / route_question" },
+        database,
         baseUrlEnvKey,
-        sourceFile: path.relative(BACKEND_ROOT, sourceFile),
-      });
-    }
+        sourceFile,
+        name,
+        method,
+      ),
+    );
   }
-  return endpoints;
-}
 
-function extractDubboInterface(content, filePath, appCode, repo, database, baseUrlEnvKey) {
-  const endpoints = [];
-  const ifaceMatch = content.match(/public\s+interface\s+(\w+)/);
-  if (!ifaceMatch) return endpoints;
-  const interfaceName = ifaceMatch[1];
-  if (!/(Remote|Dubbo|Service|Api|Facade|SPI)/.test(interfaceName)) return endpoints;
-
-  const pkg = content.match(/^package\s+([\w.]+);/m)?.[1] ?? "";
-  const fullInterface = pkg ? `${pkg}.${interfaceName}` : interfaceName;
-
-  const methodRe = /([\w<>,\s\[\]]+)\s+(\w+)\s*\(([^)]*)\)\s*;/g;
+  const classBase = extractClassBaseMapping(content);
+  const reqRe =
+    /@RequestMapping\s*\(\s*(?:value|path)\s*=\s*["']([^"']*)["']\s*,\s*method\s*=\s*RequestMethod\.(GET|POST|PUT|DELETE|PATCH)/g;
   let m;
-  while ((m = methodRe.exec(content))) {
-    const methodName = m[2];
-    if (methodName === "equals" || methodName === "hashCode") continue;
-    const params = m[3].trim();
-    const entity = inferEntity(`${interfaceName} ${methodName} ${params}`);
-    const keywords = tokenizeForSearch(interfaceName, methodName, params, entity);
-    const readOnly = inferReadOnly("DUBBO", methodName, params);
+  while ((m = reqRe.exec(content))) {
+    const method = m[2];
+    const pathStr = joinPaths(classBase, m[1]);
+    const after = content.slice(m.index, m.index + 600);
+    const methodMatch = after.match(/public\s+[\w<>,\s\[\]]+\s+(\w+)\s*\(/);
+    const methodName = methodMatch?.[1] ?? m[1].split("/").pop() ?? "unknown";
+    const apiOp = after.match(/@ApiOperation\s*\(\s*(?:value\s*=\s*)?"([^"]*)"/);
+    const readOnly = inferReadOnly(method, methodName, pathStr);
+    const entity = inferEntity(`${className} ${methodName} ${pathStr} ${apiOp?.[1] ?? ""}`);
+    const keywords = tokenizeForSearch(className, methodName, pathStr, apiOp?.[1], entity);
     endpoints.push({
-      id: slugId([appCode, "dubbo", fullInterface, methodName]),
+      id: slugId([appCode, "http", method, pathStr, methodName]),
       appCode,
       repo,
-      kind: "dubbo",
-      interfaceName: fullInterface,
+      kind: "http",
+      method,
+      path: pathStr,
+      className,
       methodName,
-      paramHints: params.slice(0, 200),
-      summary: `${interfaceName}.${methodName}`,
+      summary: apiOp?.[1] ?? methodName,
       entity,
       readOnly,
-      preferOverSql: readOnly && READ_KEYWORDS.test(methodName),
+      preferOverSql: readOnly && READ_KEYWORDS.test(`${methodName}${pathStr}`),
       keywords,
       sqlFallback: { database, table: "*", hint: "见 business-glossary / route_question" },
       baseUrlEnvKey,
-      sourceFile: path.relative(BACKEND_ROOT, filePath),
+      sourceFile: path.relative(BACKEND_ROOT, sourceFile),
     });
   }
+
   return endpoints;
 }
 
@@ -246,9 +331,9 @@ function mergeCurated(endpoints, curated) {
       Object.assign(existing, item.patch);
       if (item.matchPatterns) existing.matchPatterns = item.matchPatterns;
       if (item.http) existing.http = { ...existing.http, ...item.http };
-      if (item.dubbo) existing.dubbo = { ...existing.dubbo, ...item.dubbo };
+      if (item.dubbo) delete existing.dubbo;
       if (item.sqlFallback) existing.sqlFallback = item.sqlFallback;
-    } else if (item.endpoint) {
+    } else if (item.endpoint && item.endpoint.kind !== "dubbo") {
       endpoints.push(item.endpoint);
       byId.set(item.endpoint.id, item.endpoint);
     }
@@ -278,22 +363,17 @@ function main() {
     const meta = registry.apps[appDir] ?? {
       repo: appDir,
       database: appDir.replace(/-/g, "_"),
-      baseUrlEnvKey: registry.defaultAppMeta.baseUrlEnvKey,
+      baseUrlEnvKey: `DFC_API_${appDir.replace(/-/g, "_").toUpperCase()}_BASE_URL`,
     };
     const appCode = appDir === "matador" ? "matador" : appDir;
     const { repo, database, baseUrlEnvKey } = meta;
 
     const javaFiles = walkJavaFiles(appPath);
     let httpCount = 0;
-    let dubboCount = 0;
 
     for (const file of javaFiles) {
       const content = fs.readFileSync(file, "utf8");
       const className = path.basename(file, ".java");
-
-      const isApiModule =
-        /\/api\//.test(file.replace(/\\/g, "/")) ||
-        interfaceNameLooksLikeApi(className, content);
 
       if (content.includes("@Rest(") || content.includes("@GetMapping") || content.includes("@PostMapping")) {
         const optimus = extractOptimusRest(content, className, appCode, repo, database, baseUrlEnvKey, file);
@@ -301,16 +381,10 @@ function main() {
         httpCount += optimus.length + spring.length;
         allEndpoints.push(...optimus, ...spring);
       }
-
-      if (isApiModule && content.includes("interface ")) {
-        const dubbo = extractDubboInterface(content, file, appCode, repo, database, baseUrlEnvKey);
-        dubboCount += dubbo.length;
-        allEndpoints.push(...dubbo);
-      }
     }
 
-    if (httpCount + dubboCount > 0) {
-      appStats[appCode] = { http: httpCount, dubbo: dubboCount, repo };
+    if (httpCount > 0) {
+      appStats[appCode] = { http: httpCount, repo };
     }
   }
 
@@ -323,15 +397,14 @@ function main() {
     deduped.push(ep);
   }
 
-  const merged = mergeCurated(deduped, curated);
+  const merged = mergeCurated(deduped, curated).filter((item) => item.kind === "http");
 
   const payload = {
     generatedAt: new Date().toISOString(),
     sourceRoot: BACKEND_ROOT,
     stats: {
       total: merged.length,
-      http: merged.filter((e) => e.kind === "http").length,
-      dubbo: merged.filter((e) => e.kind === "dubbo").length,
+      http: merged.length,
       readOnly: merged.filter((e) => e.readOnly).length,
       apps: appStats,
     },
@@ -341,13 +414,6 @@ function main() {
   fs.writeFileSync(OUT_FILE, JSON.stringify(payload));
   console.log(`Wrote ${merged.length} endpoints → ${OUT_FILE}`);
   console.log(JSON.stringify(payload.stats, null, 2));
-}
-
-function interfaceNameLooksLikeApi(className, content) {
-  return (
-    /(?:Remote|DubboService|Facade|Api|SPI)$/.test(className) &&
-    content.includes("interface ")
-  );
 }
 
 main();

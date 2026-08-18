@@ -8,7 +8,13 @@ import {
   suggestedTablesForQuestion,
 } from "@/lib/analytics/question-router";
 import { extractPhoneFromQuestion } from "@/lib/analytics/api-catalog";
+import type { ApiRouteMatch } from "@/lib/analytics/api-catalog-types";
 import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
+import {
+  buildCallBackendApiArgsFromMatch,
+  mergeApiRouteCandidates,
+  nextCallableApiMatch,
+} from "@/lib/agent/backend-api-tool-guide";
 import { formatBackendApiAnswers } from "@/lib/agent/answer-format";
 import { inferPreferredChartType, userRequestedChart } from "@/lib/agent/chart-intent";
 import { PRODUCT_NAME_ZH } from "@/lib/product";
@@ -30,11 +36,7 @@ function lastToolData<T>(prior: AgentToolResult[], tool: AgentToolResult["tool"]
   return undefined;
 }
 
-type RoutedApiMatch = {
-  endpoint: { id: string };
-  httpCallable: boolean;
-  extractedParams?: Record<string, string | undefined>;
-};
+type RoutedApiMatch = ApiRouteMatch;
 
 const MAX_BACKEND_API_CALLS = 3;
 
@@ -68,40 +70,29 @@ function nextHttpCandidate(
   routed:
     | { bestMatch?: RoutedApiMatch | null; candidates?: RoutedApiMatch[] }
     | undefined,
+  searched: { matches?: RoutedApiMatch[] } | undefined,
   called: Set<string>,
+  params: { phone?: string; plate?: string; recordId?: string },
 ) {
-  const list = [routed?.bestMatch, ...(routed?.candidates ?? [])].filter(
-    (item): item is RoutedApiMatch =>
-      Boolean(item?.httpCallable && item.endpoint?.id),
-  );
-  const seen = new Set<string>();
-  for (const item of list) {
-    const id = item.endpoint.id;
-    if (seen.has(id) || called.has(id)) continue;
-    seen.add(id);
-    return item;
-  }
-  return undefined;
+  const merged = mergeApiRouteCandidates(routed, searched);
+  const match = nextCallableApiMatch(merged, called, {
+      phone: params.phone,
+      plate: params.plate,
+      recordId: params.recordId,
+    });
+  return match;
 }
 
 function callBackendApiPlan(
   match: RoutedApiMatch,
+  question: string,
   extras: { phone?: string; plate?: string },
   reasoning: string,
 ): AgentPlan {
-  const params = match.extractedParams ?? {};
   return {
     action: "tool",
     tool: "call_backend_api",
-    args: {
-      endpointId: match.endpoint.id,
-      phone: params.phone ?? extras.phone,
-      recordId: params.recordId,
-      shopCode: params.shopCode,
-      groupCode: params.groupCode,
-      objCode: params.objCode,
-      plate: params.plate ?? extras.plate,
-    },
+    args: buildCallBackendApiArgsFromMatch(match, question, extras),
     reasoning,
   };
 }
@@ -474,7 +465,7 @@ export function buildMockPlan(
         action: "tool",
         tool: "route_api",
         args: { question: normalized },
-        reasoning: "业务问数：先检索大风车已有 HTTP/Dubbo 接口，能调 HTTP 再调，无接口才 SQL",
+        reasoning: "业务问数：先检索大风车已有 HTTP 接口，能调 HTTP 再调，无接口才 SQL",
       };
     }
 
@@ -482,16 +473,38 @@ export function buildMockPlan(
       bestMatch?: RoutedApiMatch | null;
       candidates?: RoutedApiMatch[];
     }>(prior, "route_api");
+    const apiSearched = lastToolData<{
+      matches?: RoutedApiMatch[];
+    }>(prior, "search_api");
     const called = calledEndpointIds(prior);
     const successes = successfulApiResults(prior);
-    const nextMatch = nextHttpCandidate(apiRouted, called);
+
+    if (apiRouted && !hasTool(prior, "search_api")) {
+      const merged = mergeApiRouteCandidates(apiRouted, apiSearched);
+      const hasCallable = merged.some((item) => item.httpCallable);
+      if (!hasCallable) {
+        return {
+          action: "tool",
+          tool: "search_api",
+          args: { question: normalized, keyword: normalized, readOnlyOnly: true, limit: 12 },
+          reasoning: "route_api 无直接可调用 HTTP，扩大 search_api 检索",
+        };
+      }
+    }
+
+    const nextMatch = nextHttpCandidate(apiRouted, apiSearched, called, { phone, plate });
     const shouldCallMore =
       Boolean(nextMatch) &&
       called.size < MAX_BACKEND_API_CALLS &&
       (successes.length === 0 || looksLikeCompoundQuestion(normalized));
 
     if (shouldCallMore && nextMatch) {
-      return callBackendApiPlan(nextMatch, { phone, plate }, "调用大风车已有 HTTP 接口取数（优先于 SQL）");
+      return callBackendApiPlan(
+        nextMatch,
+        normalized,
+        { phone, plate },
+        "调用大风车已有 HTTP 接口取数（优先于 SQL）",
+      );
     }
 
     if (successes.length > 0) {

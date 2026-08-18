@@ -80,16 +80,5 @@ describe("runAgentTool", () => {
     expect((result.data as { matches: unknown[] }).matches.length).toBeGreaterThan(0);
   });
 
-  it("skips dubbo-only backend call with sql fallback hint", async () => {
-    const result = await runAgentTool("call_backend_api", {
-      endpointId:
-        "matador:dubbo:com.souche.cheniu.api.remote.user.MemberInfoRemote:queryUserInfoByPhone",
-      phone: "16612341112",
-    });
-    expect(result.output).toContain("Dubbo");
-    expect(result.data).toMatchObject({
-      status: "skipped",
-      sqlFallback: { database: "matador", table: "cheniu_user" },
-    });
-  });
+
 });

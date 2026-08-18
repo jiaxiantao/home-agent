@@ -59,6 +59,18 @@ function planToMessages(
   };
 }
 
+export function agentPlanToStateUpdate(
+  plan: ReturnType<typeof buildMockPlan>,
+  toolCallId: string,
+  stepCount: number,
+): Partial<DfcAgentStateType> {
+  return {
+    mock: true,
+    stepCount: stepCount + 1,
+    ...planToMessages(plan, toolCallId),
+  };
+}
+
 export async function mockPlanNode(
   state: DfcAgentStateType,
   conversation: ThreadTurn[] = [],

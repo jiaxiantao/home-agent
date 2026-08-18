@@ -39,6 +39,25 @@ const CREATE_SQL = `CREATE TABLE IF NOT EXISTS agent_tools (
 
 let ensured = false;
 let seeded = false;
+let epochBackfilled = false;
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+async function backfillEpochToolTimestamps() {
+  if (epochBackfilled) {
+    return;
+  }
+  await executeAppMysql(
+    `UPDATE agent_tools
+     SET created_at = CURRENT_TIMESTAMP(3),
+         updated_at = CURRENT_TIMESTAMP(3)
+     WHERE created_at < ? OR updated_at < ?`,
+    ["1970-01-02", "1970-01-02"],
+  );
+  epochBackfilled = true;
+}
 
 async function ensureTable() {
   if (ensured) {
@@ -58,7 +77,7 @@ export async function seedBuiltinToolsIfMissing() {
     `SELECT name FROM agent_tools WHERE builtin = 1`,
   );
   const existing = new Set(rows.map((row) => row.name));
-  const createdAt = "1970-01-01T00:00:00.000Z";
+  const createdAt = nowIso();
   const updatedAt = createdAt;
 
   for (const item of agentToolCatalog) {
@@ -87,6 +106,7 @@ export async function seedBuiltinToolsIfMissing() {
 
 export async function ensureAgentToolsTableAndSeed() {
   await seedBuiltinToolsIfMissing();
+  await backfillEpochToolTimestamps();
 }
 
 function parseJson<T>(value: T | string | null | undefined, fallback: T): T {
@@ -177,4 +197,5 @@ export async function deleteMysqlManagedTool(id: string) {
 export function resetMysqlManagedToolsEnsure() {
   ensured = false;
   seeded = false;
+  epochBackfilled = false;
 }

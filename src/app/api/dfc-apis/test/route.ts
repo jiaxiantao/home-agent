@@ -5,11 +5,16 @@ import {
   previewDfcApiEndpointRequest,
   testDfcApiEndpoint,
   testDfcApiEndpointsBatch,
+  testDfcApiEndpointsBatchStream,
+  type DfcApiTestResult,
 } from "@/lib/analytics/api-endpoint-test";
 import { runDfcApiTestWithRequestSso } from "@/lib/analytics/dfc-api-test-sso";
+import { resolveSsoCredentialsFromRequest } from "@/lib/security/dfc-user-profile";
+import { runWithSsoRequestContext } from "@/lib/security/sso-context";
 import { resolveAuthUserFromHeaders } from "@/lib/security/auth";
 import { isAuthEnabled } from "@/lib/security/auth-config";
 import { resolveUserRole } from "@/lib/security/rbac";
+import { encodeSseEvent, SSE_PAD_COMMENT } from "@/lib/sse";
 
 function resolveUser(request: Request) {
   const user = resolveAuthUserFromHeaders(request.headers);
@@ -47,6 +52,81 @@ const paramsSchema = z.object({
 });
 
 const headersSchema = z.record(z.string(), z.string());
+
+const testBodySchema = z.object({
+  endpointId: z.string().min(1).optional(),
+  endpointIds: z.array(z.string().min(1)).optional(),
+  params: paramsSchema.optional(),
+  paramsByEndpoint: z.record(z.string(), paramsSchema).optional(),
+  headers: headersSchema.optional(),
+  query: headersSchema.optional(),
+  body: z.record(z.string(), z.unknown()).optional(),
+  cookies: headersSchema.optional(),
+  stream: z.boolean().optional(),
+});
+
+function sseResponse(stream: ReadableStream<Uint8Array>) {
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+function createBatchTestSseStream(
+  request: Request,
+  endpointIds: string[],
+  options: {
+    params?: z.infer<typeof paramsSchema>;
+    paramsByEndpoint?: Record<string, z.infer<typeof paramsSchema>>;
+  },
+) {
+  const sso = resolveSsoCredentialsFromRequest(request.headers);
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(encoder.encode(encodeSseEvent(event, data)));
+      };
+
+      try {
+        controller.enqueue(encoder.encode(SSE_PAD_COMMENT));
+        send("start", { total: endpointIds.length, endpointIds });
+
+        const results: DfcApiTestResult[] = [];
+
+        await runWithSsoRequestContext(sso, async () => {
+          for await (const item of testDfcApiEndpointsBatchStream(endpointIds, {
+            params: options.params,
+            paramsByEndpoint: options.paramsByEndpoint,
+          })) {
+            if (item.type === "testing") {
+              send("testing", { endpointId: item.endpointId });
+            } else {
+              results.push(item.result);
+              send("result", { result: item.result });
+            }
+          }
+        });
+
+        send("done", {
+          total: endpointIds.length,
+          passed: results.filter((item) => item.ok).length,
+          failed: results.filter((item) => !item.ok).length,
+        });
+      } catch (error) {
+        send("error", {
+          error: error instanceof Error ? error.message : "Test failed",
+        });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+}
 
 export async function GET(request: Request) {
   const user = resolveUser(request);
@@ -99,18 +179,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = z
-      .object({
-        endpointId: z.string().min(1).optional(),
-        endpointIds: z.array(z.string().min(1)).optional(),
-        params: paramsSchema.optional(),
-        paramsByEndpoint: z.record(z.string(), paramsSchema).optional(),
-        headers: headersSchema.optional(),
-        query: headersSchema.optional(),
-        body: z.record(z.string(), z.unknown()).optional(),
-        cookies: headersSchema.optional(),
-      })
-      .parse(await request.json());
+    const body = testBodySchema.parse(await request.json());
 
     const endpointIds =
       body.endpointIds?.length && body.endpointIds.length > 0
@@ -137,6 +206,15 @@ export async function POST(request: Request) {
         }),
       );
       return NextResponse.json({ result });
+    }
+
+    if (body.stream) {
+      return sseResponse(
+        createBatchTestSseStream(request, endpointIds, {
+          params: body.params,
+          paramsByEndpoint: body.paramsByEndpoint,
+        }),
+      );
     }
 
     const batch = await runDfcApiTestWithRequestSso(request, () =>

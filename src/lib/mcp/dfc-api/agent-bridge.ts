@@ -123,6 +123,7 @@ export async function runSearchApiTool(args: {
         entity: args.entity,
         readOnlyOnly: args.readOnlyOnly,
         limit: args.limit,
+        kind: "http",
       }),
   );
 

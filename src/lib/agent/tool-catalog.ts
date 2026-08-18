@@ -88,7 +88,7 @@ export const agentToolCatalog: AgentToolCatalogItem[] = [
   {
     name: "route_api",
     label: "接口路由",
-    description: "所有问数第一步：匹配大风车已有 HTTP/Dubbo 接口，能调 HTTP 则优先于 SQL",
+    description: "所有问数第一步：匹配大风车已有 HTTP 接口，能调 HTTP 则优先于 SQL",
     args: { question: "string", endpointId: "string?" },
   },
   {
@@ -107,15 +107,19 @@ export const agentToolCatalog: AgentToolCatalogItem[] = [
   {
     name: "call_backend_api",
     label: "调用后端接口",
-    description: "按 api-catalog 调用只读 HTTP；一个问题可多次调用不同接口再组装",
+    description:
+      "调用大风车只读 HTTP（经 MCP）。须先有 route_api/search_api 的 endpointId；可传 question 自动提取 phone/recordId/plate；POST 接口用 body，额外 query 用 query 对象；shopCode/groupCode 由登录态注入",
     args: {
       endpointId: "string",
+      question: "string?",
       phone: "string?",
       recordId: "string?",
       shopCode: "string?",
       groupCode: "string?",
       objCode: "string?",
       plate: "string?",
+      query: "object?",
+      body: "object?",
     },
   },
   {

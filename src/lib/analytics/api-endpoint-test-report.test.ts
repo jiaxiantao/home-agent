@@ -55,5 +55,6 @@ describe("api-endpoint-test-report", () => {
     expect(report).toContain("失败: 1");
     expect(report).toContain("## 失败接口（优先修复）");
     expect(report).toContain("## 通过接口");
+    expect(report).toContain("若大量失败为 HTTP 503");
   });
 });

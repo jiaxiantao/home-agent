@@ -1,8 +1,11 @@
 import { isAppMysqlConfigured } from "@/lib/app-mysql/client";
+import { isDfcApiCatalogNoiseEndpoint } from "@/lib/analytics/dfc-api-catalog-noise";
 import {
   batchUpsertMysqlDfcApiEndpoints,
   countMysqlDfcApiEndpoints,
   deleteMysqlDfcApiEndpoint,
+  deleteMysqlDfcApiEndpointsByKind,
+  deleteMysqlSeededEndpointsNotIn,
   ensureDfcApiEndpointsTable,
   getDefaultTestParamsByEndpointId,
   getDefaultTestParamsMap,
@@ -42,7 +45,9 @@ export async function ensureDfcApiCatalogFromDatabase() {
   }
 
   const records = await listAllMysqlDfcApiEndpoints();
-  const endpoints = records.map((item) => item.endpoint);
+  const endpoints = records
+    .map((item) => item.endpoint)
+    .filter((item) => !isDfcApiCatalogNoiseEndpoint(item));
   setDfcApiCatalogCache(endpoints, {
     total,
     stats: { total, source: "mysql", http: endpoints.filter((e) => e.kind === "http").length },
@@ -138,13 +143,18 @@ export async function deleteDfcApiEndpoint(id: string) {
 export async function syncDfcApiEndpointsToDatabase(endpoints: DfcApiEndpoint[]) {
   requireAppMysql();
   await ensureDfcApiEndpointsTable();
-  const affected = await batchUpsertMysqlDfcApiEndpoints(endpoints, {
+  const httpOnly = endpoints.filter((item) => item.kind === "http" && item.http);
+  const affected = await batchUpsertMysqlDfcApiEndpoints(httpOnly, {
     seeded: true,
     createdBy: "system",
   });
+  const removedDubbo = await deleteMysqlDfcApiEndpointsByKind("dubbo");
+  const pruned = await deleteMysqlSeededEndpointsNotIn(
+    httpOnly.map((item) => item.id),
+  );
   resetDfcApiCatalogCache();
   await ensureDfcApiCatalogFromDatabase();
-  return affected;
+  return { affected, removed: removedDubbo + pruned };
 }
 
 export async function exportDfcApiEndpointsFromDatabase() {

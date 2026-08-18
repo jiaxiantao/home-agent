@@ -5,6 +5,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { DfcApiEndpoint, DfcApiKind } from "@/lib/analytics/api-catalog-types";
+import {
+  isDfcApiCatalogNoiseEndpoint,
+  resolveEndpointBaseUrlEnvKey,
+} from "@/lib/analytics/dfc-api-catalog-noise";
 import { normalizeHttpMethod } from "@/lib/analytics/http-methods";
 import { serializeDfcApiEndpoint } from "@/lib/analytics/dfc-api-endpoint-serialize";
 
@@ -73,7 +77,10 @@ function normalizeEndpoint(raw: Record<string, unknown>): DfcApiEndpoint {
       table: "*",
       hint: "route_question",
     },
-    baseUrlEnvKey: String(raw.baseUrlEnvKey ?? "DFC_API_GATEWAY_BASE_URL"),
+    baseUrlEnvKey: resolveEndpointBaseUrlEnvKey(
+      String(raw.appCode),
+      raw.baseUrlEnvKey ? String(raw.baseUrlEnvKey) : undefined,
+    ),
     sourceFile: raw.sourceFile ? String(raw.sourceFile) : undefined,
   };
 }
@@ -155,7 +162,12 @@ export function loadDfcApiCatalogFromJsonFile(
   }
 
   const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as RawCatalogFile;
-  return applyCuratedOverrides(parsed.endpoints.map(normalizeEndpoint));
+  return applyCuratedOverrides(parsed.endpoints.map(normalizeEndpoint)).filter(
+    (item) =>
+      item.kind === "http" &&
+      item.http &&
+      !isDfcApiCatalogNoiseEndpoint(item),
+  );
 }
 
 export function buildCatalogJsonFile(

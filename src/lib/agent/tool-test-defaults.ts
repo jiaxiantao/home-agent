@@ -42,7 +42,7 @@ export function getDefaultTestArgs(
     case "get_table_stats":
       return { database: "matador", table: "car" };
     case "search_schema":
-      return { keyword: "car", limit: 3 };
+      return { database: "matador", keyword: "car", limit: 3 };
     case "route_question":
       return { question: "matador 库车辆相关表" };
     case "route_api":
@@ -53,6 +53,7 @@ export function getDefaultTestArgs(
       return {
         endpointId:
           "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
+        question: "查询客户手机号16612341112的客户信息",
         phone: "16612341112",
       };
     case "sample_table_rows":

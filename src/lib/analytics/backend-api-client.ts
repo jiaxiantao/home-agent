@@ -1,7 +1,13 @@
 import type { ApiRouteParams, DfcApiEndpoint } from "@/lib/analytics/api-catalog";
+import {
+  alternateTestRequestUrls,
+  inferDefaultBaseUrlForApp,
+} from "@/lib/analytics/dfc-api-test-hosts";
 import { httpMethodAllowsBody } from "@/lib/analytics/http-methods";
 import { getDevSsoCredentials, getSsoCookieNames } from "@/lib/security/sso-config";
 import { getSsoRequestContext } from "@/lib/security/sso-context";
+
+export { inferDefaultBaseUrlForApp };
 
 export type BackendApiFailureKind =
   | "missing_params"
@@ -36,6 +42,12 @@ export type BackendApiCallResult = {
     table: string;
     hint: string;
   };
+  /** Agent 下一步动作（结构化，供 planner / 规则回退） */
+  nextAction?: string;
+  callHints?: string[];
+  envConfigured?: boolean;
+  endpointTitle?: string;
+  remainingEndpointIds?: string[];
 };
 
 function isApiEnabled() {
@@ -43,21 +55,41 @@ function isApiEnabled() {
   return flag === "1" || flag === "true" || flag === "yes";
 }
 
-function resolveBaseUrl(endpoint: DfcApiEndpoint): string | undefined {
-  const fromEndpoint = process.env[endpoint.baseUrlEnvKey]?.trim();
-  if (fromEndpoint) {
-    return fromEndpoint.replace(/\/$/, "");
+function inferredAppBaseUrlEnvKey(appCode: string) {
+  return `DFC_API_${appCode.trim().replace(/-/g, "_").toUpperCase()}_BASE_URL`;
+}
+
+function envBaseUrl(key: string | undefined): string | undefined {
+  if (!key) {
+    return undefined;
   }
-  const generic = process.env.DFC_API_GATEWAY_BASE_URL?.trim();
+  const value = process.env[key]?.trim();
+  return value ? value.replace(/\/$/, "") : undefined;
+}
+
+/** 解析上游 baseUrl：登记 env key → 按 appCode 推断的 DFC_API_*_BASE_URL → 网关兜底 */
+export function resolveDfcApiEndpointBaseUrl(
+  endpoint: Pick<DfcApiEndpoint, "appCode" | "baseUrlEnvKey">,
+): string | undefined {
+  const inferred = inferredAppBaseUrlEnvKey(endpoint.appCode);
+  const fromKeys = [
+    envBaseUrl(endpoint.baseUrlEnvKey),
+    endpoint.baseUrlEnvKey === inferred ? undefined : envBaseUrl(inferred),
+  ];
+  for (const value of fromKeys) {
+    if (value) {
+      return value;
+    }
+  }
+  const generic = envBaseUrl("DFC_API_GATEWAY_BASE_URL");
   if (generic) {
-    return `${generic.replace(/\/$/, "")}/${endpoint.appCode}`;
+    return `${generic}/${endpoint.appCode}`;
   }
   return undefined;
 }
 
-/** 与 danube-plug-in-web 等后端默认 host 一致：https://{appCode}.dasouche.net */
-export function inferDefaultBaseUrlForApp(appCode: string): string {
-  return `https://${appCode}.dasouche.net`;
+function resolveBaseUrl(endpoint: DfcApiEndpoint): string | undefined {
+  return resolveDfcApiEndpointBaseUrl(endpoint);
 }
 
 export function formatNotConfiguredBaseUrlMessage(baseUrlEnvKey: string): string {
@@ -67,8 +99,10 @@ export function formatNotConfiguredBaseUrlMessage(baseUrlEnvKey: string): string
   return `未配置 ${baseUrlEnvKey}（亦未配置 DFC_API_GATEWAY_BASE_URL 作为兜底）`;
 }
 
-export function isDfcApiEndpointEnvConfigured(endpoint: DfcApiEndpoint): boolean {
-  return Boolean(resolveBaseUrl(endpoint));
+export function isDfcApiEndpointEnvConfigured(
+  endpoint: Pick<DfcApiEndpoint, "appCode" | "baseUrlEnvKey">,
+): boolean {
+  return Boolean(resolveDfcApiEndpointBaseUrl(endpoint));
 }
 
 function currentApiEnv() {
@@ -140,6 +174,15 @@ export function buildSuggestedSqlForEndpoint(
       return `SELECT id, JSON_UNQUOTE(JSON_EXTRACT(name, '$.displayValue')) AS car_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.brandName')) AS brand_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.seriesName')) AS series_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.modelName')) AS model_name, plate_number, vin_number, mileage, JSON_UNQUOTE(JSON_EXTRACT(area, '$.displayValue')) AS area, sale_price, shop_code, date_create FROM \`crazy_kartrider\`.\`car\` WHERE plate_number = '${plate}' AND date_delete = 0 LIMIT 20`;
     }
     return `SELECT car_id, brand_name, series_name, model_name, license_number, vin, sale_price, car_status, date_create FROM \`${db}\`.\`${table}\` WHERE license_number = '${plate}' LIMIT 20`;
+  }
+
+  if (params.recordId && /id\s*=\s*\?/i.test(fallback.hint)) {
+    return `SELECT * FROM \`${db}\`.\`${table}\` WHERE id = '${escapeSqlLiteral(params.recordId)}' LIMIT 20`;
+  }
+
+  if ((params.phone || params.wechat) && /phone\s*=\s*\?/i.test(fallback.hint)) {
+    const contact = escapeSqlLiteral(params.phone || params.wechat || "");
+    return `SELECT * FROM \`${db}\`.\`${table}\` WHERE phone = '${contact}' LIMIT 20`;
   }
 
   return undefined;
@@ -313,7 +356,7 @@ export function previewBackendApiCall(
   };
 }
 
-/** 预览用：环境变量未配置时仍展示推断 URL（https://{appCode}.dasouche.net） */
+/** 预览用：环境变量未配置时仍展示推断 URL（默认 https://{appCode}.stable.dasouche.net） */
 export function previewBackendApiCallWithFallback(
   endpoint: DfcApiEndpoint,
   params: ApiRouteParams,
@@ -488,14 +531,14 @@ export async function callBackendApi(
 ): Promise<BackendApiCallResult> {
   const sqlFallback = endpoint.sqlFallback;
 
-  if (endpoint.kind === "dubbo" || !endpoint.http) {
+  if (!endpoint.http) {
     return withSqlFallback(
       {
         status: "skipped",
         failureKind: "skipped",
         endpointId: endpoint.id,
         appCode: endpoint.appCode,
-        message: `接口 ${endpoint.id} 为 Dubbo（${endpoint.dubbo?.interfaceName}.${endpoint.dubbo?.method}），Agent 无法直连 RPC。请直接 propose_sql 使用下方 suggestedSql / SQL 回退。`,
+        message: `接口 ${endpoint.id} 缺少 HTTP 定义，无法调用。请直接 propose_sql 使用下方 suggestedSql / SQL 回退。`,
         sqlFallback,
       },
       endpoint,
@@ -663,26 +706,56 @@ export async function callBackendApi(
   }
 
   const timeoutMs = Number(process.env.DFC_API_TIMEOUT_MS ?? 12000);
+  const candidateUrls = [
+    request.url,
+    ...alternateTestRequestUrls(request.url),
+  ].filter((url) => !assertTestSafeUpstreamUrl(url));
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let response: Response | undefined;
+    let text = "";
+    let usedUrl = request.url;
+    let lastError: unknown;
 
-    // 不自动跟随 SSO 登录页重定向，否则会误把 HTML 当成 200 成功
-    const response = await fetch(request.url, {
-      method: request.method,
-      headers,
-      body: request.body ? JSON.stringify(request.body) : undefined,
-      signal: controller.signal,
-      redirect: "manual",
-    });
-    clearTimeout(timer);
+    for (let index = 0; index < candidateUrls.length; index += 1) {
+      const candidateUrl = candidateUrls[index]!;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        // 不自动跟随 SSO 登录页重定向，否则会误把 HTML 当成 200 成功
+        response = await fetch(candidateUrl, {
+          method: request.method,
+          headers,
+          body: request.body ? JSON.stringify(request.body) : undefined,
+          signal: controller.signal,
+          redirect: "manual",
+        });
+        text = await response.text();
+        usedUrl = candidateUrl;
+        const network = isNetworkFailure(response.status, text.slice(0, 240));
+        if (!network || index === candidateUrls.length - 1) {
+          break;
+        }
+      } catch (error) {
+        lastError = error;
+        usedUrl = candidateUrl;
+        if (index === candidateUrls.length - 1) {
+          throw error;
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    if (!response) {
+      throw lastError instanceof Error ? lastError : new Error("上游无响应");
+    }
 
     const responseHeaders = collectResponseHeaders(response);
     const httpStatus = response.status;
     const requestMeta = {
       method: request.method,
-      url: request.url,
+      url: usedUrl,
       query: request.query,
       body: request.body,
       headers,
@@ -708,7 +781,6 @@ export async function callBackendApi(
       );
     }
 
-    const text = await response.text();
     let payload: unknown = text;
     try {
       payload = JSON.parse(text);
@@ -780,7 +852,7 @@ export async function callBackendApi(
           responseHeaders,
           response: payload,
           message: network
-            ? `HTTP ${response.status} 服务不可达（网关 upstream 失败）。请求参数已齐全（见 URL query），不是缺参。请检查：① 是否已连公司 VPN/内网；② 测试环境 ${endpoint.baseUrlEnvKey} 是否与前端一致（CRM：http://super-mario.stable.dasouche.net；勿用线上 *.souche.com；裸 super-mario.dasouche.net 常 503）；③ 侧栏是否已同步大风车 SSO。然后立即 propose_sql 使用 suggestedSql，禁止向用户索取 shop_code。`
+            ? `HTTP ${response.status} 服务不可达（网关 upstream 失败）。已尝试 .stable / 内网域名，不是缺参。请检查 ${endpoint.baseUrlEnvKey}（CRM：http://super-mario.stable.dasouche.net；勿用线上 *.souche.com；裸 {app}.dasouche.net 常 503）。测试集群若未部署该服务，请 propose_sql 使用 suggestedSql，禁止向用户索取 shop_code。`
             : `HTTP ${response.status}：${bodyPreview || "请求失败"}。请 propose_sql 回退，勿向用户索取额外参数。`,
           sqlFallback,
         },
@@ -805,7 +877,6 @@ export async function callBackendApi(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const headers = buildBackendApiHeaders(endpoint, options);
     return withSqlFallback(
       {
         status: "error",

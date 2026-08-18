@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { BackChevronIcon } from "@/components/back-chevron-icon";
+
 import { DarkSelect } from "@/components/dark-select";
 import type { ThreadListItem } from "@/lib/agent/thread-types";
 
-const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 function formatDateTime(value?: string | null) {
   if (!value) {
@@ -172,7 +174,7 @@ export function AgentSessionsManagement() {
           href="/agents"
           className="inline-flex items-center gap-1 text-xs text-muted transition hover:text-brand-soft"
         >
-          <span aria-hidden>←</span>
+          <BackChevronIcon />
           返回数据智能体
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-foreground">历史会话</h1>

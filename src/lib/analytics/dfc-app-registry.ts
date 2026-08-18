@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { inferDefaultBaseUrlForApp } from "@/lib/analytics/backend-api-client";
+import { inferDefaultBaseUrlForApp } from "@/lib/analytics/dfc-api-test-hosts";
 
 export type DfcAppRegistryEntry = {
   repo: string;
@@ -15,13 +15,6 @@ export type DfcAppRegistryFile = {
   defaultAppMeta?: {
     baseUrlEnvKey: string;
   };
-};
-
-/** 测试环境常见 host（无 env 时在表单中展示；实际请求仍以 env 为准） */
-const APP_TEST_HOST_HINTS: Record<string, string> = {
-  "super-mario": "http://super-mario.stable.dasouche.net",
-  "crazyracing-kartrider": "https://crazyracing-kartrider.stable.dasouche.net",
-  matador: "http://matador.dasouche.net",
 };
 
 export function defaultAppRegistryPath() {
@@ -45,7 +38,7 @@ export function resolveAppDefaultDomain(appCode: string, baseUrlEnvKey: string) 
   if (fromEnv) {
     return fromEnv;
   }
-  return APP_TEST_HOST_HINTS[appCode] ?? inferDefaultBaseUrlForApp(appCode);
+  return inferDefaultBaseUrlForApp(appCode);
 }
 
 export type DfcAppRegistryOption = {

@@ -27,12 +27,29 @@ describe("api-endpoint-test", () => {
     expect(result.status).toBe("missing");
   });
 
-  it("validates dubbo endpoint catalog entry", async () => {
-    const result = await testDfcApiEndpoint(
-      "matador:dubbo:com.souche.cheniu.api.remote.user.MemberInfoRemote:queryUserInfoByPhone",
-    );
-    expect(result.kind).toBe("dubbo");
+  it("skips HTTP probe for undeployed cheniu-user", async () => {
+    const endpoints = loadDfcApiCatalogFromJsonFile();
+    const cheniu = endpoints.find((item) => item.appCode === "cheniu-user");
+    expect(cheniu).toBeTruthy();
+    const result = await testDfcApiEndpoint(cheniu!.id);
     expect(result.ok).toBe(true);
-    expect(result.message).toContain("Dubbo");
+    expect(result.status).toBe("skipped");
+    expect(result.message).toMatch(/跳过探测/);
+  });
+
+  it("validates http endpoint catalog entry", async () => {
+    const result = await testDfcApiEndpoint(
+      "super-mario:http:GET:/v1/customerAction/crmQueryCustomerInfo.json:crmQueryCustomerInfo",
+    );
+    expect(result.kind).toBe("http");
+    expect([
+      "success",
+      "error",
+      "not_configured",
+      "reachable",
+      "blocked",
+      "skipped",
+      "upstream_unavailable",
+    ]).toContain(result.status);
   });
 });

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { BackChevronIcon } from "@/components/back-chevron-icon";
+
 type CategoryItem = {
   id: string;
   name: string;
@@ -276,7 +278,7 @@ export function TeamTemplateCategoriesManagement() {
           href="/templates"
           className="inline-flex items-center gap-1 text-xs text-muted transition hover:text-brand-soft"
         >
-          <span aria-hidden>←</span>
+          <BackChevronIcon />
           返回模板列表
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-foreground">分类管理</h1>

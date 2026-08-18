@@ -11,6 +11,9 @@ import type {
   DfcApiEndpoint,
 } from "@/lib/analytics/api-catalog-types";
 import {
+  formatCallBackendApiHintForMatch,
+} from "@/lib/agent/backend-api-tool-guide";
+import {
   getDfcApiCatalogStats,
   getDfcApiEndpointById,
   loadDfcApiCatalog,
@@ -73,6 +76,32 @@ export function extractApiParams(question: string): ApiRouteParams {
       ? process.env.DFC_API_DEFAULT_CUSTOMER_OBJ_CODE?.trim() || "customer"
       : undefined,
   };
+}
+
+function paramsSatisfyEndpointForScore(
+  endpoint: DfcApiEndpoint,
+  params: ApiRouteParams,
+): boolean {
+  if (!endpoint.http) {
+    return false;
+  }
+  if (endpoint.http.queryParams) {
+    const required = Object.values(endpoint.http.queryParams);
+    if (required.every((key) => Boolean(params[key as keyof ApiRouteParams]))) {
+      return true;
+    }
+    return required.some((key) => Boolean(params[key as keyof ApiRouteParams]));
+  }
+  if (endpoint.http.bodyTemplate) {
+    const placeholders = [
+      ...JSON.stringify(endpoint.http.bodyTemplate).matchAll(/\{\{(\w+)\}\}/g),
+    ].map((match) => match[1]!);
+    if (!placeholders.length) {
+      return true;
+    }
+    return placeholders.some((key) => Boolean(params[key as keyof ApiRouteParams]));
+  }
+  return endpoint.http.method === "GET";
 }
 
 function tokenizeQuestion(question: string): string[] {
@@ -194,16 +223,12 @@ function scoreEndpoint(
   if (score <= 0) return null;
 
   const httpCallable =
-    endpoint.kind === "http" &&
     endpoint.readOnly &&
     Boolean(endpoint.http) &&
     (endpoint.preferOverSql ||
       Boolean(endpoint.http?.queryParams) ||
-      Boolean(endpoint.http?.bodyTemplate));
-
-  if (endpoint.dubbo && !endpoint.http) {
-    reasons.push("Dubbo-only");
-  }
+      Boolean(endpoint.http?.bodyTemplate) ||
+      paramsSatisfyEndpointForScore(endpoint, params));
 
   return {
     endpoint,
@@ -215,7 +240,7 @@ function scoreEndpoint(
 }
 
 function candidatePool(question: string, entityFilters: string[] | null): DfcApiEndpoint[] {
-  const catalog = loadDfcApiCatalog();
+  const catalog = loadDfcApiCatalog().filter((ep) => ep.kind === "http" && ep.http);
   if (entityFilters) {
     const filtered = catalog.filter((ep) => entityFilters.includes(ep.entity));
     if (filtered.length > 0) return filtered;
@@ -357,26 +382,20 @@ export function formatApiCatalogForPrompt(question?: string) {
   }
 
   const prefer = loadDfcApiCatalog()
-    .filter((ep) => ep.preferOverSql && ep.readOnly)
+    .filter((ep) => ep.preferOverSql && ep.readOnly && ep.http)
     .slice(0, 6)
     .map((ep) => {
-      const call =
-        ep.kind === "http" && ep.http
-          ? `${ep.http.method} ${ep.http.path}`
-          : `Dubbo ${ep.dubbo?.method}`;
+      const call = `${ep.http!.method} ${ep.http!.path}`;
       return `- ${ep.appCode} / ${ep.title}：${call}`;
     });
 
-  return `全库 ${total} 条 HTTP+Dubbo 接口（MySQL dfc_api_endpoints）。明细与聚合均请先 route_api / search_api；能调 HTTP 就调，多接口组装后再答，无合适接口才 SQL。\n${prefer.join("\n")}`;
+  return `全库 ${total} 条 HTTP 接口（MySQL dfc_api_endpoints）。明细与聚合均请先 route_api / search_api；能调就调，多接口组装后再答，无合适接口才 SQL。\n${prefer.join("\n")}`;
 }
 
 function formatEndpointLine(item: ApiRouteMatch) {
   const ep = item.endpoint;
-  const call =
-    ep.kind === "http" && ep.http
-      ? `${ep.http.method} ${ep.http.path}`
-      : `Dubbo ${ep.dubbo?.interfaceName}.${ep.dubbo?.method}`;
-  return `- [${ep.id}] score=${item.score} ${ep.appCode} ${ep.title} → ${call}｜${item.httpCallable ? "可 HTTP" : "Dubbo/SQL"}`;
+  const call = ep.http ? `${ep.http.method} ${ep.http.path}` : ep.id;
+  return `- [${ep.id}] score=${item.score} ${ep.appCode} ${ep.title} → ${call}｜${item.httpCallable ? "可 HTTP" : "需 SQL"}`;
 }
 
 export function formatApiRouteHintForPrompt(question?: string) {
@@ -391,14 +410,14 @@ export function formatApiRouteHintForPrompt(question?: string) {
   const call =
     ep.http?.method && ep.http.path
       ? `${ep.http.method} ${ep.http.path}`
-      : `Dubbo ${ep.dubbo?.method}`;
+      : ep.id;
   return [
     `推荐：${ep.title}（${ep.id}，score=${best.score}）`,
     `调用：${call}`,
     `参数：${JSON.stringify(best.extractedParams)}`,
     best.httpCallable
-      ? "→ call_backend_api；若问题还需其它数据，继续调用其它候选接口后组装；都失败才 SQL"
-      : "→ Dubbo/未映射 HTTP：先 search_api 找 HTTP 等价，没有再 SQL",
+      ? formatCallBackendApiHintForMatch(best, question)
+      : "→ 当前接口不可直接 HTTP 调用：请 search_api 找其它候选，没有再 SQL",
   ].join("\n");
 }
 

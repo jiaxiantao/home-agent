@@ -177,6 +177,40 @@ export type DfcApiAppSummary = {
   dubboCount: number;
 };
 
+export async function deleteMysqlDfcApiEndpointsByKind(kind: "dubbo" | "http") {
+  await ensureDfcApiEndpointsTable();
+  const result = await executeAppMysql(
+    `DELETE FROM dfc_api_endpoints WHERE kind = ?`,
+    [kind],
+  );
+  return result.affectedRows ?? 0;
+}
+
+export async function deleteMysqlSeededEndpointsNotIn(keepIds: string[]) {
+  await ensureDfcApiEndpointsTable();
+  const keep = new Set(keepIds);
+  const rows = await queryAppMysql<RowDataPacket & { id: string }>(
+    `SELECT id FROM dfc_api_endpoints WHERE seeded = 1`,
+  );
+  const stale = rows.map((row) => row.id).filter((id) => !keep.has(id));
+  if (!stale.length) {
+    return 0;
+  }
+
+  let removed = 0;
+  const chunkSize = 200;
+  for (let index = 0; index < stale.length; index += chunkSize) {
+    const chunk = stale.slice(index, index + chunkSize);
+    const placeholders = chunk.map(() => "?").join(", ");
+    const result = await executeAppMysql(
+      `DELETE FROM dfc_api_endpoints WHERE seeded = 1 AND id IN (${placeholders})`,
+      chunk,
+    );
+    removed += result.affectedRows ?? 0;
+  }
+  return removed;
+}
+
 export async function listMysqlDfcApiAppSummaries(): Promise<DfcApiAppSummary[]> {
   await ensureDfcApiEndpointsTable();
   const rows = await queryAppMysql<
@@ -187,7 +221,7 @@ export async function listMysqlDfcApiAppSummaries(): Promise<DfcApiAppSummary[]>
             SUM(kind = 'http') AS http_count,
             SUM(kind = 'dubbo') AS dubbo_count
      FROM dfc_api_endpoints
-     WHERE enabled = 1
+     WHERE enabled = 1 AND kind = 'http'
      GROUP BY app_code
      ORDER BY total DESC, app_code ASC`,
   );
@@ -204,7 +238,7 @@ export async function listAllMysqlDfcApiEndpoints() {
   const rows = await queryAppMysql<DfcApiEndpointRow>(
     `SELECT ${SELECT_COLUMNS}
      FROM dfc_api_endpoints
-     WHERE enabled = 1
+     WHERE enabled = 1 AND kind = 'http'
      ${DFC_API_LIST_ORDER_BY_SQL}`,
   );
   return rows.map(mapRow);
@@ -250,7 +284,7 @@ export async function listMysqlDfcApiEndpointsPage(options?: {
   const offset = (page - 1) * pageSize;
   const q = options?.q?.trim() ?? "";
   const appCode = options?.appCode?.trim() ?? "";
-  const kind = options?.kind ?? "all";
+  const kind = options?.kind ?? "http";
   const enabledOnly = options?.enabledOnly !== false;
 
   const where: string[] = [];

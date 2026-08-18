@@ -1,4 +1,4 @@
-/** HTTP 方法排序权重：GET 优先于 POST 等其它 HTTP，Dubbo 最后 */
+/** HTTP 方法排序权重：GET 优先于 POST 等其它 HTTP */
 export function httpMethodSortRank(
   kind: "http" | "dubbo",
   httpMethod?: string | null,

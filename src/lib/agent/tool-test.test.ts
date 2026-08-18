@@ -16,7 +16,10 @@ describe("tool-test", () => {
   });
   it("provides default args for schema tools", () => {
     expect(getDefaultTestArgs("list_schema")).toEqual({});
-    expect(getDefaultTestArgs("search_schema")).toMatchObject({ keyword: "car" });
+    expect(getDefaultTestArgs("search_schema")).toMatchObject({
+      database: "matador",
+      keyword: "car",
+    });
   });
 
   it("tests list_schema without throwing", async () => {

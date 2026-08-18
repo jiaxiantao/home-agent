@@ -3,7 +3,27 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { BackChevronIcon } from "@/components/back-chevron-icon";
+import { DarkSelect } from "@/components/dark-select";
+
 import { getDefaultTestArgs } from "@/lib/agent/tool-test-defaults";
+import {
+  formatAgentToolTestResultReport,
+  formatAgentToolsBatchTestReport,
+} from "@/lib/agent/tool-test-report";
+import { parseSseBlockData, takeSseBlocks } from "@/lib/sse";
+
+const TOOL_KIND_OPTIONS = [
+  { value: "all", label: "全部类型" },
+  { value: "builtin", label: "内置" },
+  { value: "http", label: "HTTP 自定义" },
+  { value: "disabled", label: "已停用" },
+] as const;
+
+const HTTP_METHOD_SELECT_OPTIONS = [
+  { value: "GET", label: "GET", mono: true },
+  { value: "POST", label: "POST", mono: true },
+] as const;
 
 type ManagedToolItem = {
   id: string;
@@ -33,6 +53,123 @@ type ToolTestResult = {
   warning?: string;
 };
 
+type BatchToolTestItemState = {
+  name: string;
+  label: string;
+  status: "pending" | "testing" | "done";
+  result?: ToolTestResult;
+};
+
+function TestStatusSpinner() {
+  return (
+    <span
+      className="inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-brand/25 border-t-brand-soft"
+      aria-hidden
+    />
+  );
+}
+
+function BatchToolTestProgressPanel({
+  items,
+  testing,
+}: {
+  items: BatchToolTestItemState[];
+  testing: boolean;
+}) {
+  const doneCount = items.filter((item) => item.status === "done").length;
+  const passedCount = items.filter((item) => item.result?.ok).length;
+  const failedCount = doneCount - passedCount;
+  const testingCount = items.filter((item) => item.status === "testing").length;
+  const progressComplete = !testing && doneCount === items.length && items.length > 0;
+  const progressBarClass = progressComplete
+    ? failedCount === 0
+      ? "bg-emerald-400/80"
+      : "bg-amber-400/80"
+    : "bg-brand/70";
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium text-foreground">批量测试进度</p>
+          <p className="font-mono text-xs text-muted">
+            {doneCount} / {items.length}
+            {testing ? ` · 进行中 ${testingCount}` : " · 已完成"}
+          </p>
+        </div>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-elevated">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${progressBarClass}`}
+            style={{
+              width: `${items.length ? Math.round((doneCount / items.length) * 100) : 0}%`,
+            }}
+          />
+        </div>
+        {doneCount > 0 ? (
+          <p className="mt-2 text-xs text-muted">
+            通过 {passedCount} · 失败 {failedCount}
+          </p>
+        ) : testing ? (
+          <p className="mt-2 text-xs text-muted">正在逐个测试工具，请稍候…</p>
+        ) : null}
+      </div>
+
+      <ul className="max-h-[min(52vh,28rem)] space-y-2 overflow-y-auto pr-1">
+        {items.map((entry) => (
+          <li
+            key={entry.name}
+            className={`rounded-lg border px-3 py-2.5 text-xs transition-colors ${
+              entry.status === "done"
+                ? entry.result?.ok
+                  ? "border-emerald-400/20 bg-emerald-400/5"
+                  : "border-rose-400/20 bg-rose-400/5"
+                : entry.status === "testing"
+                  ? "border-brand/25 bg-brand/5"
+                  : "border-border bg-elevated/40"
+            }`}
+          >
+            <div className="flex items-start gap-2.5">
+              <div className="mt-0.5 flex w-4 justify-center">
+                {entry.status === "testing" ? (
+                  <TestStatusSpinner />
+                ) : entry.status === "done" ? (
+                  <span
+                    className={
+                      entry.result?.ok ? "text-emerald-300" : "text-rose-300"
+                    }
+                    aria-hidden
+                  >
+                    {entry.result?.ok ? "✓" : "✕"}
+                  </span>
+                ) : (
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted/50" aria-hidden />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground">{entry.label}</p>
+                <p className="mt-0.5 font-mono text-[11px] text-muted">{entry.name}</p>
+                {entry.status === "testing" ? (
+                  <p className="mt-1 text-brand-soft">测试中…</p>
+                ) : null}
+                {entry.status === "pending" ? (
+                  <p className="mt-1 text-muted">等待中</p>
+                ) : null}
+                {entry.result ? (
+                  <p className="mt-1 text-muted">
+                    {entry.result.ok ? "通过" : "失败"} · {entry.result.durationMs}ms
+                    {entry.result.warning ? ` · ${entry.result.warning}` : ""}
+                    {entry.result.error ? ` · ${entry.result.error}` : ""}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 type Draft = {
   name: string;
   label: string;
@@ -45,7 +182,7 @@ type Draft = {
   bodyText: string;
 };
 
-const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 const CORE_TOOLS = new Set(["propose_sql", "execute_sql"]);
 
 const emptyDraft = (): Draft => ({
@@ -103,12 +240,87 @@ function formatDateTime(value?: string | null) {
   });
 }
 
+function formatToolMetaLine(item: ManagedToolItem) {
+  const parts: string[] = [];
+  if (Object.keys(item.args).length) {
+    parts.push(
+      Object.entries(item.args)
+        .map(([key, value]) => `${key}:${value}`)
+        .join(" · "),
+    );
+  } else {
+    parts.push("无参数");
+  }
+  if (item.http?.url) {
+    parts.push(`${item.http.method} ${item.http.url}`);
+  }
+  return parts.join(" · ");
+}
+
+function CopyableReportBlock({
+  title,
+  text,
+  hint,
+  tone = "default",
+  rows = 16,
+}: {
+  title: string;
+  text: string;
+  hint: string;
+  tone?: "default" | "success" | "warning";
+  rows?: number;
+}) {
+  const [copied, setCopied] = useState(false);
+  const containerTone =
+    tone === "success"
+      ? "border-emerald-400/25 bg-emerald-400/5"
+      : tone === "warning"
+        ? "border-amber-400/25 bg-amber-400/5"
+        : "border-brand/20 bg-brand/5";
+
+  async function copy() {
+    if (!text.trim()) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className={`rounded-xl border p-4 ${containerTone}`}>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-medium text-foreground">{title}</span>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          className="rounded-lg border border-border bg-elevated px-3 py-1 text-[11px] text-muted transition hover:border-brand/30 hover:text-brand-soft"
+        >
+          {copied ? "已复制" : "复制给 AI"}
+        </button>
+      </div>
+      <p className="mb-2 text-[11px] text-muted">{hint}</p>
+      <textarea
+        readOnly
+        value={text}
+        rows={rows}
+        aria-label={title}
+        className="w-full resize-y rounded-lg border border-border bg-elevated px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground outline-none"
+      />
+    </div>
+  );
+}
+
 function ToolFormModal({
   open,
   title,
   draft,
   saving,
-  creating,
+  httpEditable,
   error,
   onChange,
   onClose,
@@ -118,7 +330,7 @@ function ToolFormModal({
   title: string;
   draft: Draft;
   saving: boolean;
-  creating: boolean;
+  httpEditable: boolean;
   error: string | null;
   onChange: (draft: Draft) => void;
   onClose: () => void;
@@ -146,30 +358,18 @@ function ToolFormModal({
             {title}
           </h2>
           <p className="mt-1 text-xs text-muted">
-            {creating
-              ? "新增只读 HTTP 工具。Agent 会按名称/说明决定何时调用；测试环境仅允许 *.dasouche.net。"
-              : "可修改展示名、说明、参数提示与启停。内置工具不能改 name。"}
+            修改 Agent 看到的展示名、说明、参数提示与启停。工具名不可改。大风车 HTTP 接口请到
+            <Link href="/apis" className="text-brand-soft hover:text-brand">
+              接口目录
+            </Link>
+            新增。
           </p>
         </div>
 
         <div className="space-y-3 px-5 py-4">
-          {creating ? (
-            <label className="block">
-              <span className="mb-1.5 block text-xs text-muted">工具名（snake_case）</span>
-              <input
-                value={draft.name}
-                onChange={(event) =>
-                  onChange({ ...draft, name: event.target.value })
-                }
-                placeholder="例如：query_car_by_plate"
-                className="w-full rounded-lg border border-border bg-input px-3 py-2 font-mono text-sm text-foreground outline-none focus:border-brand/30"
-              />
-            </label>
-          ) : (
-            <p className="text-xs text-muted">
-              工具名 <code className="text-foreground">{draft.name}</code>
-            </p>
-          )}
+          <p className="text-xs text-muted">
+            工具名 <code className="text-foreground">{draft.name}</code>
+          </p>
 
           <label className="block">
             <span className="mb-1.5 block text-xs text-muted">展示名称</span>
@@ -209,25 +409,23 @@ function ToolFormModal({
             />
           </label>
 
-          {creating || draft.url || draft.method === "POST" ? (
+          {httpEditable ? (
             <>
               <div className="grid gap-3 sm:grid-cols-[7rem_1fr]">
-                <label className="block">
+                <div>
                   <span className="mb-1.5 block text-xs text-muted">方法</span>
-                  <select
+                  <DarkSelect
                     value={draft.method}
-                    onChange={(event) =>
+                    options={[...HTTP_METHOD_SELECT_OPTIONS]}
+                    onChange={(value) =>
                       onChange({
                         ...draft,
-                        method: event.target.value === "POST" ? "POST" : "GET",
+                        method: value === "POST" ? "POST" : "GET",
                       })
                     }
-                    className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-brand/30"
-                  >
-                    <option value="GET">GET</option>
-                    <option value="POST">POST</option>
-                  </select>
-                </label>
+                    buttonClassName="rounded-lg bg-input py-2"
+                  />
+                </div>
                 <label className="block">
                   <span className="mb-1.5 block text-xs text-muted">
                     URL（可用 {"{{arg}}"}）
@@ -300,12 +498,7 @@ function ToolFormModal({
           </button>
           <button
             type="button"
-            disabled={
-              saving ||
-              !draft.label.trim() ||
-              !draft.description.trim() ||
-              (creating && (!draft.name.trim() || !draft.url.trim()))
-            }
+            disabled={saving || !draft.label.trim() || !draft.description.trim()}
             onClick={onSave}
             className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90 disabled:opacity-40"
           >
@@ -324,7 +517,7 @@ function ToolTestModal({
   allowExecuteSql,
   argsText,
   result,
-  batchResults,
+  batchItems,
   error,
   onChangeArgs,
   onChangeAllowExecuteSql,
@@ -337,22 +530,42 @@ function ToolTestModal({
   allowExecuteSql: boolean;
   argsText: string;
   result: ToolTestResult | null;
-  batchResults: ToolTestResult[] | null;
+  batchItems: BatchToolTestItemState[] | null;
   error: string | null;
   onChangeArgs: (value: string) => void;
   onChangeAllowExecuteSql: (value: boolean) => void;
   onClose: () => void;
   onRun: () => void;
 }) {
+  const singleReportText = useMemo(
+    () => (result ? formatAgentToolTestResultReport(result) : ""),
+    [result],
+  );
+  const batchReportText = useMemo(() => {
+    const results =
+      batchItems
+        ?.filter((item) => item.status === "done" && item.result)
+        .map((item) => item.result!) ?? [];
+    return results.length ? formatAgentToolsBatchTestReport(results) : "";
+  }, [batchItems]);
+  const batchReportResults =
+    batchItems
+      ?.filter((item) => item.status === "done" && item.result)
+      .map((item) => item.result!) ?? [];
+  const batchReportTone =
+    batchReportResults.length > 0 && batchReportResults.every((entry) => entry.ok)
+      ? "success"
+      : "warning";
+
   if (!open) {
     return null;
   }
 
   const title = tool
     ? `测试工具 · ${tool.label}`
-    : batchResults
-      ? "批量测试结果"
-      : "测试工具";
+    : batchItems?.length
+      ? `批量测试 (${batchItems.filter((entry) => entry.status === "done").length}/${batchItems.length})`
+      : "批量测试结果";
 
   return (
     <div
@@ -363,17 +576,17 @@ function ToolTestModal({
       <div
         role="dialog"
         aria-modal="true"
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-elevated shadow-xl"
+        className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-elevated shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-border px-5 py-4">
+        <div className="shrink-0 border-b border-border px-5 py-4">
           <h2 className="text-base font-medium text-foreground">{title}</h2>
           {tool ? (
             <p className="mt-1 font-mono text-xs text-muted">{tool.name}</p>
           ) : null}
         </div>
 
-        <div className="space-y-3 px-5 py-4">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
           {tool ? (
             <>
               <label className="block">
@@ -400,6 +613,10 @@ function ToolTestModal({
 
           {error ? <p className="text-xs text-amber-400">{error}</p> : null}
 
+          {batchItems?.length ? (
+            <BatchToolTestProgressPanel items={batchItems} testing={testing} />
+          ) : null}
+
           {result ? (
             <div
               className={`rounded-xl border px-4 py-3 text-xs ${
@@ -423,40 +640,34 @@ function ToolTestModal({
             </div>
           ) : null}
 
-          {batchResults?.length ? (
-            <ul className="max-h-80 space-y-2 overflow-y-auto">
-              {batchResults.map((item) => (
-                <li
-                  key={item.name}
-                  className={`rounded-lg border px-3 py-2 text-xs ${
-                    item.ok
-                      ? "border-emerald-400/20 bg-emerald-400/5"
-                      : "border-rose-400/20 bg-rose-400/5"
-                  }`}
-                >
-                  <p className="font-medium text-foreground">
-                    {item.label}{" "}
-                    <span className="font-mono text-muted">({item.name})</span>
-                  </p>
-                  <p className="mt-0.5 text-muted">
-                    {item.ok ? "通过" : "失败"} · {item.durationMs}ms
-                    {item.warning ? ` · ${item.warning}` : ""}
-                    {item.error ? ` · ${item.error}` : ""}
-                  </p>
-                </li>
-              ))}
-            </ul>
+          {batchReportText && !testing ? (
+            <CopyableReportBlock
+              title="批量测试 AI 报告"
+              hint="结构化 Markdown 报告，包含工具名、output、data 与排查提示，可直接粘贴给 AI 协助修复。"
+              tone={batchReportTone}
+              text={batchReportText}
+              rows={18}
+            />
+          ) : null}
+
+          {singleReportText && tool && !testing ? (
+            <CopyableReportBlock
+              title="单工具测试 AI 报告"
+              hint="结构化 Markdown 报告，包含工具 output、data 与排查提示，可直接粘贴给 AI 协助修复。"
+              text={singleReportText}
+              rows={16}
+            />
           ) : null}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
+        <div className="flex shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
           <button
             type="button"
             onClick={onClose}
             disabled={testing}
             className="rounded-lg px-4 py-2 text-sm text-muted transition hover:bg-surface-hover hover:text-foreground disabled:opacity-50"
           >
-            关闭
+            {testing ? "测试进行中…" : "关闭"}
           </button>
           {tool ? (
             <button
@@ -488,7 +699,7 @@ export function AgentToolsManagement() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [editingHttp, setEditingHttp] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -500,7 +711,7 @@ export function AgentToolsManagement() {
   const [allowExecuteSql, setAllowExecuteSql] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<ToolTestResult | null>(null);
-  const [batchTestResults, setBatchTestResults] = useState<ToolTestResult[] | null>(
+  const [batchTestItems, setBatchTestItems] = useState<BatchToolTestItemState[] | null>(
     null,
   );
   const [testError, setTestError] = useState<string | null>(null);
@@ -586,17 +797,9 @@ export function AgentToolsManagement() {
     });
   }
 
-  function openCreateModal() {
-    setCreating(true);
-    setEditingId(null);
-    setDraft(emptyDraft());
-    setFormError(null);
-    setModalOpen(true);
-  }
-
   function openEditModal(item: ManagedToolItem) {
-    setCreating(false);
     setEditingId(item.id);
+    setEditingHttp(item.kind === "http");
     setDraft({
       name: item.name,
       label: item.label,
@@ -619,7 +822,7 @@ export function AgentToolsManagement() {
     );
     setAllowExecuteSql(false);
     setTestResult(null);
-    setBatchTestResults(null);
+    setBatchTestItems(null);
     setTestError(null);
     setTestModalOpen(true);
   }
@@ -631,8 +834,80 @@ export function AgentToolsManagement() {
     setTestModalOpen(false);
     setTestingTool(null);
     setTestResult(null);
-    setBatchTestResults(null);
+    setBatchTestItems(null);
     setTestError(null);
+  }
+
+  function resolveBatchToolMeta(name: string) {
+    const tool = tools.find((entry) => entry.name === name);
+    return {
+      label: tool?.label ?? name,
+    };
+  }
+
+  function markBatchTesting(name: string) {
+    setBatchTestItems((current) =>
+      current?.map((entry) =>
+        entry.name === name ? { ...entry, status: "testing" } : entry,
+      ) ?? null,
+    );
+  }
+
+  function markBatchDone(result: ToolTestResult) {
+    setBatchTestItems((current) =>
+      current?.map((entry) =>
+        entry.name === result.name
+          ? {
+              ...entry,
+              status: "done",
+              label: result.label || entry.label,
+              result,
+            }
+          : entry,
+      ) ?? null,
+    );
+  }
+
+  async function consumeBatchTestStream(response: Response) {
+    if (!response.body) {
+      throw new Error("批量测试流不可用");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const parsed = takeSseBlocks(buffer);
+      buffer = parsed.rest;
+
+      for (const block of parsed.blocks) {
+        const event = parseSseBlockData(block);
+        if (!event) {
+          continue;
+        }
+
+        if (event.event === "testing") {
+          const name = (event.payload as { name?: string }).name;
+          if (name) {
+            markBatchTesting(name);
+          }
+        } else if (event.event === "result") {
+          const result = (event.payload as { result?: ToolTestResult }).result;
+          if (result) {
+            markBatchDone(result);
+          }
+        } else if (event.event === "error") {
+          const message = (event.payload as { error?: string }).error;
+          throw new Error(message ?? "批量测试失败");
+        }
+      }
+    }
   }
 
   async function runSingleTest() {
@@ -647,6 +922,7 @@ export function AgentToolsManagement() {
       const args = parseJsonObject(testArgsText, "测试参数");
       const response = await fetch("/api/agent-tools/test", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: testingTool.name,
@@ -679,25 +955,31 @@ export function AgentToolsManagement() {
     setTesting(true);
     setTestError(null);
     setTestResult(null);
-    setBatchTestResults(null);
+    setBatchTestItems(
+      names.map((name) => ({
+        name,
+        ...resolveBatchToolMeta(name),
+        status: "pending" as const,
+      })),
+    );
     setTestingTool(null);
     setTestModalOpen(true);
 
     try {
       const response = await fetch("/api/agent-tools/test", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ names }),
+        body: JSON.stringify({ names, stream: true }),
       });
-      const payload = (await response.json()) as {
-        results?: ToolTestResult[];
-        error?: string;
-      };
+
       if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
         setTestError(payload.error ?? "批量测试失败");
         return;
       }
-      setBatchTestResults(payload.results ?? []);
+
+      await consumeBatchTestStream(response);
     } catch (error) {
       setTestError(error instanceof Error ? error.message : "批量测试失败");
     } finally {
@@ -711,7 +993,7 @@ export function AgentToolsManagement() {
     }
     setModalOpen(false);
     setEditingId(null);
-    setCreating(false);
+    setEditingHttp(false);
     setDraft(emptyDraft());
     setFormError(null);
   }
@@ -729,40 +1011,24 @@ export function AgentToolsManagement() {
         : undefined;
 
       const response = await fetch("/api/agent-tools", {
-        method: creating ? "POST" : "PATCH",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          creating
-            ? {
-                name: draft.name.trim(),
-                label: draft.label.trim(),
-                description: draft.description.trim(),
-                args,
-                enabled: draft.enabled,
-                http: {
+        body: JSON.stringify({
+          id: editingId,
+          label: draft.label.trim(),
+          description: draft.description.trim(),
+          args,
+          enabled: draft.enabled,
+          http:
+            editingHttp && (draft.url.trim() || queryTemplate || bodyTemplate)
+              ? {
                   method: draft.method,
                   url: draft.url.trim(),
                   queryTemplate,
                   bodyTemplate,
-                },
-              }
-            : {
-                id: editingId,
-                label: draft.label.trim(),
-                description: draft.description.trim(),
-                args,
-                enabled: draft.enabled,
-                http:
-                  draft.url.trim() || queryTemplate || bodyTemplate
-                    ? {
-                        method: draft.method,
-                        url: draft.url.trim(),
-                        queryTemplate,
-                        bodyTemplate,
-                      }
-                    : undefined,
-              },
-        ),
+                }
+              : undefined,
+        }),
       });
       const payload = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -810,16 +1076,12 @@ export function AgentToolsManagement() {
           href="/agents"
           className="inline-flex items-center gap-1 text-xs text-muted transition hover:text-brand-soft"
         >
-          <span aria-hidden>←</span>
+          <BackChevronIcon />
           返回数据智能体
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-foreground">工具管理</h1>
         <p className="mt-1 text-sm text-muted">
-          查看 Agent 可调用的全部工具；支持单测与批量测试，内置工具已持久化到 MySQL。
-          {" "}
-          <Link href="/apis" className="text-brand-soft transition hover:text-brand">
-            大风车接口目录 →
-          </Link>
+          管理 Agent 可调用的工具：展示名、说明、启停与连通性测试。大风车 HTTP 接口请到接口目录新增，Agent 经 route_api / call_backend_api 调用。
         </p>
       </div>
 
@@ -833,19 +1095,15 @@ export function AgentToolsManagement() {
           />
         </div>
 
-        <select
+        <DarkSelect
           value={kind}
-          onChange={(event) => {
-            setKind(event.target.value);
+          options={[...TOOL_KIND_OPTIONS]}
+          onChange={(value) => {
+            setKind(value);
             setPage(1);
           }}
-          className="w-36 shrink-0 rounded-xl border border-border bg-input px-3 py-2.5 text-sm text-foreground outline-none"
-        >
-          <option value="all">全部类型</option>
-          <option value="builtin">内置</option>
-          <option value="http">HTTP 自定义</option>
-          <option value="disabled">已停用</option>
-        </select>
+          className="w-36 shrink-0"
+        />
 
         <button
           type="button"
@@ -867,14 +1125,12 @@ export function AgentToolsManagement() {
         ) : null}
 
         {canManage ? (
-          <button
-            type="button"
-            onClick={openCreateModal}
+          <Link
+            href="/apis"
             className="inline-flex items-center gap-1.5 rounded-xl bg-foreground px-4 py-2.5 text-sm font-medium text-background transition hover:opacity-90"
           >
-            <span aria-hidden>+</span>
-            新增工具
-          </button>
+            去接口目录新增
+          </Link>
         ) : null}
       </div>
 
@@ -899,7 +1155,9 @@ export function AgentToolsManagement() {
                   <span>全选当前页</span>
                 </li>
               ) : null}
-              {tools.map((item) => (
+              {tools.map((item) => {
+                const metaLine = formatToolMetaLine(item);
+                return (
                 <li
                   key={item.id}
                   className="flex flex-wrap items-start justify-between gap-4 px-5 py-4 transition hover:bg-surface-hover"
@@ -942,13 +1200,11 @@ export function AgentToolsManagement() {
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
                         {item.description}
                       </p>
-                      <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-                        {Object.keys(item.args).length
-                          ? Object.entries(item.args)
-                              .map(([key, value]) => `${key}:${value}`)
-                              .join(" · ")
-                          : "无参数"}
-                        {item.http?.url ? ` · ${item.http.method} ${item.http.url}` : ""}
+                      <p
+                        className="mt-2 truncate font-mono text-[11px] text-muted-foreground"
+                        title={metaLine}
+                      >
+                        {metaLine}
                       </p>
                     </div>
                   </div>
@@ -997,7 +1253,8 @@ export function AgentToolsManagement() {
                     </div>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           ) : (
             <p className="px-5 py-12 text-center text-sm text-muted">
@@ -1013,20 +1270,24 @@ export function AgentToolsManagement() {
           {selectedNames.size > 0 ? ` · 已选 ${selectedNames.size} 项` : ""}
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={String(pageSize)}
-            onChange={(event) => {
-              setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]);
-              setPage(1);
-            }}
-            className="rounded-lg border border-border bg-input px-2 py-1.5 text-sm text-foreground"
-          >
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size} 条 / 页
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2 text-sm text-muted">
+            <span>每页</span>
+            <DarkSelect
+              value={String(pageSize)}
+              options={PAGE_SIZE_OPTIONS.map((size) => ({
+                value: String(size),
+                label: `${size} 条`,
+              }))}
+              onChange={(next) => {
+                setPageSize(Number(next) as (typeof PAGE_SIZE_OPTIONS)[number]);
+                setPage(1);
+              }}
+              className="w-28"
+              buttonClassName="rounded-lg px-3 py-2 text-sm"
+              align="right"
+              placement="top"
+            />
+          </div>
           <button
             type="button"
             disabled={page <= 1}
@@ -1051,10 +1312,10 @@ export function AgentToolsManagement() {
 
       <ToolFormModal
         open={modalOpen}
-        title={creating ? "新增 HTTP 工具" : "编辑工具"}
+        title="编辑工具"
         draft={draft}
         saving={saving}
-        creating={creating}
+        httpEditable={editingHttp}
         error={formError}
         onChange={setDraft}
         onClose={closeModal}
@@ -1068,7 +1329,7 @@ export function AgentToolsManagement() {
         allowExecuteSql={allowExecuteSql}
         argsText={testArgsText}
         result={testResult}
-        batchResults={batchTestResults}
+        batchItems={batchTestItems}
         error={testError}
         onChangeArgs={setTestArgsText}
         onChangeAllowExecuteSql={setAllowExecuteSql}

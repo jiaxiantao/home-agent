@@ -33,6 +33,12 @@ function routedPrior(
       },
     },
     {
+      tool: "search_api",
+      args: { question, keyword: question },
+      output: "无命中",
+      data: { keyword: question, matches: [] },
+    },
+    {
       tool: "route_question",
       args: { question },
       output: `问题路由「${question}」→ ${suggestedDatabase}`,

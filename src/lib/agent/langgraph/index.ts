@@ -6,6 +6,7 @@ import {
   summarizeSqlResult,
 } from "@/lib/agent/answer-format";
 import { buildMockPlan } from "@/lib/agent/planner-mock";
+import { resolveApiFallbackPlan } from "@/lib/agent/backend-api-tool-guide";
 import type { ThreadTurn } from "@/lib/agent/planner";
 import { buildQueryResultSurface, buildSqlConfirmSurface } from "@/lib/a2ui/types";
 import { buildChartSpecFromRows } from "@/lib/analytics/chart-spec";
@@ -22,6 +23,7 @@ import { createGraphInput } from "@/lib/agent/langgraph/graph";
 import { createToolsNodeHandler } from "@/lib/agent/langgraph/graph-runner";
 import {
   afterToolsRoute,
+  agentPlanToStateUpdate,
   buildAgentExhaustedAnswer,
   postToolsNode,
   streamRoutePlannerNode,
@@ -843,8 +845,14 @@ export async function* runDfcAgentLoop(
       delta: "正在规划…",
     });
 
+    const forcedPlan = resolveApiFallbackPlan(message, state.priorToolResults);
     const planStartedAt = performance.now();
     let agentUpdate: Partial<DfcAgentStateType> = {};
+
+    if (forcedPlan) {
+      agentUpdate = agentPlanToStateUpdate(forcedPlan, `fallback_${steps}`, state.stepCount);
+      lastMock = true;
+    } else {
     type PlannerWait =
       | { kind: "delta"; event: AgentTraceEvent }
       | { kind: "done"; update: Partial<DfcAgentStateType> }
@@ -904,6 +912,8 @@ export async function* runDfcAgentLoop(
       }
       yield item.event;
     }
+    }
+
     lastMock = agentUpdate.mock ?? lastMock;
     state = mergeState(state, agentUpdate);
 

@@ -1,0 +1,13 @@
+{
+  "comment": "测试环境 HTTP 根地址。默认 https://{app}.stable.dasouche.net（与内部 Swagger 一致；裸 {app}.dasouche.net 常 503）。apps 为探测确认的例外。skipHttpProbe：测试集群确认无 upstream 的服务，探测时跳过，勿当缺参修。",
+  "defaultTemplate": "https://{app}.stable.dasouche.net",
+  "apps": {
+    "super-mario": "http://super-mario.stable.dasouche.net",
+    "crazyracing-kartrider": "https://crazyracing-kartrider.stable.dasouche.net",
+    "matador": "http://matador.dasouche.net",
+    "ai-backend-algorithm": "https://ai-backend-algorithm.dasouche.net",
+    "danube-plug-in-web": "https://danube-plug-in-web.dasouche.net",
+    "ai-privacy-number": "https://ai-privacy-number.dasouche-inc.net"
+  },
+  "skipHttpProbe": ["cheniu-user"]
+}

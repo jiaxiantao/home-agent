@@ -13,6 +13,8 @@ import {
   normalizeHttpMethod,
   type HttpMethod,
 } from "@/lib/analytics/http-methods";
+import { parseSseBlockData, takeSseBlocks } from "@/lib/sse";
+import { BackChevronIcon } from "@/components/back-chevron-icon";
 import { DarkSelect } from "@/components/dark-select";
 
 type DfcApiAppSummary = {
@@ -94,6 +96,23 @@ type DfcApiTestResult = {
 
 type TestPanelTab = "params" | "headers" | "cookies" | "body";
 
+type BatchTestItemState = {
+  endpointId: string;
+  title: string;
+  line: string;
+  status: "pending" | "testing" | "done";
+  result?: DfcApiTestResult;
+};
+
+function TestStatusSpinner() {
+  return (
+    <span
+      className="inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-brand/25 border-t-brand-soft"
+      aria-hidden
+    />
+  );
+}
+
 type ApiDraft = {
   id: string;
   appCode: string;
@@ -116,7 +135,7 @@ type ApiDraft = {
 
 type FormPanelTab = "endpoint" | "params" | "headers" | "cookies" | "body";
 
-const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 function prettyJson(value: unknown) {
   if (!value || (typeof value === "object" && Object.keys(value).length === 0)) {
@@ -413,74 +432,32 @@ function ApiFormModal({
 
           {activeTab === "endpoint" ? (
             <div className="space-y-3">
-              <div>
-                <span className="mb-1.5 block text-xs text-muted">类型</span>
-                <DarkSelect
-                  value={draft.kind}
-                  options={[
-                    { value: "http", label: "HTTP" },
-                    { value: "dubbo", label: "Dubbo" },
-                  ]}
-                  onChange={(value) =>
-                    onChange({
-                      ...draft,
-                      kind: value === "dubbo" ? "dubbo" : "http",
-                    })
-                  }
-                />
+              <div className="grid gap-3 sm:grid-cols-[7rem_1fr]">
+                <div>
+                  <span className="mb-1.5 block text-xs text-muted">方法</span>
+                  <DarkSelect
+                    value={draft.httpMethod}
+                    options={HTTP_METHOD_OPTIONS.map((item) => ({ ...item, mono: true }))}
+                    onChange={(value) =>
+                      onChange({
+                        ...draft,
+                        httpMethod: normalizeHttpMethod(value),
+                      })
+                    }
+                  />
+                </div>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs text-muted">Path</span>
+                  <input
+                    value={draft.httpPath}
+                    onChange={(event) =>
+                      onChange({ ...draft, httpPath: event.target.value })
+                    }
+                    placeholder="/v1/example/query.json"
+                    className="w-full rounded-lg border border-border bg-input px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-brand/30"
+                  />
+                </label>
               </div>
-
-              {draft.kind === "http" ? (
-                <div className="grid gap-3 sm:grid-cols-[7rem_1fr]">
-                  <div>
-                    <span className="mb-1.5 block text-xs text-muted">方法</span>
-                    <DarkSelect
-                      value={draft.httpMethod}
-                      options={HTTP_METHOD_OPTIONS}
-                      onChange={(value) =>
-                        onChange({
-                          ...draft,
-                          httpMethod: normalizeHttpMethod(value),
-                        })
-                      }
-                    />
-                  </div>
-                  <label className="block">
-                    <span className="mb-1.5 block text-xs text-muted">Path</span>
-                    <input
-                      value={draft.httpPath}
-                      onChange={(event) =>
-                        onChange({ ...draft, httpPath: event.target.value })
-                      }
-                      placeholder="/v1/example/query.json"
-                      className="w-full rounded-lg border border-border bg-input px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-brand/30"
-                    />
-                  </label>
-                </div>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1.5 block text-xs text-muted">Dubbo Interface</span>
-                    <input
-                      value={draft.dubboInterface}
-                      onChange={(event) =>
-                        onChange({ ...draft, dubboInterface: event.target.value })
-                      }
-                      className="w-full rounded-lg border border-border bg-input px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-brand/30"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-xs text-muted">Dubbo Method</span>
-                    <input
-                      value={draft.dubboMethod}
-                      onChange={(event) =>
-                        onChange({ ...draft, dubboMethod: event.target.value })
-                      }
-                      className="w-full rounded-lg border border-border bg-input px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-brand/30"
-                    />
-                  </label>
-                </div>
-              )}
 
               <label className="block">
                 <span className="mb-1.5 block text-xs text-muted">说明（可选）</span>
@@ -649,13 +626,21 @@ function JsonBlock({
 function CopyableReportBlock({
   title,
   text,
+  tone = "default",
   rows = 16,
 }: {
   title: string;
   text: string;
+  tone?: "default" | "success" | "warning";
   rows?: number;
 }) {
   const [copied, setCopied] = useState(false);
+  const containerTone =
+    tone === "success"
+      ? "border-emerald-400/25 bg-emerald-400/5"
+      : tone === "warning"
+        ? "border-amber-400/25 bg-amber-400/5"
+        : "border-brand/20 bg-brand/5";
 
   async function copy() {
     if (!text.trim()) {
@@ -671,7 +656,7 @@ function CopyableReportBlock({
   }
 
   return (
-    <div className="rounded-xl border border-brand/20 bg-brand/5 p-4">
+    <div className={`rounded-xl border p-4 ${containerTone}`}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-medium text-foreground">{title}</span>
         <button
@@ -696,6 +681,109 @@ function CopyableReportBlock({
   );
 }
 
+function BatchTestProgressPanel({
+  items,
+  testing,
+}: {
+  items: BatchTestItemState[];
+  testing: boolean;
+}) {
+  const doneCount = items.filter((item) => item.status === "done").length;
+  const passedCount = items.filter((item) => item.result?.ok).length;
+  const failedCount = doneCount - passedCount;
+  const testingCount = items.filter((item) => item.status === "testing").length;
+  const progressComplete = !testing && doneCount === items.length && items.length > 0;
+  const progressBarClass = progressComplete
+    ? failedCount === 0
+      ? "bg-emerald-400/80"
+      : "bg-amber-400/80"
+    : "bg-brand/70";
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium text-foreground">批量测试进度</p>
+          <p className="font-mono text-xs text-muted">
+            {doneCount} / {items.length}
+            {testing ? ` · 进行中 ${testingCount}` : " · 已完成"}
+          </p>
+        </div>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-elevated">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${progressBarClass}`}
+            style={{
+              width: `${items.length ? Math.round((doneCount / items.length) * 100) : 0}%`,
+            }}
+          />
+        </div>
+        {doneCount > 0 ? (
+          <p className="mt-2 text-xs text-muted">
+            通过 {passedCount} · 失败 {failedCount}
+          </p>
+        ) : testing ? (
+          <p className="mt-2 text-xs text-muted">正在逐个探测接口，请稍候…</p>
+        ) : null}
+      </div>
+
+      <ul className="max-h-[min(52vh,28rem)] space-y-2 overflow-y-auto pr-1">
+        {items.map((entry) => (
+          <li
+            key={entry.endpointId}
+            className={`rounded-lg border px-3 py-2.5 text-xs transition-colors ${
+              entry.status === "done"
+                ? entry.result?.ok
+                  ? "border-emerald-400/20 bg-emerald-400/5"
+                  : "border-rose-400/20 bg-rose-400/5"
+                : entry.status === "testing"
+                  ? "border-brand/25 bg-brand/5"
+                  : "border-border bg-elevated/40"
+            }`}
+          >
+            <div className="flex items-start gap-2.5">
+              <div className="mt-0.5 flex w-4 justify-center">
+                {entry.status === "testing" ? (
+                  <TestStatusSpinner />
+                ) : entry.status === "done" ? (
+                  <span
+                    className={
+                      entry.result?.ok ? "text-emerald-300" : "text-rose-300"
+                    }
+                    aria-hidden
+                  >
+                    {entry.result?.ok ? "✓" : "✕"}
+                  </span>
+                ) : (
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted/50" aria-hidden />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground">{entry.title}</p>
+                <p className="mt-0.5 font-mono text-[11px] text-muted">{entry.line}</p>
+                {entry.status === "testing" ? (
+                  <p className="mt-1 text-brand-soft">测试中…</p>
+                ) : null}
+                {entry.status === "pending" ? (
+                  <p className="mt-1 text-muted">等待中</p>
+                ) : null}
+                {entry.result ? (
+                  <p className="mt-1 text-muted">
+                    {entry.result.ok ? "通过" : "失败"} · {entry.result.durationMs}ms
+                    {entry.result.response?.httpStatus != null
+                      ? ` · HTTP ${entry.result.response.httpStatus}`
+                      : ""}
+                    {entry.result.message ? ` · ${entry.result.message}` : ""}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function ApiTestModal({
   open,
   item,
@@ -710,6 +798,7 @@ function ApiTestModal({
   preview,
   result,
   batchResults,
+  batchItems,
   error,
   onChangeTab,
   onChangeParams,
@@ -733,6 +822,7 @@ function ApiTestModal({
   preview: DfcApiTestRequestPreview | null;
   result: DfcApiTestResult | null;
   batchResults: DfcApiTestResult[] | null;
+  batchItems: BatchTestItemState[] | null;
   error: string | null;
   onChangeTab: (tab: TestPanelTab) => void;
   onChangeParams: (value: string) => void;
@@ -752,6 +842,10 @@ function ApiTestModal({
       batchResults?.length ? formatDfcApiBatchTestReport(batchResults) : "",
     [batchResults],
   );
+  const batchReportTone =
+    batchResults?.length && batchResults.every((entry) => entry.ok)
+      ? "success"
+      : "warning";
 
   if (!open) {
     return null;
@@ -759,7 +853,9 @@ function ApiTestModal({
 
   const title = item
     ? `测试 · ${formatEndpointLine(item)}`
-    : "批量测试结果";
+    : batchItems?.length
+      ? `批量测试 (${batchItems.filter((entry) => entry.status === "done").length}/${batchItems.length})`
+      : "批量测试结果";
   const request = result?.request ?? preview;
   const isHttp = request?.kind === "http";
   const method = request?.method ?? item?.httpMethod ?? "GET";
@@ -908,9 +1004,14 @@ function ApiTestModal({
 
           {error ? <p className="text-xs text-amber-400">{error}</p> : null}
 
-          {batchResults?.length ? (
+          {batchItems?.length ? (
+            <BatchTestProgressPanel items={batchItems} testing={testing} />
+          ) : null}
+
+          {batchResults?.length && !testing ? (
             <CopyableReportBlock
               title="批量测试 AI 报告"
+              tone={batchReportTone}
               text={batchReportText}
               rows={18}
             />
@@ -972,33 +1073,6 @@ function ApiTestModal({
               ) : null}
             </div>
           ) : null}
-
-          {batchResults?.length ? (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-foreground">结果概览</p>
-              <ul className="max-h-48 space-y-2 overflow-y-auto">
-              {batchResults.map((entry) => (
-                <li
-                  key={entry.endpointId}
-                  className={`rounded-lg border px-3 py-2 text-xs ${
-                    entry.ok
-                      ? "border-emerald-400/20 bg-emerald-400/5"
-                      : "border-rose-400/20 bg-rose-400/5"
-                  }`}
-                >
-                  <p className="font-medium text-foreground">{entry.title}</p>
-                  <p className="mt-0.5 text-muted">
-                    {entry.ok ? "通过" : "失败"} · {entry.kind} · {entry.durationMs}ms ·{" "}
-                    {entry.response?.httpStatus != null
-                      ? `HTTP ${entry.response.httpStatus} · `
-                      : ""}
-                    {entry.message}
-                  </p>
-                </li>
-              ))}
-              </ul>
-            </div>
-          ) : null}
         </div>
 
         <div className="flex shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
@@ -1008,7 +1082,7 @@ function ApiTestModal({
             disabled={testing}
             className="rounded-lg px-4 py-2 text-sm text-muted transition hover:bg-surface-hover hover:text-foreground disabled:opacity-50"
           >
-            关闭
+            {testing ? "测试进行中…" : "关闭"}
           </button>
           {item ? (
             <button
@@ -1057,6 +1131,9 @@ export function DfcApisManagement() {
   const [batchTestResults, setBatchTestResults] = useState<DfcApiTestResult[] | null>(
     null,
   );
+  const [batchTestItems, setBatchTestItems] = useState<BatchTestItemState[] | null>(
+    null,
+  );
   const [testError, setTestError] = useState<string | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -1096,6 +1173,7 @@ export function DfcApisManagement() {
       const params = new URLSearchParams({
         page: String(page),
         pageSize: String(pageSize),
+        kind: "http",
       });
       if (appCode !== "all") {
         params.set("appCode", appCode);
@@ -1158,27 +1236,16 @@ export function DfcApisManagement() {
       repo: registryApp?.repo ?? meta.appCode,
       title: meta.title,
       description: draft.description.trim(),
-      kind: draft.kind,
+      kind: "http" as const,
       readOnly: draft.readOnly,
       baseUrlEnvKey:
         registryApp?.baseUrlEnvKey ??
         (draft.baseUrlEnvKey.trim() || "DFC_API_GATEWAY_BASE_URL"),
       methodName: meta.methodName,
-      http:
-        draft.kind === "http"
-          ? {
-              method: draft.httpMethod,
-              path: draft.httpPath.trim(),
-            }
-          : undefined,
-      dubbo:
-        draft.kind === "dubbo"
-          ? {
-              interfaceName: draft.dubboInterface.trim(),
-              method: draft.dubboMethod.trim(),
-              paramHints: "",
-            }
-          : undefined,
+      http: {
+        method: draft.httpMethod,
+        path: draft.httpPath.trim(),
+      },
     };
     return { endpoint, defaultTestConfig, enabled: draft.enabled };
   }
@@ -1365,6 +1432,7 @@ export function DfcApisManagement() {
     setTestActiveTab("params");
     setTestResult(null);
     setBatchTestResults(null);
+    setBatchTestItems(null);
     setTestError(null);
     setTestModalOpen(true);
     void loadTestPreview(item, config.params as Record<string, unknown>);
@@ -1379,7 +1447,84 @@ export function DfcApisManagement() {
     setTestPreview(null);
     setTestResult(null);
     setBatchTestResults(null);
+    setBatchTestItems(null);
     setTestError(null);
+  }
+
+  function resolveBatchItemMeta(endpointId: string) {
+    const item = endpoints.find((entry) => entry.id === endpointId);
+    return {
+      title: item?.title ?? endpointId,
+      line: item ? formatEndpointLine(item) : endpointId,
+    };
+  }
+
+  function markBatchTesting(endpointId: string) {
+    setBatchTestItems((current) =>
+      current?.map((entry) =>
+        entry.endpointId === endpointId
+          ? { ...entry, status: "testing" }
+          : entry,
+      ) ?? null,
+    );
+  }
+
+  function markBatchDone(result: DfcApiTestResult) {
+    setBatchTestItems((current) =>
+      current?.map((entry) =>
+        entry.endpointId === result.endpointId
+          ? {
+              ...entry,
+              status: "done",
+              title: result.title || entry.title,
+              result,
+            }
+          : entry,
+      ) ?? null,
+    );
+    setBatchTestResults((current) => [...(current ?? []), result]);
+  }
+
+  async function consumeBatchTestStream(response: Response) {
+    if (!response.body) {
+      throw new Error("批量测试流不可用");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const parsed = takeSseBlocks(buffer);
+      buffer = parsed.rest;
+
+      for (const block of parsed.blocks) {
+        const event = parseSseBlockData(block);
+        if (!event) {
+          continue;
+        }
+
+        if (event.event === "testing") {
+          const endpointId = (event.payload as { endpointId?: string }).endpointId;
+          if (endpointId) {
+            markBatchTesting(endpointId);
+          }
+        } else if (event.event === "result") {
+          const result = (event.payload as { result?: DfcApiTestResult }).result;
+          if (result) {
+            markBatchDone(result);
+          }
+        } else if (event.event === "error") {
+          const message = (event.payload as { error?: string }).error;
+          throw new Error(message ?? "批量测试失败");
+        }
+      }
+    }
   }
 
   async function runSingleTest() {
@@ -1438,7 +1583,14 @@ export function DfcApisManagement() {
     setTesting(true);
     setTestError(null);
     setTestResult(null);
-    setBatchTestResults(null);
+    setBatchTestResults([]);
+    setBatchTestItems(
+      endpointIds.map((endpointId) => ({
+        endpointId,
+        ...resolveBatchItemMeta(endpointId),
+        status: "pending" as const,
+      })),
+    );
     setTestingItem(null);
     setTestModalOpen(true);
 
@@ -1447,17 +1599,16 @@ export function DfcApisManagement() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ endpointIds }),
+        body: JSON.stringify({ endpointIds, stream: true }),
       });
-      const payload = (await response.json()) as {
-        results?: DfcApiTestResult[];
-        error?: string;
-      };
+
       if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
         setTestError(payload.error ?? "批量测试失败");
         return;
       }
-      setBatchTestResults(payload.results ?? []);
+
+      await consumeBatchTestStream(response);
     } catch (error) {
       setTestError(error instanceof Error ? error.message : "批量测试失败");
     } finally {
@@ -1472,12 +1623,17 @@ export function DfcApisManagement() {
           href="/tools"
           className="inline-flex items-center gap-1 text-xs text-muted transition hover:text-brand-soft"
         >
-          <span aria-hidden>←</span>
+          <BackChevronIcon />
           返回工具管理
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-foreground">大风车接口目录</h1>
         <p className="mt-1 text-sm text-muted">
-          接口目录仅存于 MySQL，每条接口含默认测试配置（入参 / 请求头 / Query / Body）。列表按 Agent 调用次数降序排列，次数相同时 GET 优先于 POST。重新扫描后端生成配置：<code className="text-xs">pnpm db:backfill-test-config</code>。同步目录：<code className="text-xs">pnpm db:sync-apis</code>。
+          在此新增、维护大风车 HTTP 接口。Agent 经 route_api / search_api / call_backend_api 调用目录中的接口。工具启停与说明请到
+          {" "}
+          <Link href="/tools" className="text-brand-soft transition hover:text-brand">
+            工具管理
+          </Link>
+          。目录存于 MySQL；同步：<code className="text-xs">pnpm db:sync-apis</code>。
         </p>
       </div>
 
@@ -1661,20 +1817,24 @@ export function DfcApisManagement() {
           {selectedIds.size > 0 ? ` · 已选 ${selectedIds.size} 项` : ""}
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={String(pageSize)}
-            onChange={(event) => {
-              setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]);
-              setPage(1);
-            }}
-            className="rounded-lg border border-border bg-input px-2 py-1.5 text-sm text-foreground"
-          >
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size} 条 / 页
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2 text-sm text-muted">
+            <span>每页</span>
+            <DarkSelect
+              value={String(pageSize)}
+              options={PAGE_SIZE_OPTIONS.map((size) => ({
+                value: String(size),
+                label: `${size} 条`,
+              }))}
+              onChange={(next) => {
+                setPageSize(Number(next) as (typeof PAGE_SIZE_OPTIONS)[number]);
+                setPage(1);
+              }}
+              className="w-28"
+              buttonClassName="rounded-lg px-3 py-2 text-sm"
+              align="right"
+              placement="top"
+            />
+          </div>
           <button
             type="button"
             disabled={page <= 1}
@@ -1727,6 +1887,7 @@ export function DfcApisManagement() {
         preview={testPreview}
         result={testResult}
         batchResults={batchTestResults}
+        batchItems={batchTestItems}
         error={testError}
         onChangeTab={setTestActiveTab}
         onChangeParams={setParamsText}

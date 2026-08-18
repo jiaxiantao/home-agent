@@ -55,7 +55,7 @@ const endpointSchema = z.object({
   entity: z.string().optional(),
   title: z.string().min(1).max(256),
   description: z.string().optional(),
-  kind: z.enum(["http", "dubbo"]),
+  kind: z.literal("http"),
   readOnly: z.boolean().optional(),
   preferOverSql: z.boolean().optional(),
   http: z
@@ -140,9 +140,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const kindRaw = url.searchParams.get("kind")?.trim() ?? "all";
-  const kind =
-    kindRaw === "http" || kindRaw === "dubbo" ? kindRaw : ("all" as const);
+  const kind = "http" as const;
 
   const appCodeFilter = url.searchParams.get("appCode")?.trim() ?? "";
 
@@ -200,7 +198,10 @@ export async function POST(request: Request) {
       })
       .parse(await request.json());
 
-    const endpoint = buildEndpointFromBody(body.endpoint);
+    const endpoint = buildEndpointFromBody({
+      ...body.endpoint,
+      kind: "http",
+    });
     const defaultTestConfig =
       normalizePartialTestConfig(body.defaultTestConfig) ??
       (body.defaultTestParams

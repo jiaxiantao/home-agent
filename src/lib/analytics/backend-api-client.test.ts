@@ -4,6 +4,8 @@ import {
   assertTestSafeUpstreamUrl,
   buildDfcUpstreamSsoHeaders,
   buildSuggestedSqlForEndpoint,
+  isDfcApiEndpointEnvConfigured,
+  resolveDfcApiEndpointBaseUrl,
 } from "@/lib/analytics/backend-api-client";
 import type { DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
 
@@ -78,6 +80,39 @@ describe("buildDfcUpstreamSsoHeaders", () => {
   });
 });
 
+describe("resolveDfcApiEndpointBaseUrl", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("falls back to inferred per-app env when catalog still points at GATEWAY", () => {
+    vi.stubEnv("DFC_API_GATEWAY_BASE_URL", "");
+    vi.stubEnv(
+      "DFC_API_DANUBE_PLUG_IN_WEB_BASE_URL",
+      "https://danube-plug-in-web.dasouche.net",
+    );
+    const endpoint = {
+      appCode: "danube-plug-in-web",
+      baseUrlEnvKey: "DFC_API_GATEWAY_BASE_URL",
+    };
+    expect(resolveDfcApiEndpointBaseUrl(endpoint)).toBe(
+      "https://danube-plug-in-web.dasouche.net",
+    );
+    expect(isDfcApiEndpointEnvConfigured(endpoint)).toBe(true);
+  });
+});
+
+describe("inferDefaultBaseUrlForApp", () => {
+  it("uses stable host for apps without an exception", async () => {
+    const { inferDefaultBaseUrlForApp } = await import(
+      "@/lib/analytics/backend-api-client"
+    );
+    expect(inferDefaultBaseUrlForApp("anduin")).toBe(
+      "https://anduin.stable.dasouche.net",
+    );
+  });
+});
+
 describe("assertTestSafeUpstreamUrl", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -89,6 +124,11 @@ describe("assertTestSafeUpstreamUrl", () => {
       /禁止调用线上域名 matador\.souche\.com/,
     );
     expect(assertTestSafeUpstreamUrl("http://super-mario.stable.dasouche.net/crm")).toBeUndefined();
+    expect(
+      assertTestSafeUpstreamUrl(
+        "https://ai-privacy-number.dasouche-inc.net/aiprivacynumber/controller/bindDetailController/selectOne.json",
+      ),
+    ).toBeUndefined();
   });
 
   it("allows souche.com outside test env", () => {

@@ -39,7 +39,7 @@ export function createDfcApiMcpServer() {
     "dfc_catalog_stats",
     {
       title: "DFC catalog stats",
-      description: "返回大风车接口目录统计（http/dubbo/readOnly 等）",
+      description: "返回大风车 HTTP 接口目录统计（http/readOnly 等）",
     },
     async () => {
       const result = dfcMcpCatalogStats();
@@ -55,13 +55,13 @@ export function createDfcApiMcpServer() {
     {
       title: "Search DFC APIs",
       description:
-        "按关键词/问题搜索全量大风车接口目录（含 Dubbo 元数据）。第一期仅 HTTP 只读可调用。",
+        "按关键词/问题搜索大风车 HTTP 接口目录。只读 HTTP 可经 dfc_call_http_api 调用。",
       inputSchema: {
         question: z.string().optional(),
         keyword: z.string().optional(),
         appCode: z.string().optional(),
         entity: z.string().optional(),
-        kind: z.enum(["http", "dubbo"]).optional(),
+        kind: z.enum(["http"]).optional(),
         readOnlyOnly: z.boolean().optional(),
         limit: z.number().int().positive().max(50).optional(),
       },
@@ -92,7 +92,7 @@ export function createDfcApiMcpServer() {
     "dfc_get_api",
     {
       title: "Get DFC API",
-      description: "按 endpointId 返回接口详情（HTTP path / Dubbo interface / sqlFallback）",
+      description: "按 endpointId 返回 HTTP 接口详情（path / sqlFallback）",
       inputSchema: {
         endpointId: z.string(),
       },
@@ -111,7 +111,7 @@ export function createDfcApiMcpServer() {
     {
       title: "Call DFC HTTP API",
       description:
-        "调用只读 HTTP 接口并转发 SSO。Dubbo 接口会返回 skipped。可选 query/body 透传。",
+        "调用只读 HTTP 接口并转发 SSO。可选 query/body 透传。",
       inputSchema: {
         endpointId: z.string(),
         question: z.string().optional(),

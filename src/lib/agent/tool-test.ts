@@ -43,7 +43,7 @@ function evaluateToolTestSuccess(
     if (status === "skipped") {
       return {
         ok: true,
-        warning: "Dubbo 或非只读接口无法直连，目录与回退信息正常",
+        warning: "非只读接口无法直连，目录与回退信息正常",
       };
     }
     if (status === "not_configured") {
@@ -159,4 +159,36 @@ export async function testAgentToolsBatch(
     failed: results.filter((item) => !item.ok).length,
     results,
   };
+}
+
+export async function* testAgentToolsBatchStream(
+  names: string[],
+  options?: {
+    args?: Record<string, unknown>;
+    argsByName?: Record<string, Record<string, unknown>>;
+    allowExecuteSql?: boolean;
+    concurrency?: number;
+  },
+): AsyncGenerator<
+  { type: "testing"; name: string } | { type: "result"; result: ToolTestResult }
+> {
+  const unique = [...new Set(names.map((item) => item.trim()).filter(Boolean))];
+  const concurrency = Math.min(Math.max(options?.concurrency ?? 3, 1), 6);
+
+  for (let index = 0; index < unique.length; index += concurrency) {
+    const chunk = unique.slice(index, index + concurrency);
+    for (const name of chunk) {
+      yield { type: "testing", name };
+    }
+    const chunkResults = await Promise.all(
+      chunk.map((name) =>
+        testAgentTool(name, options?.argsByName?.[name] ?? options?.args, {
+          allowExecuteSql: options?.allowExecuteSql,
+        }),
+      ),
+    );
+    for (const result of chunkResults) {
+      yield { type: "result", result };
+    }
+  }
 }

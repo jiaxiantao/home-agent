@@ -60,6 +60,8 @@ if (!globalStore.__dfcAgentManagedTools) {
   globalStore.__dfcAgentManagedTools = [];
 }
 
+const BUILTIN_TOOL_BASELINE_AT = new Date().toISOString();
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -74,8 +76,8 @@ function builtinSnapshot(): ManagedAgentTool[] {
     enabled: true,
     kind: "builtin",
     builtin: true,
-    createdAt: "1970-01-01T00:00:00.000Z",
-    updatedAt: "1970-01-01T00:00:00.000Z",
+    createdAt: BUILTIN_TOOL_BASELINE_AT,
+    updatedAt: BUILTIN_TOOL_BASELINE_AT,
     createdBy: "system",
   }));
 }
