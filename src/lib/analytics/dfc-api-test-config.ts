@@ -109,12 +109,22 @@ function fillBodyTemplate(
   return filled;
 }
 
+function resolveEnumFirstValue(backendRoot: string, enumTypeName: string): string | null {
+  const enumPath = resolveJavaFile(backendRoot, enumTypeName);
+  if (!enumPath || !fs.existsSync(enumPath)) return null;
+  const content = fs.readFileSync(enumPath, "utf8");
+  const match = content.match(/^\s+([A-Z][A-Z0-9_]*)\s*[,(;]/m);
+  return match?.[1] ?? null;
+}
+
 function sampleValueForJavaField(
   type: string,
   fieldName: string,
   backendRoot: string,
   visited = new Set<string>(),
 ): unknown {
+  // List/Set types always return [] regardless of field name
+  if (type.includes("List") || type.includes("Set")) return [];
   if (fieldName in SAMPLE_BY_FIELD) {
     return SAMPLE_BY_FIELD[fieldName];
   }
@@ -125,7 +135,8 @@ function sampleValueForJavaField(
   if (lower.includes("name") && !lower.includes("user")) return SAMPLE_BY_FIELD.name;
   if (lower.includes("pageno") || lower === "page") return SAMPLE_BY_FIELD.pageNo;
   if (lower.includes("pagesize")) return SAMPLE_BY_FIELD.pageSize;
-  if (type.includes("List") || type.includes("Set")) return [];
+  // Integer-like field names (concurrent, coefficient, count, max, min, minutes etc.)
+  if (/concurrent|coefficient|minutes|maxconcurrent/i.test(lower)) return 1;
   if (type.includes("Map")) return {};
   if (/Boolean|boolean/.test(type)) return false;
   if (/\bByte\b/.test(type)) return 1;
@@ -135,7 +146,15 @@ function sampleValueForJavaField(
   if (/Date/.test(type)) return "2024-01-01T00:00:00+08:00";
 
   const simpleType = type.replace(/<.*>/, "").split(".").pop() ?? type;
-  if (/DTO|Param|VO|Request|Query/i.test(simpleType) && !visited.has(simpleType)) {
+
+  // Enum: read source file and use first enum constant
+  if (/Enum$/i.test(simpleType) && !visited.has(simpleType)) {
+    const firstVal = resolveEnumFirstValue(backendRoot, simpleType);
+    if (firstVal) return firstVal;
+  }
+
+  // DTO / Param / VO / Filter etc.: recursively parse
+  if (/DTO|Param|VO|Request|Query|Filter/i.test(simpleType) && !visited.has(simpleType)) {
     const nestedPath = resolveJavaFile(backendRoot, simpleType);
     if (nestedPath) {
       return parseDtoBody(nestedPath, backendRoot, visited);
@@ -344,16 +363,34 @@ function inferQueryFromJavaSource(
   const paramsBlock = extractMethodParamsBlock(content, endpoint.methodName);
   const query = { ...fromCatalog };
 
+  // Extract Java type for each method parameter for accurate sample value inference
+  // Pattern: @RequestParam("key") SomeType varName  or  @Param("key") SomeType varName
+  const javaParamTypes = new Map<string, string>();
+  for (const m of paramsBlock.matchAll(
+    /(?:@Param|@RequestParam)\s*\(\s*(?:value\s*=\s*)?"([^"]+)"[^)]*\)\s+([\w<>.,\s]+?)\s+\w+/g,
+  )) {
+    javaParamTypes.set(m[1], m[2].trim());
+  }
+
+  function sampleQueryValue(key: string): string {
+    const javaType = javaParamTypes.get(key) ?? "";
+    if (/Integer|int|Long|long|Short|short|Byte\b/.test(javaType)) return "1";
+    if (/Double|double|Float|float|BigDecimal/.test(javaType)) return "1.0";
+    if (/Boolean|boolean/.test(javaType)) return "false";
+    if (/concurrent|coefficient|minutes|maxconcurrent/i.test(key)) return "1";
+    const from =
+      params[key as keyof ApiRouteParams] ??
+      SAMPLE_BY_FIELD[key] ??
+      (key.toLowerCase().includes("id") ? SAMPLE_BY_FIELD.recordId : undefined);
+    return from != null ? String(from) : "demo";
+  }
+
   for (const match of paramsBlock.matchAll(/@Param\s*\(\s*(?:value\s*=\s*)?"([^"]+)"/g)) {
     const key = match[1];
     if (query[key]) {
       continue;
     }
-    const paramValue =
-      params[key as keyof ApiRouteParams] ??
-      SAMPLE_BY_FIELD[key] ??
-      (key.toLowerCase().includes("id") ? SAMPLE_BY_FIELD.recordId : "demo");
-    query[key] = String(paramValue);
+    query[key] = sampleQueryValue(key);
   }
 
   for (const match of paramsBlock.matchAll(/@RequestParam\s*\(\s*(?:value\s*=\s*)?"([^"]+)"/g)) {
@@ -361,11 +398,7 @@ function inferQueryFromJavaSource(
     if (query[key]) {
       continue;
     }
-    const paramValue =
-      params[key as keyof ApiRouteParams] ??
-      SAMPLE_BY_FIELD[key] ??
-      "demo";
-    query[key] = String(paramValue);
+    query[key] = sampleQueryValue(key);
   }
 
   return query;
