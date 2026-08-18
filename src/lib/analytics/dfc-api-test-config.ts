@@ -375,17 +375,18 @@ export function inferDefaultTestConfig(
   endpoint: DfcApiEndpoint,
   options?: { backendRoot?: string; skipJavaSource?: boolean },
 ): DfcApiTestConfig {
-  const scanJava = !options?.skipJavaSource && Boolean(options?.backendRoot);
-  const backendRoot = options?.backendRoot ?? defaultBackendRoot();
+  const backendRoot = options?.backendRoot;
+  const scanJava = !options?.skipJavaSource && Boolean(backendRoot);
+  const resolvedRoot = backendRoot ?? (scanJava ? defaultBackendRoot() : "");
   const params = inferDefaultTestParams(endpoint);
   const headers = inferDefaultHeaders(endpoint);
   const query = scanJava
-    ? inferQueryFromJavaSource(endpoint, backendRoot, params)
+    ? inferQueryFromJavaSource(endpoint, resolvedRoot, params)
     : buildDefaultQuery(endpoint, params);
 
   let body =
     fillBodyTemplate(endpoint.http?.bodyTemplate, params) ??
-    (scanJava ? inferBodyFromJavaSource(endpoint, backendRoot) : undefined);
+    (scanJava ? inferBodyFromJavaSource(endpoint, resolvedRoot) : undefined);
 
   if (
     !body &&

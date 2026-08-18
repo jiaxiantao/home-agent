@@ -116,27 +116,31 @@ const SELECT_COLUMNS = `id, app_code, kind, title, description, read_only, base_
             endpoint_json, default_test_params_json, default_test_config_json, seeded, enabled,
             agent_call_count, created_by, created_at, updated_at`;
 
+const FAST_INFER = { skipJavaSource: true } as const;
+
 function resolveRowTestConfig(
   row: DfcApiEndpointRow,
   endpoint: DfcApiEndpoint,
 ): DfcApiTestConfig {
   const stored = parseStoredTestConfig(row.default_test_config_json);
   if (stored) {
-    return mergeTestConfig(stored, endpoint);
+    return mergeTestConfig(stored, endpoint, FAST_INFER);
   }
   const legacyParams = parseDefaultTestParams(row.default_test_params_json);
   if (Object.keys(legacyParams).length > 0) {
+    const base = inferDefaultTestConfig(endpoint, FAST_INFER);
     return mergeTestConfig(
       {
         params: legacyParams,
-        headers: inferDefaultTestConfig(endpoint).headers,
-        query: inferDefaultTestConfig(endpoint).query,
-        body: inferDefaultTestConfig(endpoint).body,
+        headers: base.headers,
+        query: base.query,
+        body: base.body,
       },
       endpoint,
+      FAST_INFER,
     );
   }
-  return inferDefaultTestConfig(endpoint);
+  return inferDefaultTestConfig(endpoint, FAST_INFER);
 }
 
 function mapRow(row: DfcApiEndpointRow): StoredDfcApiEndpoint {
@@ -349,7 +353,7 @@ export async function upsertMysqlDfcApiEndpoint(input: {
 
   const endpoint = input.endpoint;
   const defaultTestConfig =
-    input.defaultTestConfig ?? inferDefaultTestConfig(endpoint);
+    input.defaultTestConfig ?? inferDefaultTestConfig(endpoint, FAST_INFER);
   const now = new Date();
 
   await executeAppMysql(
@@ -483,7 +487,7 @@ export async function batchUpsertMysqlDfcApiEndpoints(
     const now = new Date();
 
     for (const endpoint of chunk) {
-      const defaultTestConfig = inferDefaultTestConfig(endpoint);
+      const defaultTestConfig = inferDefaultTestConfig(endpoint, FAST_INFER);
       placeholders.push("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
       values.push(
         endpoint.id,
