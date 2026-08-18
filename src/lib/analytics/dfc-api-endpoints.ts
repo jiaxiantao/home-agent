@@ -26,6 +26,7 @@ import {
 } from "@/lib/analytics/api-catalog-store";
 import type { ApiRouteParams, DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
 import {
+  defaultBackendRoot,
   inferDefaultTestConfig,
   type DfcApiTestConfig,
 } from "@/lib/analytics/dfc-api-test-config";
@@ -177,7 +178,7 @@ export async function resolveTestConfigForEndpoint(
     body?: Record<string, unknown>;
   },
 ): Promise<DfcApiTestConfig> {
-  const backendRoot = process.env.DFC_BACKEND_ROOT?.trim() || undefined;
+  const backendRoot = process.env.DFC_BACKEND_ROOT?.trim() || defaultBackendRoot() || undefined;
 
   if (!isAppMysqlConfigured()) {
     const cached = getDfcApiEndpointById(endpointId);

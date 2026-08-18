@@ -40,7 +40,7 @@ const SAMPLE_BY_FIELD: Record<string, unknown> = {
   pageSize: 20,
 };
 
-function defaultBackendRoot() {
+export function defaultBackendRoot() {
   const fromEnv = process.env.DFC_BACKEND_ROOT?.trim();
   if (fromEnv) {
     return fromEnv;
