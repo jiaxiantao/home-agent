@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
 
 import type { DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
+import { loadDfcApiCatalogFromJsonFile } from "@/lib/analytics/dfc-api-catalog-json";
 import { inferDefaultTestConfig } from "@/lib/analytics/dfc-api-test-config";
 
 describe("dfc-api-test-config", () => {
@@ -78,4 +80,82 @@ describe("dfc-api-test-config", () => {
     expect(config.query.recordId).toBe("LYa4PsNN4J");
     expect(config.headers._source_code).toBe("WEB");
   });
+
+  it(
+    "infers danube-league POST bodies from Java DTOs (Lombok / @Validated / List)",
+    () => {
+    const backendRoot = "/Users/xiantaojia/Documents/dafengche-backend";
+    if (!fs.existsSync(backendRoot)) {
+      return;
+    }
+
+    const list = loadDfcApiCatalogFromJsonFile().find(
+      (item) => item.id === "danube-league:http:POST:/car/list:list",
+    )!;
+    const batch = loadDfcApiCatalogFromJsonFile().find(
+      (item) => item.id === "danube-league:http:POST:/car/batchCreateLeagueDX:batchCreateLeagueDX",
+    )!;
+    const join = loadDfcApiCatalogFromJsonFile().find(
+      (item) => item.id === "danube-league:http:POST:/league/join:join",
+    )!;
+
+    const listConfig = inferDefaultTestConfig(list, { backendRoot });
+    expect(listConfig.body).toMatchObject({ pageSize: 20, shopCode: expect.any(String) });
+
+    const batchConfig = inferDefaultTestConfig(batch, { backendRoot });
+    expect(Array.isArray(batchConfig.body)).toBe(true);
+
+    const joinConfig = inferDefaultTestConfig(join, { backendRoot });
+    expect(joinConfig.body).toMatchObject({ leagueId: expect.any(String) });
+    },
+    15_000,
+  );
+
+  it(
+    "infers danube-authorization request params, inline bodies, and secrets",
+    () => {
+      const backendRoot = "/Users/xiantaojia/Documents/dafengche-backend";
+      if (!fs.existsSync(backendRoot)) {
+        return;
+      }
+
+      const catalog = loadDfcApiCatalogFromJsonFile();
+      const reenable = catalog.find(
+        (item) => item.id === "danube-authorization:http:GET:/init/version/reenable:reenableVersion",
+      )!;
+      const deleteUser = catalog.find(
+        (item) => item.id === "danube-authorization:http:POST:/danubeAdmin/deleteUser:deleteUser",
+      )!;
+      const migrate = catalog.find(
+        (item) => item.id === "danube-authorization:http:POST:/DataMigration/migrate:migrate",
+      )!;
+      const userInitRole = catalog.find(
+        (item) => item.id === "danube-authorization:http:POST:/role/userInitRole:userInitRole",
+      )!;
+
+      const reenableConfig = inferDefaultTestConfig(reenable, { backendRoot });
+      expect(reenableConfig.query.version_id).toBe("LYa4PsNN4J");
+      expect(reenableConfig.headers.tt).toBe("QHQ4utc5KuVcW4AIpB3vk7pRNfjOGLaB");
+
+      const deleteUserConfig = inferDefaultTestConfig(deleteUser, { backendRoot });
+      expect(deleteUserConfig.headers.tt).toBe("cquh79awAaZaybt6vtnKV43jAfuZXGCB");
+      expect(deleteUserConfig.body).toMatchObject({
+        userId: [],
+      });
+
+      const migrateConfig = inferDefaultTestConfig(migrate, { backendRoot });
+      expect(migrateConfig.body).toMatchObject({
+        tt: "QHQ4utc5KuVcW4AIpB3vk7pRNfjOGLaB",
+        shopCodes: [],
+        versionId: expect.any(String),
+      });
+
+      const userInitRoleConfig = inferDefaultTestConfig(userInitRole, { backendRoot });
+      expect(userInitRoleConfig.body).toMatchObject({
+        token: "tGWJmDMZ9kFfSaSmS",
+        userIds: [],
+      });
+    },
+    15_000,
+  );
 });

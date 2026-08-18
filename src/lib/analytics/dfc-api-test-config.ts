@@ -164,6 +164,72 @@ function sampleValueForJavaField(
   return "demo";
 }
 
+function applyControllerSecrets(
+  body: unknown,
+  secrets: { token?: string; tt?: string },
+): unknown {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return body;
+  }
+  const next = { ...(body as Record<string, unknown>) };
+  if (typeof next.token !== "undefined" && secrets.token) {
+    next.token = secrets.token;
+  }
+  if (typeof next.tt !== "undefined" && secrets.tt) {
+    next.tt = secrets.tt;
+  }
+  return next;
+}
+
+function parseJavaFields(
+  content: string,
+  backendRoot: string,
+  visited = new Set<string>(),
+): Record<string, unknown> | undefined {
+  const body: Record<string, unknown> = {};
+  for (const match of content.matchAll(
+    /(?:^|\n)\s*(?:@\w+(?:\([^)]*\))?\s*)*(?:private|protected|public)?\s*([\w<>,\[\].\s]+?)\s+(\w+)(?:\s*=\s*[^;]+)?\s*;/gm,
+  )) {
+    const type = match[1].trim();
+    const name = match[2];
+    if (name === "serialVersionUID") {
+      continue;
+    }
+    if (/Service$|Mapper$|Repository$|Controller$|Client$/.test(type)) {
+      continue;
+    }
+    body[name] = sampleValueForJavaField(type, name, backendRoot, visited);
+  }
+  return Object.keys(body).length ? body : undefined;
+}
+
+function parseInlineClassBody(
+  controllerContent: string,
+  className: string,
+  backendRoot: string,
+  visited = new Set<string>(),
+): Record<string, unknown> | undefined {
+  const classRe = new RegExp(`class\\s+${className}\\b[^\\{]*\\{`, "s");
+  const classMatch = classRe.exec(controllerContent);
+  if (!classMatch) {
+    return undefined;
+  }
+  let depth = 1;
+  let index = classMatch.index + classMatch[0].length;
+  const start = index;
+  while (index < controllerContent.length && depth > 0) {
+    const char = controllerContent[index];
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+    }
+    index += 1;
+  }
+  const classBody = controllerContent.slice(start, index - 1);
+  return parseJavaFields(classBody, backendRoot, visited);
+}
+
 function parseDtoBody(
   dtoPath: string,
   backendRoot: string,
@@ -199,19 +265,7 @@ function parseDtoBody(
     }
   }
 
-  for (const match of content.matchAll(
-    /(?:^|\n)\s*(?:@\w+(?:\([^)]*\))?\s*)*(?:private|protected|public)?\s*([\w<>,\[\].\s]+?)\s+(\w+)\s*;/gm,
-  )) {
-    const type = match[1].trim();
-    const name = match[2];
-    if (name === "serialVersionUID") {
-      continue;
-    }
-    if (/Service$|Mapper$|Repository$|Controller$|Client$/.test(type)) {
-      continue;
-    }
-    body[name] = sampleValueForJavaField(type, name, backendRoot, visited);
-  }
+  Object.assign(body, parseJavaFields(content, backendRoot, visited) ?? {});
 
   const result = Object.keys(body).length ? body : undefined;
   if (visited.size <= 1) {
@@ -264,19 +318,54 @@ function resolveJavaFile(backendRoot: string, className: string, sourceFile?: st
   return resolved;
 }
 
-function extractMethodParamsBlock(content: string, methodName: string) {
-  const sigRe = new RegExp(
-    `public\\s+[\\w<>,\\s\\[\\]?.]+\\s+${methodName}\\s*\\(`,
-    "s",
+function extractJavaStringConstant(content: string, constantName: string): string | undefined {
+  const escaped = constantName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = content.match(
+    new RegExp(`(?:private|public|protected)?\\s*static\\s+final\\s+String\\s+${escaped}\\s*=\\s*"([^"]+)"`),
   );
-  const sigMatch = sigRe.exec(content);
-  if (!sigMatch) {
-    return "";
+  return match?.[1];
+}
+
+function extractControllerBasePath(content: string): string {
+  const match = content.match(/@RequestMapping\s*\(\s*"([^"]+)"/);
+  return match?.[1] ?? "";
+}
+
+function locateMethod(
+  content: string,
+  endpoint: DfcApiEndpoint,
+): { paramsBlock: string; bodyBlock: string } | null {
+  if (!endpoint.methodName) {
+    return null;
   }
+  const sigRe = new RegExp(
+    `public\\s+[\\w<>,\\s\\[\\]?.]+\\s+${endpoint.methodName}\\s*\\(`,
+    "gs",
+  );
+  const candidates = [...content.matchAll(sigRe)];
+  if (candidates.length === 0) {
+    return null;
+  }
+  const desiredMethod = endpoint.http?.method;
+  const desiredPath = endpoint.http?.path;
+  const basePath = extractControllerBasePath(content);
+  const methodPath =
+    desiredPath && basePath && desiredPath.startsWith(basePath)
+      ? desiredPath.slice(basePath.length) || "/"
+      : desiredPath;
+  const sigMatch =
+    candidates.find((candidate) => {
+      const prelude = content.slice(Math.max(0, candidate.index! - 800), candidate.index);
+      if (!desiredPath) return true;
+      return (
+        (prelude.includes(`"${desiredPath}"`) || (methodPath ? prelude.includes(`"${methodPath}"`) : false)) &&
+        (!desiredMethod || prelude.includes(`@${desiredMethod[0]}${desiredMethod.slice(1).toLowerCase()}Mapping`))
+      );
+    }) ?? candidates[0];
 
   let depth = 1;
   let index = sigMatch.index + sigMatch[0].length;
-  const start = index;
+  const paramsStart = index;
   while (index < content.length && depth > 0) {
     const char = content[index];
     if (char === "(") {
@@ -286,7 +375,56 @@ function extractMethodParamsBlock(content: string, methodName: string) {
     }
     index += 1;
   }
-  return content.slice(start, index - 1);
+  const paramsBlock = content.slice(paramsStart, index - 1);
+
+  const braceStart = content.indexOf("{", index);
+  if (braceStart < 0) {
+    return { paramsBlock, bodyBlock: "" };
+  }
+  depth = 1;
+  index = braceStart + 1;
+  const bodyStart = index;
+  while (index < content.length && depth > 0) {
+    const char = content[index];
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+    }
+    index += 1;
+  }
+  return { paramsBlock, bodyBlock: content.slice(bodyStart, index - 1) };
+}
+
+function inferJavaSecrets(
+  controllerContent: string,
+  methodBody: string,
+): { headers: Record<string, string>; body: { token?: string; tt?: string } } {
+  const headers: Record<string, string> = {};
+  const body: { token?: string; tt?: string } = {};
+
+  const headerCheck =
+    methodBody.match(/!([A-Za-z0-9_]+)\.equals\(request\.getHeader\("([^"]+)"\)\)/) ??
+    controllerContent.match(
+      /private\s+void\s+validateHeader\s*\(\)\s*\{[\s\S]*?!([A-Za-z0-9_]+)\.equals\(request\.getHeader\("([^"]+)"\)\)/,
+    );
+  if (headerCheck) {
+    const constantValue = extractJavaStringConstant(controllerContent, headerCheck[1]);
+    if (constantValue) {
+      headers[headerCheck[2]] = constantValue;
+    }
+  }
+
+  const tokenCheck = methodBody.match(/!([A-Za-z0-9_]+)\.equals\(\w+\.getToken\(\)\)/);
+  if (tokenCheck) {
+    body.token = extractJavaStringConstant(controllerContent, tokenCheck[1]);
+  }
+  const ttCheck = methodBody.match(/!([A-Za-z0-9_]+)\.equals\(\w+\.getTt\(\)\)/);
+  if (ttCheck) {
+    body.tt = extractJavaStringConstant(controllerContent, ttCheck[1]);
+  }
+
+  return { headers, body };
 }
 
 function extractRequestBodyType(paramsBlock: string): { kind: "object" | "array"; typeName: string } | null {
@@ -321,27 +459,27 @@ function inferBodyFromJavaSource(
   }
 
   const content = fs.readFileSync(controllerPath, "utf8");
-  const paramsBlock = extractMethodParamsBlock(content, endpoint.methodName);
-  if (!paramsBlock) {
+  const method = locateMethod(content, endpoint);
+  if (!method?.paramsBlock) {
     return undefined;
   }
 
-  const requestBody = extractRequestBodyType(paramsBlock);
+  const requestBody = extractRequestBodyType(method.paramsBlock);
   if (!requestBody) {
     return undefined;
   }
 
   const dtoPath = resolveJavaFile(backendRoot, requestBody.typeName);
-  if (!dtoPath) {
-    return undefined;
-  }
-
-  const dtoBody = parseDtoBody(dtoPath, backendRoot);
+  const dtoBody =
+    (dtoPath ? parseDtoBody(dtoPath, backendRoot) : undefined) ??
+    parseInlineClassBody(content, requestBody.typeName, backendRoot);
   if (!dtoBody) {
     return undefined;
   }
 
-  return requestBody.kind === "array" ? [dtoBody] : dtoBody;
+  const secrets = inferJavaSecrets(content, method.bodyBlock);
+  const normalizedBody = applyControllerSecrets(dtoBody, secrets.body);
+  return requestBody.kind === "array" ? [normalizedBody] : normalizedBody;
 }
 
 function inferQueryFromJavaSource(
@@ -360,7 +498,7 @@ function inferQueryFromJavaSource(
   }
 
   const content = fs.readFileSync(controllerPath, "utf8");
-  const paramsBlock = extractMethodParamsBlock(content, endpoint.methodName);
+  const paramsBlock = locateMethod(content, endpoint)?.paramsBlock ?? "";
   const query = { ...fromCatalog };
 
   // Extract Java type for each method parameter for accurate sample value inference
@@ -413,6 +551,15 @@ export function inferDefaultTestConfig(
   const resolvedRoot = backendRoot ?? (scanJava ? defaultBackendRoot() : "");
   const params = inferDefaultTestParams(endpoint);
   const headers = inferDefaultHeaders(endpoint);
+  let javaHeaders: Record<string, string> = {};
+  if (scanJava && endpoint.sourceFile && endpoint.methodName) {
+    const controllerPath = path.join(resolvedRoot, endpoint.sourceFile);
+    if (fs.existsSync(controllerPath)) {
+      const content = fs.readFileSync(controllerPath, "utf8");
+      const method = locateMethod(content, endpoint);
+      javaHeaders = inferJavaSecrets(content, method?.bodyBlock ?? "").headers;
+    }
+  }
   const query = scanJava
     ? inferQueryFromJavaSource(endpoint, resolvedRoot, params)
     : buildDefaultQuery(endpoint, params);
@@ -434,7 +581,7 @@ export function inferDefaultTestConfig(
 
   return {
     params,
-    headers,
+    headers: { ...headers, ...javaHeaders },
     query,
     cookies: {},
     ...(body ? { body } : {}),
