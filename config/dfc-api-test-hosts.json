@@ -9,5 +9,5 @@
     "danube-plug-in-web": "https://danube-plug-in-web.dasouche.net",
     "ai-privacy-number": "https://ai-privacy-number.dasouche-inc.net"
   },
-  "skipHttpProbe": ["cheniu-user"]
+  "skipHttpProbe": ["cheniu-user", "customer-biz-data-system"]
 }

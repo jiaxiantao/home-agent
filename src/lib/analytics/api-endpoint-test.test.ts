@@ -37,6 +37,18 @@ describe("api-endpoint-test", () => {
     expect(result.message).toMatch(/跳过探测/);
   });
 
+  it("skips HTTP probe for undeployed customer-biz-data-system", async () => {
+    const endpoints = loadDfcApiCatalogFromJsonFile();
+    const customerBiz = endpoints.find(
+      (item) => item.appCode === "customer-biz-data-system",
+    );
+    expect(customerBiz).toBeTruthy();
+    const result = await testDfcApiEndpoint(customerBiz!.id);
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe("skipped");
+    expect(result.message).toMatch(/customer-biz-data-system/);
+  });
+
   it("validates http endpoint catalog entry", async () => {
     const result = await testDfcApiEndpoint(
       "super-mario:http:GET:/v1/customerAction/crmQueryCustomerInfo.json:crmQueryCustomerInfo",
@@ -50,6 +62,7 @@ describe("api-endpoint-test", () => {
       "blocked",
       "skipped",
       "upstream_unavailable",
+      "upstream_error",
       "auth",
     ]).toContain(result.status);
   });

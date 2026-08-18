@@ -126,6 +126,14 @@ function formatAiHints(result: DfcApiTestResult) {
       "5. HTTP 503 是网关没有可用 upstream，不是缺参。检查 DFC_API_*_BASE_URL 是否为 *.stable.dasouche.net；服务未部署则跳过探测并走 SQL。",
     );
   }
+  if (
+    result.status === "upstream_error" ||
+    /HTTP 5\d\d|SYSTEM UNKNOWN ERROR/i.test(result.message)
+  ) {
+    hints.push(
+      "5. 应用返回 5xx 说明 host 已打到该服务，不是缺参或域名错误。勿改 default_test_config，请 propose_sql。",
+    );
+  }
 
   return hints.join("\n");
 }
@@ -227,7 +235,8 @@ export function formatDfcApiBatchTestReport(
     "这是大风车接口目录的批量探测结果。请优先分析「失败接口」章节，结合 endpointId、请求与响应修复 default_test_config 或接口登记信息。",
     "若大量失败为 401/403 或业务码 10001：先看是否同一 token 下其它服务已通过。anduin CRM 运营接口要企业微信 access_token，Mars _security_token 无法通过，勿改 default_test_config。",
     "若为 missing_params，补充业务入参样例。",
-    "若大量失败为 HTTP 503 / upstream connect error：这是测试域名或集群未部署，不是缺参。优先把 DFC_API_*_BASE_URL 改成 *.stable.dasouche.net（或 config/dfc-api-test-hosts.json 中的例外）；仍 503 则勿改 default_test_config，走 SQL。",
+    "若大量失败为 HTTP 503 / upstream connect error：这是测试域名或集群未部署，不是缺参。优先把 DFC_API_*_BASE_URL 改成 *.stable.dasouche.net（或 config/dfc-api-test-hosts.json 中的例外）；仍 503 则加入 skipHttpProbe，勿改 default_test_config，走 SQL。",
+    "若失败为 HTTP 5xx（应用 JSON，如 SYSTEM UNKNOWN ERROR）：host 已可达，勿改 default_test_config，走 SQL。",
     "",
     "## 全部失败明细（完整请求/响应）",
   );

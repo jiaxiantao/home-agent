@@ -304,6 +304,23 @@ export async function testDfcApiEndpoint(
     };
   }
 
+  if (result.failureKind === "http" && (result.httpStatus ?? 0) >= 500) {
+    return {
+      endpointId: endpoint.id,
+      title: endpoint.title,
+      kind: "http",
+      ok: true,
+      durationMs,
+      status: "upstream_error",
+      envConfigured: true,
+      message: result.message,
+      warning:
+        "上游已可达（应用返回 5xx，不是网关 503）。目录与 host 无误，勿改 default_test_config；请 propose_sql。",
+      request: httpRequest,
+      response,
+    };
+  }
+
   return {
     endpointId: endpoint.id,
     title: endpoint.title,
