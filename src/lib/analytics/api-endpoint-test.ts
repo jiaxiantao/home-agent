@@ -21,6 +21,15 @@ import {
 import { shouldSkipHttpProbe, shouldSkipHttpProbeEndpoint } from "@/lib/analytics/dfc-api-test-hosts";
 import { isDfcApiCatalogNoiseEndpoint } from "@/lib/analytics/dfc-api-catalog-noise";
 import type { DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
+import {
+  applyLoggedInUserToApiParams,
+  applyLoggedInUserToBody,
+  applyLoggedInUserToQuery,
+  getCachedDfcUserProfile,
+  resolveDfcUserProfileFromSso,
+} from "@/lib/security/dfc-user-profile";
+import { getDevSsoCredentials } from "@/lib/security/sso-config";
+import { getSsoRequestContext } from "@/lib/security/sso-context";
 
 export type DfcApiTestRequestPreview = {
   kind: "http" | "dubbo";
@@ -109,6 +118,32 @@ function mapHttpPreview(
   };
 }
 
+async function enrichTestConfigWithLoggedInUser(
+  config: DfcApiTestConfig,
+): Promise<DfcApiTestConfig> {
+  const sso = getSsoRequestContext() ?? getDevSsoCredentials();
+  if (!sso) {
+    return config;
+  }
+  const user =
+    getCachedDfcUserProfile(sso) ?? (await resolveDfcUserProfileFromSso(sso));
+  if (!user?.linked) {
+    return config;
+  }
+  return {
+    ...config,
+    params: applyLoggedInUserToApiParams(config.params, user),
+    query: applyLoggedInUserToQuery(config.query, user) ?? {},
+    body:
+      config.body && typeof config.body === "object" && !Array.isArray(config.body)
+        ? applyLoggedInUserToBody(
+            config.body as Record<string, unknown>,
+            user,
+          )
+        : config.body,
+  };
+}
+
 export async function previewDfcApiEndpointRequest(
   endpointId: string,
   options?: DfcApiTestOptions,
@@ -119,7 +154,9 @@ export async function previewDfcApiEndpointRequest(
     return null;
   }
 
-  const config = await resolveTestConfigForEndpoint(trimmed, options);
+  const config = await enrichTestConfigWithLoggedInUser(
+    await resolveTestConfigForEndpoint(trimmed, options),
+  );
   const envConfigured = resolveEnvConfigured(endpoint);
 
   if (!endpoint.http) {
@@ -155,7 +192,9 @@ export async function testDfcApiEndpoint(
     };
   }
 
-  const config = await resolveTestConfigForEndpoint(trimmed, options);
+  const config = await enrichTestConfigWithLoggedInUser(
+    await resolveTestConfigForEndpoint(trimmed, options),
+  );
   const envConfigured = resolveEnvConfigured(endpoint);
   const requestPreview = await previewDfcApiEndpointRequest(trimmed, options);
 

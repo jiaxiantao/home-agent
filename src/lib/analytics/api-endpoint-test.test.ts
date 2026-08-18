@@ -1,13 +1,22 @@
-import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { describe, expect, it, beforeAll, afterAll, afterEach, vi } from "vitest";
 
 import {
   resetDfcApiCatalogCache,
   setDfcApiCatalogCache,
 } from "@/lib/analytics/api-catalog-store";
 import { loadDfcApiCatalogFromJsonFile } from "@/lib/analytics/dfc-api-catalog-json";
-import { testDfcApiEndpoint } from "@/lib/analytics/api-endpoint-test";
+import {
+  previewDfcApiEndpointRequest,
+  testDfcApiEndpoint,
+} from "@/lib/analytics/api-endpoint-test";
+import { runWithSsoRequestContext } from "@/lib/security/sso-context";
 
 describe("api-endpoint-test", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   beforeAll(() => {
     try {
       const endpoints = loadDfcApiCatalogFromJsonFile();
@@ -101,5 +110,78 @@ describe("api-endpoint-test", () => {
       "upstream_error",
       "auth",
     ]).toContain(result.status);
+  });
+
+  it("fills missing shop and org from logged-in SSO profile during preview", async () => {
+    const endpoints = loadDfcApiCatalogFromJsonFile();
+    const synthetic = {
+      id: "demo:http:GET:/v1/demo/profile.json:profile",
+      appCode: "demo",
+      repo: "demo",
+      entity: "general",
+      title: "profile",
+      description: "",
+      matchPatterns: [],
+      kind: "http" as const,
+      readOnly: true,
+      preferOverSql: false,
+      http: {
+        method: "GET" as const,
+        path: "/v1/demo/profile.json",
+        queryParams: {
+          shopCode: "shopCode",
+          orgCode: "orgCode",
+        },
+      },
+      keywords: [],
+      sqlFallback: { database: "demo", table: "demo", hint: "" },
+      baseUrlEnvKey: "DFC_API_DEMO_BASE_URL",
+    };
+    setDfcApiCatalogCache([...endpoints, synthetic], { total: endpoints.length + 1 });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("queryLoginUserInfo")) {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              data: {
+                loginUserId: "ACC123",
+                loginUserName: "贾先涛",
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("findUserInfoByToken")) {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              data: {
+                shopCode: "01161577",
+                orgCode: "ORG9",
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ success: false }), { status: 404 });
+      }),
+    );
+
+    const preview = await runWithSsoRequestContext(
+      {
+        token: "token-preview",
+        tokenHeader: "Souche-Security-Token",
+        cookieHeader: "_security_token=token-preview",
+      },
+      () => previewDfcApiEndpointRequest(synthetic.id),
+    );
+
+    expect(preview?.query).toMatchObject({
+      shopCode: "01161577",
+      orgCode: "ORG9",
+    });
   });
 });

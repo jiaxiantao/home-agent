@@ -219,6 +219,15 @@ describe("dfc-user-profile", () => {
       groupCode: "G001",
     });
     expect(
+      applyLoggedInUserToApiParams(
+        { shopCode: "demo_shop", groupCode: "demo_group" },
+        user,
+      ),
+    ).toMatchObject({
+      shopCode: "01161577",
+      groupCode: "G001",
+    });
+    expect(
       applyLoggedInUserToApiParams({ phone: undefined, shopCode: undefined }, user)
         .phone,
     ).toBeUndefined();

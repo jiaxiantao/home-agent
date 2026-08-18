@@ -477,12 +477,30 @@ const SCOPE_QUERY_KEYS: Array<[string, keyof DfcUserProfile]> = [
   ["departmentCode", "departmentCode"],
 ];
 
+function isPlaceholderValue(value: unknown): boolean {
+  return typeof value === "string" && /^demo(?:[_-][a-z0-9]+)?$/i.test(value.trim());
+}
+
+function isScopePlaceholder(key: string, value: unknown): boolean {
+  if (!isPlaceholderValue(value)) {
+    return false;
+  }
+  const normalized = key.toLowerCase();
+  return (
+    normalized.includes("shop") ||
+    normalized.includes("group") ||
+    normalized.includes("org") ||
+    normalized.includes("department") ||
+    normalized.includes("dept")
+  );
+}
+
 function fillEmptyAliasValue(
   key: string,
   value: unknown,
   user: DfcUserProfile,
 ): string | undefined {
-  if (typeof value === "string" && value.trim()) {
+  if (typeof value === "string" && value.trim() && !isScopePlaceholder(key, value)) {
     return undefined;
   }
   if (value != null && typeof value !== "string") {
@@ -507,10 +525,22 @@ export function applyLoggedInUserToApiParams<
   }
   return {
     ...params,
-    shopCode: params.shopCode || user.shopCode,
-    groupCode: params.groupCode || user.groupCode,
-    orgCode: params.orgCode || user.orgCode,
-    departmentCode: params.departmentCode || user.departmentCode,
+    shopCode:
+      !params.shopCode || isPlaceholderValue(params.shopCode)
+        ? user.shopCode
+        : params.shopCode,
+    groupCode:
+      !params.groupCode || isPlaceholderValue(params.groupCode)
+        ? user.groupCode
+        : params.groupCode,
+    orgCode:
+      !params.orgCode || isPlaceholderValue(params.orgCode)
+        ? user.orgCode
+        : params.orgCode,
+    departmentCode:
+      !params.departmentCode || isPlaceholderValue(params.departmentCode)
+        ? user.departmentCode
+        : params.departmentCode,
   };
 }
 
@@ -529,7 +559,7 @@ export function applyLoggedInUserToQuery(
     }
   }
   for (const [key, field] of SCOPE_QUERY_KEYS) {
-    if (next[key]?.trim()) {
+    if (next[key]?.trim() && !isPlaceholderValue(next[key])) {
       continue;
     }
     const filled = user[field];
@@ -555,7 +585,11 @@ export function applyLoggedInUserToBody(
     }
   }
   for (const [key, field] of SCOPE_QUERY_KEYS) {
-    if (next[key] != null && String(next[key]).trim()) {
+    if (
+      next[key] != null &&
+      String(next[key]).trim() &&
+      !isPlaceholderValue(next[key])
+    ) {
       continue;
     }
     const filled = user[field];
