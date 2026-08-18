@@ -32,7 +32,7 @@ describe("api-endpoint-test", () => {
     const cheniu = endpoints.find((item) => item.appCode === "cheniu-user");
     expect(cheniu).toBeTruthy();
     const result = await testDfcApiEndpoint(cheniu!.id);
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
     expect(result.status).toBe("skipped");
     expect(result.message).toMatch(/跳过探测/);
   });
@@ -44,7 +44,7 @@ describe("api-endpoint-test", () => {
     );
     expect(customerBiz).toBeTruthy();
     const result = await testDfcApiEndpoint(customerBiz!.id);
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
     expect(result.status).toBe("skipped");
     expect(result.message).toMatch(/customer-biz-data-system/);
   });
@@ -73,14 +73,14 @@ describe("api-endpoint-test", () => {
     setDfcApiCatalogCache([...endpoints, retired], { total: endpoints.length + 1 });
 
     const retiredResult = await testDfcApiEndpoint(retired.id);
-    expect(retiredResult.ok).toBe(true);
+    expect(retiredResult.ok).toBe(false);
     expect(retiredResult.status).toBe("skipped");
     expect(retiredResult.message).toMatch(/注释|下线/);
 
     const initJob = await testDfcApiEndpoint(
       "matador:http:GET:/api/backup/idlefish/IdleFishBackupApi/initCarSourceDivision:initCarSourceDivision",
     );
-    expect(initJob.ok).toBe(true);
+    expect(initJob.ok).toBe(false);
     expect(initJob.status).toBe("skipped");
     expect(initJob.message).toMatch(/初始化/);
   });
