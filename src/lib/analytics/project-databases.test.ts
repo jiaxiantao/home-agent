@@ -8,7 +8,7 @@ import {
 } from "@/lib/analytics/project-databases";
 
 describe("dfcProjectDatabaseRegistry", () => {
-  it("registers all 42 DFC DBHub sources", () => {
+  it("registers all DFC DBHub sources", () => {
     expect(dfcProjectDatabaseRegistry).toHaveLength(DFC_DATABASE_COUNT);
     expect(getRegistryDatabaseNames()).toHaveLength(DFC_DATABASE_COUNT);
   });

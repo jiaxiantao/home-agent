@@ -43,7 +43,7 @@
       }
     },
     {
-      "id": "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
+      "id": "super-mario:http:GET:/v1/customerAction/queryCustomerDetailsByContact.json:queryCustomerDetailsByContact",
       "patch": {
         "preferOverSql": true,
         "title": "CRM 客户详情（手机号/微信号联系方式）",

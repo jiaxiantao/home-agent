@@ -28,6 +28,7 @@ import type { ApiRouteParams, DfcApiEndpoint } from "@/lib/analytics/api-catalog
 import {
   defaultBackendRoot,
   inferDefaultTestConfig,
+  mergeTestConfig,
   type DfcApiTestConfig,
 } from "@/lib/analytics/dfc-api-test-config";
 
@@ -216,54 +217,18 @@ export async function resolveTestConfigForEndpoint(
     };
   }
 
-  if (record.defaultTestConfig.body) {
-    return {
-      params: {
-        ...record.defaultTestConfig.params,
-        ...(override?.params ?? {}),
-      },
-      headers: {
-        ...record.defaultTestConfig.headers,
-        ...(override?.headers ?? {}),
-      },
-      query: {
-        ...record.defaultTestConfig.query,
-        ...(override?.query ?? {}),
-      },
-      cookies: {
-        ...(record.defaultTestConfig.cookies ?? {}),
-        ...(override?.cookies ?? {}),
-      },
-      body: override?.body ?? record.defaultTestConfig.body,
-    };
-  }
-
-  const inferred = backendRoot
-    ? inferDefaultTestConfig(record.endpoint, { backendRoot })
-    : inferDefaultTestConfig(record.endpoint, { skipJavaSource: true });
+  const merged = mergeTestConfig(
+    record.defaultTestConfig,
+    record.endpoint,
+    backendRoot ? { backendRoot } : { skipJavaSource: true },
+  );
 
   return {
-    params: {
-      ...inferred.params,
-      ...record.defaultTestConfig.params,
-      ...(override?.params ?? {}),
-    },
-    headers: {
-      ...inferred.headers,
-      ...record.defaultTestConfig.headers,
-      ...(override?.headers ?? {}),
-    },
-    query: {
-      ...inferred.query,
-      ...record.defaultTestConfig.query,
-      ...(override?.query ?? {}),
-    },
-    cookies: {
-      ...(inferred.cookies ?? {}),
-      ...(record.defaultTestConfig.cookies ?? {}),
-      ...(override?.cookies ?? {}),
-    },
-    body: override?.body ?? inferred.body,
+    params: { ...merged.params, ...(override?.params ?? {}) },
+    headers: { ...merged.headers, ...(override?.headers ?? {}) },
+    query: { ...merged.query, ...(override?.query ?? {}) },
+    cookies: { ...(merged.cookies ?? {}), ...(override?.cookies ?? {}) },
+    body: override?.body ?? merged.body,
   };
 }
 

@@ -135,6 +135,9 @@ function sampleValueForJavaField(
   if (lower.includes("name") && !lower.includes("user")) return SAMPLE_BY_FIELD.name;
   if (lower.includes("pageno") || lower === "page") return SAMPLE_BY_FIELD.pageNo;
   if (lower.includes("pagesize")) return SAMPLE_BY_FIELD.pageSize;
+  if (lower === "rolemaps" || (lower.endsWith("maps") && type.includes("String"))) {
+    return "{}";
+  }
   // Integer-like field names (concurrent, coefficient, count, max, min, minutes etc.)
   if (/concurrent|coefficient|minutes|maxconcurrent/i.test(lower)) return 1;
   if (type.includes("Map")) return {};
@@ -321,7 +324,9 @@ function resolveJavaFile(backendRoot: string, className: string, sourceFile?: st
 function extractJavaStringConstant(content: string, constantName: string): string | undefined {
   const escaped = constantName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = content.match(
-    new RegExp(`(?:private|public|protected)?\\s*static\\s+final\\s+String\\s+${escaped}\\s*=\\s*"([^"]+)"`),
+    new RegExp(
+      `(?:private|public|protected)?\\s*static\\s+(?:final\\s+)?String\\s+${escaped}\\s*=\\s*"([^"]+)"`,
+    ),
   );
   return match?.[1];
 }
@@ -405,6 +410,11 @@ function inferJavaSecrets(
 
   const headerCheck =
     methodBody.match(/!([A-Za-z0-9_]+)\.equals\(request\.getHeader\("([^"]+)"\)\)/) ??
+    (methodBody.includes("validateHeader()")
+      ? controllerContent.match(
+          /private\s+void\s+validateHeader\s*\(\)\s*\{[\s\S]*?!([A-Za-z0-9_]+)\.equals\(request\.getHeader\("([^"]+)"\)\)/,
+        )
+      : null) ??
     controllerContent.match(
       /private\s+void\s+validateHeader\s*\(\)\s*\{[\s\S]*?!([A-Za-z0-9_]+)\.equals\(request\.getHeader\("([^"]+)"\)\)/,
     );
@@ -415,7 +425,9 @@ function inferJavaSecrets(
     }
   }
 
-  const tokenCheck = methodBody.match(/!([A-Za-z0-9_]+)\.equals\(\w+\.getToken\(\)\)/);
+  const tokenCheck =
+    methodBody.match(/!([A-Za-z0-9_]+)\.equals\(\w+\.getToken\(\)\)/) ??
+    methodBody.match(/!([A-Za-z0-9_]+)\.equals\(token\)/);
   if (tokenCheck) {
     body.token = extractJavaStringConstant(controllerContent, tokenCheck[1]);
   }
@@ -433,6 +445,13 @@ function extractRequestBodyType(paramsBlock: string): { kind: "object" | "array"
   );
   if (listMatch?.[1]) {
     return { kind: "array", typeName: listMatch[1].split(".").pop() ?? listMatch[1] };
+  }
+
+  const mapMatch = paramsBlock.match(
+    /@RequestBody(?:\s+@[\w.]+(?:\([^)]*\))?)*\s+Map\s*</,
+  );
+  if (mapMatch) {
+    return { kind: "object", typeName: "Map" };
   }
 
   const objectMatch = paramsBlock.match(
@@ -469,6 +488,16 @@ function inferBodyFromJavaSource(
     return undefined;
   }
 
+  const secrets = inferJavaSecrets(content, method.bodyBlock);
+
+  if (requestBody.typeName === "Map") {
+    return { demo: ["demo"] };
+  }
+
+  if (requestBody.kind === "array" && requestBody.typeName === "String") {
+    return [String(SAMPLE_BY_FIELD.recordId)];
+  }
+
   const dtoPath = resolveJavaFile(backendRoot, requestBody.typeName);
   const dtoBody =
     (dtoPath ? parseDtoBody(dtoPath, backendRoot) : undefined) ??
@@ -477,7 +506,6 @@ function inferBodyFromJavaSource(
     return undefined;
   }
 
-  const secrets = inferJavaSecrets(content, method.bodyBlock);
   const normalizedBody = applyControllerSecrets(dtoBody, secrets.body);
   return requestBody.kind === "array" ? [normalizedBody] : normalizedBody;
 }
@@ -498,8 +526,10 @@ function inferQueryFromJavaSource(
   }
 
   const content = fs.readFileSync(controllerPath, "utf8");
-  const paramsBlock = locateMethod(content, endpoint)?.paramsBlock ?? "";
+  const method = locateMethod(content, endpoint);
+  const paramsBlock = method?.paramsBlock ?? "";
   const query = { ...fromCatalog };
+  const secrets = inferJavaSecrets(content, method?.bodyBlock ?? "");
 
   // Extract Java type for each method parameter for accurate sample value inference
   // Pattern: @RequestParam("key") SomeType varName  or  @Param("key") SomeType varName
@@ -537,6 +567,27 @@ function inferQueryFromJavaSource(
       continue;
     }
     query[key] = sampleQueryValue(key);
+  }
+
+  for (const match of paramsBlock.matchAll(
+    /(?:^|,)\s*(?:final\s+)?(?:[\w<>,\[\].\s]+?\s+)(\w+)\s*(?=,|\))/g,
+  )) {
+    const key = match[1];
+    if (query[key]) {
+      continue;
+    }
+    const before = paramsBlock.slice(Math.max(0, (match.index ?? 0) - 80), match.index);
+    if (/@(?:Param|RequestParam|RequestBody|PathVariable)\b/.test(before)) {
+      continue;
+    }
+    query[key] = sampleQueryValue(key);
+  }
+
+  if (secrets.body.token && query.token) {
+    query.token = secrets.body.token;
+  }
+  if (secrets.body.token && /\btoken\b/.test(paramsBlock) && !query.token) {
+    query.token = secrets.body.token;
   }
 
   return query;
@@ -605,21 +656,42 @@ export function parseStoredTestConfig(value: unknown): DfcApiTestConfig | null {
   };
 }
 
+function isGenericParamsFallbackBody(
+  body: unknown,
+  params: ApiRouteParams,
+): boolean {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return false;
+  }
+  const bodyKeys = Object.keys(body as Record<string, unknown>);
+  if (bodyKeys.length === 0) {
+    return false;
+  }
+  const paramKeys = Object.keys(params).filter(
+    (key) => params[key as keyof ApiRouteParams] != null && params[key as keyof ApiRouteParams] !== "",
+  );
+  return bodyKeys.every((key) => paramKeys.includes(key));
+}
+
 export function mergeTestConfig(
   stored: DfcApiTestConfig | null,
   endpoint: DfcApiEndpoint,
-  options?: { backendRoot?: string },
+  options?: { backendRoot?: string; skipJavaSource?: boolean },
 ): DfcApiTestConfig {
   const inferred = inferDefaultTestConfig(endpoint, options);
   if (!stored) {
     return inferred;
   }
+  const storedBody =
+    stored.body && !isGenericParamsFallbackBody(stored.body, stored.params)
+      ? stored.body
+      : undefined;
   return {
     params: { ...inferred.params, ...stored.params },
     headers: { ...inferred.headers, ...stored.headers },
     query: { ...inferred.query, ...stored.query },
     cookies: stored.cookies ?? inferred.cookies,
-    body: stored.body ?? inferred.body,
+    body: storedBody ?? inferred.body,
   };
 }
 

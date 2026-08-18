@@ -130,10 +130,10 @@ describe("dfc-user-profile", () => {
 
     const cached = await resolveDfcUserProfile(headers);
     expect(cached?.shopCode).toBe("01161577");
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
 
     await resolveDfcUserProfile(headers, { refresh: true });
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(8);
   });
 
   it("keeps the original SSO payload when workbench only returns name/phone", async () => {
@@ -199,6 +199,68 @@ describe("dfc-user-profile", () => {
     expect(profile?.raw?.findUserInfoByToken?.payload).toMatchObject({
       data: { shopCode: "01161577", groupCode: "G001" },
     });
+  });
+
+  it("falls through to the next SSO user-info host when the first one fails", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("queryLoginUserInfo")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              loginUserId: "ACC123",
+              loginUserName: "贾先涛",
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("devsso.souche-inc.com:19080")) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            code: "PATH_NOT_EXISTS",
+            data: {},
+          }),
+          { status: 404 },
+        );
+      }
+      if (url.includes("devsso.sqaproxy.souche.com")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              shopCode: "01161577",
+              orgCode: "ORG9",
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: { name: "贾先涛", phone: "13166990790" },
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const profile = await resolveDfcUserProfile(
+      new Headers({ cookie: `${DFC_SSO_SESSION_COOKIE}=token-fallback` }),
+      { refresh: true },
+    );
+
+    expect(profile).toMatchObject({
+      linked: true,
+      shopCode: "01161577",
+      orgCode: "ORG9",
+    });
+    expect(profile?.raw?.findUserInfoByToken?.url).toContain(
+      "devsso.sqaproxy.souche.com",
+    );
   });
 
   it("fills missing shop/group without overriding question phone", () => {

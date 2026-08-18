@@ -4,10 +4,50 @@ import {
   assertTestSafeUpstreamUrl,
   buildDfcUpstreamSsoHeaders,
   buildSuggestedSqlForEndpoint,
+  callBackendApi,
+  isBotWallWafBlock,
   isDfcApiEndpointEnvConfigured,
+  parseSpringMissingParameterMessage,
   resolveDfcApiEndpointBaseUrl,
 } from "@/lib/analytics/backend-api-client";
 import type { DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
+
+describe("parseSpringMissingParameterMessage", () => {
+  it("detects Spring required-parameter 400 bodies", () => {
+    expect(
+      parseSpringMissingParameterMessage({
+        status: 400,
+        error: "Bad Request",
+        message: "Required String parameter 'articleId' is not present",
+      }),
+    ).toBe("articleId");
+    expect(
+      parseSpringMissingParameterMessage({
+        message: "Required Integer parameter 'pageNum' is not present",
+      }),
+    ).toBe("pageNum");
+    expect(parseSpringMissingParameterMessage({ message: "Not found" })).toBeNull();
+  });
+});
+
+describe("isBotWallWafBlock", () => {
+  it("flags bot-wall 403 WAF payloads", () => {
+    expect(
+      isBotWallWafBlock(
+        403,
+        "https://huaguo.stable.dasouche.net/bot-wall/v1/carDetailsApi/carDetailInfoV2.json",
+        { msg: "Bad Request", code: "500", success: false },
+      ),
+    ).toBe(true);
+    expect(
+      isBotWallWafBlock(
+        403,
+        "https://huaguo.stable.dasouche.net/mini/car/detailV2.json",
+        { success: false },
+      ),
+    ).toBe(false);
+  });
+});
 
 describe("buildSuggestedSqlForEndpoint", () => {
   const endpoint = {
@@ -62,6 +102,25 @@ describe("buildSuggestedSqlForEndpoint", () => {
     expect(sql).toMatch(/`crazy_kartrider`\.`car`/);
     expect(sql).toContain("plate_number = '皖JV066M'");
     expect(sql).toContain("date_delete = 0");
+  });
+
+  it("builds danube-authorization open user sql when table is wildcard", () => {
+    const authEndpoint = {
+      ...endpoint,
+      id: "danube-authorization:http:GET:/open/user/getByCode:getByCode",
+      appCode: "danube-authorization",
+      entity: "cheniu_user",
+      http: { method: "GET", path: "/open/user/getByCode" },
+      sqlFallback: {
+        database: "matador",
+        table: "*",
+        hint: "route_question",
+      },
+      baseUrlEnvKey: "DFC_API_DANUBE_AUTHORIZATION_BASE_URL",
+    } satisfies DfcApiEndpoint;
+    const sql = buildSuggestedSqlForEndpoint(authEndpoint, { phone: "16612341112" });
+    expect(sql).toMatch(/`matador`\.`cheniu_user`/);
+    expect(sql).toContain("16612341112");
   });
 });
 
@@ -134,5 +193,34 @@ describe("assertTestSafeUpstreamUrl", () => {
   it("allows souche.com outside test env", () => {
     vi.stubEnv("ANALYTICS_MYSQL_ENV", "prod");
     expect(assertTestSafeUpstreamUrl("https://matador.souche.com/car/detail")).toBeUndefined();
+  });
+});
+
+describe("callBackendApi skipHttpProbe", () => {
+  it("skips undeployed customer-biz-data-system without HTTP", async () => {
+    const endpoint = {
+      id: "customer-biz-data-system:http:GET:/dc/data:data",
+      appCode: "customer-biz-data-system",
+      repo: "customer-biz-data-system",
+      entity: "general",
+      title: "dc data",
+      description: "",
+      matchPatterns: [],
+      kind: "http",
+      readOnly: true,
+      preferOverSql: false,
+      keywords: [],
+      sqlFallback: { database: "ghm", table: "udesk_customer", hint: "WHERE phone = ?" },
+      baseUrlEnvKey: "DFC_API_CUSTOMER_BIZ_DATA_SYSTEM_BASE_URL",
+      http: { method: "GET", path: "/dc/data", queryParams: { phone: "phone" } },
+    } satisfies DfcApiEndpoint;
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const result = await callBackendApi(endpoint, { phone: "16612341112" });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result.status).toBe("skipped");
+    expect(result.message).toMatch(/customer-biz-data-system/);
+    expect(result.suggestedSql).toContain("`ghm`");
+    fetchSpy.mockRestore();
   });
 });

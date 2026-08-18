@@ -112,6 +112,59 @@ function joinPaths(base, sub) {
   return `${b.startsWith("/") ? b : `/${b}`}/${s}`.replace(/\/+/g, "/");
 }
 
+/** Optimus @Rest 相对路径 → /v1/{menuApi}/{action}.json（见 huaguo MenuApi/TrackApi） */
+function decapitalizeClassName(className) {
+  if (!className) return "";
+  return className.charAt(0).toLowerCase() + className.slice(1);
+}
+
+function resolveOptimusRestAction(restValue) {
+  return restValue.endsWith(".json") ? restValue : `${restValue}.json`;
+}
+
+/** danube @View Controller：/danube/.../web/.../{controller}/{action}.json */
+function resolveOptimusPackageWebPath(sourceFile, className) {
+  const normalized = sourceFile.replaceAll("\\", "/");
+  const marker = "/src/main/java/com/souche/";
+  const idx = normalized.indexOf(marker);
+  if (idx < 0) {
+    return null;
+  }
+  const rel = normalized.slice(idx + marker.length).replace(/\.java$/, "");
+  if (!/\/web\//i.test(rel)) {
+    return null;
+  }
+  const parts = rel.split("/");
+  parts[parts.length - 1] = decapitalizeClassName(className);
+  return `/${parts.join("/")}`;
+}
+
+function shouldUseOptimusPackageWebPath(sourceFile, className, restValue) {
+  if (!restValue || restValue.startsWith("/")) {
+    return false;
+  }
+  if (!/Controller$/.test(className)) {
+    return false;
+  }
+  return resolveOptimusPackageWebPath(sourceFile, className) !== null;
+}
+
+function resolveOptimusRestPath(className, restValue, sourceFile = "") {
+  if (!restValue) {
+    return `/${decapitalizeClassName(className)}`;
+  }
+  if (restValue.startsWith("/")) {
+    return restValue;
+  }
+  const action = resolveOptimusRestAction(restValue);
+  if (shouldUseOptimusPackageWebPath(sourceFile, className, restValue)) {
+    const base = resolveOptimusPackageWebPath(sourceFile, className);
+    return `${base}/${action}`;
+  }
+  const apiSegment = decapitalizeClassName(className);
+  return `/v1/${apiSegment}/${action}`;
+}
+
 function extractClassBaseMapping(content) {
   const req = content.match(
     /@RequestMapping\s*\(\s*(?:value|path)\s*=\s*["']([^"']*)["']/,
@@ -234,7 +287,7 @@ function extractOptimusRest(content, className, appCode, repo, database, baseUrl
     if (line.startsWith("//") || line.startsWith("*")) {
       continue;
     }
-    const pathStr = m[1].startsWith("/") ? m[1] : `/${m[1]}`;
+    const pathStr = resolveOptimusRestPath(className, m[1], sourceFile);
     const method = m[2];
     const after = content.slice(m.index, m.index + 800);
     const methodMatch = after.match(

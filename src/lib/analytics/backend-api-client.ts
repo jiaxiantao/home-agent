@@ -1,7 +1,9 @@
 import type { ApiRouteParams, DfcApiEndpoint } from "@/lib/analytics/api-catalog";
 import {
   alternateTestRequestUrls,
+  resolveDirectHttpPathForApp,
   inferDefaultBaseUrlForApp,
+  shouldSkipHttpProbe,
 } from "@/lib/analytics/dfc-api-test-hosts";
 import { httpMethodAllowsBody } from "@/lib/analytics/http-methods";
 import { getDevSsoCredentials, getSsoCookieNames } from "@/lib/security/sso-config";
@@ -153,12 +155,44 @@ export function buildSuggestedSqlForEndpoint(
   params: ApiRouteParams,
 ): string | undefined {
   const fallback = endpoint.sqlFallback;
-  if (!fallback || fallback.database === "*" || fallback.table === "*") {
+  if (!fallback || fallback.database === "*") {
     return undefined;
   }
 
   const db = fallback.database;
   const table = fallback.table;
+  const httpPath = endpoint.http?.path ?? "";
+
+  if (table === "*" && endpoint.appCode === "danube-authorization") {
+    if (/open\/user|getByCode|getByToken|getRolesByCode|getUserRoleByCode/i.test(httpPath)) {
+      if (params.phone) {
+        return `SELECT user_id, dfc_user_id, name, phone, area, is_auth, date_create FROM \`matador\`.\`cheniu_user\` WHERE phone = '${escapeSqlLiteral(params.phone)}' AND date_delete IS NULL LIMIT 20`;
+      }
+      if (params.recordId) {
+        const id = escapeSqlLiteral(params.recordId);
+        return `SELECT user_id, dfc_user_id, name, phone, area, is_auth, date_create FROM \`matador\`.\`cheniu_user\` WHERE (user_id = '${id}' OR dfc_user_id = '${id}') AND date_delete IS NULL LIMIT 20`;
+      }
+      return `SELECT user_id, dfc_user_id, name, phone, area, is_auth, date_create FROM \`matador\`.\`cheniu_user\` WHERE date_delete IS NULL LIMIT 20`;
+    }
+    if (/open\/shop|listOrgByIds|listShopByCodes/i.test(httpPath)) {
+      if (params.shopCode) {
+        return `SELECT id, name, shop_code, org_id, date_create FROM \`matador\`.\`organization\` WHERE shop_code = '${escapeSqlLiteral(params.shopCode)}' LIMIT 20`;
+      }
+      if (params.recordId) {
+        const id = escapeSqlLiteral(params.recordId);
+        return `SELECT id, name, shop_code, org_id, date_create FROM \`matador\`.\`organization\` WHERE id = '${id}' LIMIT 20`;
+      }
+      return `SELECT id, name, shop_code, org_id, date_create FROM \`matador\`.\`organization\` LIMIT 20`;
+    }
+    if (/auth|role|user/i.test(endpoint.entity)) {
+      return `SELECT user_id, dfc_user_id, name, phone FROM \`matador\`.\`cheniu_user\` WHERE date_delete IS NULL LIMIT 20`;
+    }
+    return undefined;
+  }
+
+  if (table === "*") {
+    return undefined;
+  }
 
   if (params.recordId && /customer/i.test(table)) {
     return `SELECT id, name, phone, shop_code, owner, grade, source, date_create, date_update FROM \`${db}\`.\`${table}\` WHERE id = '${escapeSqlLiteral(params.recordId)}' LIMIT 20`;
@@ -260,11 +294,52 @@ function isBusinessAuthFailure(payload: unknown): boolean {
   );
 }
 
+/** Spring Boot 400：Required String parameter 'articleId' is not present */
+export function parseSpringMissingParameterMessage(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const message = String(record.message ?? record.error ?? "");
+  const match = message.match(
+    /Required (?:String|Integer|Long|Boolean|Double|Float|int|long) parameter '([^']+)' is not present/i,
+  );
+  if (!match) {
+    return null;
+  }
+  return match[1] ?? null;
+}
+
+/** bot-wall WAF 拦截（同 token 下 ksMini/mini/ttMini 可达） */
+export function isBotWallWafBlock(
+  httpStatus: number,
+  requestUrl: string,
+  payload: unknown,
+): boolean {
+  if (httpStatus !== 403) {
+    return false;
+  }
+  let pathname = requestUrl;
+  try {
+    pathname = new URL(requestUrl).pathname;
+  } catch {
+    // keep raw url
+  }
+  if (!/\/bot-wall\//i.test(pathname)) {
+    return false;
+  }
+  if (!payload || typeof payload !== "object") {
+    return true;
+  }
+  const record = payload as Record<string, unknown>;
+  return record.success === false || record.code != null;
+}
+
 export type CallBackendApiOptions = {
   /** catalog 无 template 时的通用 query 透传 */
   extraQuery?: Record<string, string>;
   /** catalog 无 template 时的通用 JSON body 透传（仅 POST） */
-  extraBody?: Record<string, unknown>;
+  extraBody?: unknown;
   /** 覆盖 DFC_API_SERVICE_CHAIN（MCP 透传） */
   serviceChain?: string;
   /** 测试页额外请求头（覆盖 SSO 等默认值） */
@@ -405,8 +480,13 @@ function buildRequest(
     return null;
   }
 
+  const httpPath = resolveDirectHttpPathForApp(
+    endpoint.appCode,
+    endpoint.http.path,
+    base,
+  );
   const url = new URL(
-    `${base}${endpoint.http.path.startsWith("/") ? "" : "/"}${endpoint.http.path}`,
+    `${base}${httpPath.startsWith("/") ? "" : "/"}${httpPath}`,
   );
   const query: Record<string, string> = {};
 
@@ -564,6 +644,21 @@ export async function callBackendApi(
         endpointId: endpoint.id,
         appCode: endpoint.appCode,
         message: "非只读接口，Agent 不自动调用。请改用 SQL。",
+        sqlFallback,
+      },
+      endpoint,
+      params,
+    );
+  }
+
+  if (shouldSkipHttpProbe(endpoint.appCode)) {
+    return withSqlFallback(
+      {
+        status: "skipped",
+        failureKind: "network",
+        endpointId: endpoint.id,
+        appCode: endpoint.appCode,
+        message: `${endpoint.appCode} 测试集群无可用 HTTP 实例（网关 503），已跳过调用。请 propose_sql 使用 suggestedSql，勿改 default_test_config。`,
         sqlFallback,
       },
       endpoint,
@@ -849,6 +944,46 @@ export async function callBackendApi(
     }
 
     if (!response.ok) {
+      const missingParam = parseSpringMissingParameterMessage(payload);
+      if (missingParam) {
+        return withSqlFallback(
+          {
+            status: "skipped",
+            failureKind: "missing_params",
+            endpointId: endpoint.id,
+            appCode: endpoint.appCode,
+            request: requestMeta,
+            httpStatus,
+            responseHeaders,
+            response: payload,
+            message: `接口 ${endpoint.methodName ?? endpoint.id} 上游返回缺参（${missingParam}）。host 已可达，勿改 default_test_config；请 propose_sql。`,
+            sqlFallback,
+          },
+          endpoint,
+          params,
+        );
+      }
+
+      if (isBotWallWafBlock(httpStatus, usedUrl, payload)) {
+        return withSqlFallback(
+          {
+            status: "error",
+            failureKind: "auth",
+            endpointId: endpoint.id,
+            appCode: endpoint.appCode,
+            request: requestMeta,
+            httpStatus,
+            responseHeaders,
+            response: payload,
+            message:
+              "bot-wall WAF 拦截（403）。同组 ksMini/mini/ttMini 详情接口可达；勿改 default_test_config，请 propose_sql。",
+            sqlFallback,
+          },
+          endpoint,
+          params,
+        );
+      }
+
       const bodyPreview =
         typeof payload === "string"
           ? payload.slice(0, 240)

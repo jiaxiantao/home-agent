@@ -6,7 +6,7 @@
     "danube-member": { "repo": "danube/danube-member", "database": "danube_member", "baseUrlEnvKey": "DFC_API_DANUBE_MEMBER_BASE_URL" },
     "danube-topcars": { "repo": "danube/danube-topcars", "database": "danube_topcars", "baseUrlEnvKey": "DFC_API_DANUBE_TOPCARS_BASE_URL" },
     "danube-business-service": { "repo": "gourd/danube-business", "database": "danube_business", "baseUrlEnvKey": "DFC_API_DANUBE_BUSINESS_BASE_URL" },
-    "danube-authorization": { "repo": "danube/danube-authorization", "database": "danube_authorization", "baseUrlEnvKey": "DFC_API_DANUBE_AUTHORIZATION_BASE_URL" },
+    "danube-authorization": { "repo": "danube/danube-authorization", "database": "matador", "baseUrlEnvKey": "DFC_API_DANUBE_AUTHORIZATION_BASE_URL" },
     "danube-service-market": { "repo": "danube/danube-service-market", "database": "danube_service_market", "baseUrlEnvKey": "DFC_API_DANUBE_SERVICE_MARKET_BASE_URL" },
     "danube-plug-in-web": { "repo": "danube-plug-in-web", "database": "car_model", "baseUrlEnvKey": "DFC_API_DANUBE_PLUG_IN_WEB_BASE_URL" },
     "danube-chaos": { "repo": "danube/danube-chaos", "database": "danube_chaos", "baseUrlEnvKey": "DFC_API_DANUBE_CHAOS_BASE_URL" },
@@ -26,6 +26,7 @@
     "dfc-scrm": { "repo": "ai-robot/dfc-scrm", "database": "marketing_scrm", "baseUrlEnvKey": "DFC_API_DFC_SCRM_BASE_URL" },
     "ai-super-call": { "repo": "ai-robot/super-call", "database": "ai_robot", "baseUrlEnvKey": "DFC_API_AI_SUPER_CALL_BASE_URL" },
     "cheniu-user": { "repo": "niu/backends/cheniu-user", "database": "cheniu_user", "baseUrlEnvKey": "DFC_API_CHENIU_USER_BASE_URL" },
+    "customer-biz-data-system": { "repo": "customer-biz-data-system", "database": "ghm", "baseUrlEnvKey": "DFC_API_CUSTOMER_BIZ_DATA_SYSTEM_BASE_URL" },
     "piebridge": { "repo": "gourd/piebridge-x-courier", "database": "piebridge", "baseUrlEnvKey": "DFC_API_PIEBRIDGE_BASE_URL" }
   },
   "defaultAppMeta": {

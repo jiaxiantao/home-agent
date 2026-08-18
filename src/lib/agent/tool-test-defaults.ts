@@ -52,7 +52,7 @@ export function getDefaultTestArgs(
     case "call_backend_api":
       return {
         endpointId:
-          "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
+          "super-mario:http:GET:/v1/customerAction/queryCustomerDetailsByContact.json:queryCustomerDetailsByContact",
         question: "查询客户手机号16612341112的客户信息",
         phone: "16612341112",
       };

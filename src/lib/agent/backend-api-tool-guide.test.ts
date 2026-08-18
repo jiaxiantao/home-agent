@@ -11,7 +11,7 @@ import {
 } from "@/lib/agent/backend-api-tool-guide";
 
 const customerEndpoint: DfcApiEndpoint = {
-  id: "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
+  id: "super-mario:http:GET:/v1/customerAction/queryCustomerDetailsByContact.json:queryCustomerDetailsByContact",
   appCode: "super-mario",
   repo: "gourd/super-mario",
   entity: "crm_customer",

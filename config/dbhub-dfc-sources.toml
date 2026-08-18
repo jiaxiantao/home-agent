@@ -48,6 +48,13 @@ connection_timeout = 30
 lazy = true
 
 [[sources]]
+id = "ghm"
+description = "客服/Udesk 业务数据（customer-biz-data-system）"
+dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3701.scsite.net:3701/ghm"
+connection_timeout = 30
+lazy = true
+
+[[sources]]
 id = "danube-activity-center"
 description = "活动中心"
 dsn = "mysql://souche_rw:${DBHUB_PASSWORD}@test.database3500.scsite.net:3500/danube-activity-center"

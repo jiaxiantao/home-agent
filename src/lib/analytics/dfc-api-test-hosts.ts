@@ -5,6 +5,8 @@ export type DfcApiTestHostsFile = {
   comment?: string;
   defaultTemplate: string;
   apps: Record<string, string>;
+  /** Optimus @Rest 目录路径带 /v1 网关前缀；直连 app host 探测时需去掉 */
+  stripGatewayV1Prefix?: string[];
   skipHttpProbe?: string[];
   skipHttpProbeEndpoints?: string[];
 };
@@ -40,6 +42,33 @@ export function shouldSkipHttpProbe(appCode: string): boolean {
 
 export function shouldSkipHttpProbeEndpoint(endpointId: string): boolean {
   return (loadDfcApiTestHosts().skipHttpProbeEndpoints ?? []).includes(endpointId);
+}
+
+export function shouldStripGatewayV1Prefix(appCode: string): boolean {
+  return (loadDfcApiTestHosts().stripGatewayV1Prefix ?? []).includes(appCode);
+}
+
+function isGatewayBaseUrl(baseUrl: string): boolean {
+  const gateway = process.env.DFC_API_GATEWAY_BASE_URL?.trim().replace(/\/$/, "");
+  if (!gateway) {
+    return false;
+  }
+  return baseUrl === gateway || baseUrl.startsWith(`${gateway}/`);
+}
+
+/** 直连 app host 时去掉 Optimus 网关 /v1 前缀；走 DFC_API_GATEWAY_BASE_URL 时保留 */
+export function resolveDirectHttpPathForApp(
+  appCode: string,
+  path: string,
+  baseUrl: string,
+): string {
+  if (!shouldStripGatewayV1Prefix(appCode) || isGatewayBaseUrl(baseUrl)) {
+    return path;
+  }
+  if (path.startsWith("/v1/")) {
+    return path.slice(3);
+  }
+  return path;
 }
 
 function rewriteRequestOrigin(requestUrl: string, origin: string): string | undefined {

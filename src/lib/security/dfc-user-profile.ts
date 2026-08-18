@@ -51,7 +51,8 @@ export function resolveSsoCredentialsFromRequest(
 export type DfcUpstreamName =
   | "queryLoginUserInfo"
   | "findUserInfoByToken"
-  | "nameAndPhone";
+  | "nameAndPhone"
+  | "matadorUserInfo";
 
 export type DfcUpstreamCall = {
   url: string;
@@ -319,11 +320,37 @@ function resolveMatadorBaseUrl() {
   ).replace(/\/$/, "");
 }
 
-function resolveSsoUserInfoUrl() {
-  return (
-    process.env.DFC_SSO_USER_INFO_URL?.trim() ||
-    "https://sso.dasouche.net/api/user/query/findUserInfoByToken.json"
-  );
+function uniqueUrls(urls: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const url of urls) {
+    const normalized = url?.trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
+function resolveSsoUserInfoUrls() {
+  const envList = (
+    process.env.DFC_SSO_USER_INFO_URLS ??
+    process.env.DFC_SSO_USER_INFO_URL ??
+    ""
+  )
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return uniqueUrls([
+    ...envList,
+    "http://devsso.souche-inc.com:19080/api/user/query/findUserInfoByToken.json",
+    "http://devsso.sqaproxy.souche.com/api/user/query/findUserInfoByToken.json",
+    "https://sso.dasouche.net/api/user/query/findUserInfoByToken.json",
+    "https://sso.dasouche.net/api/user/query/findUserInfoByToken",
+  ]);
 }
 
 function buildSsoHeaders(sso: SsoCredentials): Record<string, string> {
@@ -390,17 +417,28 @@ async function fetchMatadorLoginUser(
 async function fetchSsoTokenUser(
   sso: SsoCredentials,
 ): Promise<Partial<DfcUserProfile>> {
-  const url = resolveSsoUserInfoUrl();
   const body = new URLSearchParams({ token: sso.token });
-  const call = await fetchJson(url, {
-    method: "POST",
-    headers: {
-      ...buildSsoHeaders(sso),
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-  });
-  return fromUpstream("findUserInfoByToken", call);
+  let lastCall: DfcUpstreamCall | null = null;
+
+  for (const url of resolveSsoUserInfoUrls()) {
+    const call = await fetchJson(url, {
+      method: "POST",
+      headers: {
+        ...buildSsoHeaders(sso),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+    lastCall = call;
+    const parsed = fromUpstream("findUserInfoByToken", call);
+    if (parsed.profileSources?.includes("findUserInfoByToken")) {
+      return parsed;
+    }
+  }
+
+  return lastCall
+    ? fromUpstream("findUserInfoByToken", lastCall)
+    : { raw: {} };
 }
 
 async function fetchMatadorDfcName(
@@ -416,6 +454,19 @@ async function fetchMatadorDfcName(
   return fromUpstream("nameAndPhone", call);
 }
 
+async function fetchMatadorUserInfo(
+  sso: SsoCredentials,
+): Promise<Partial<DfcUserProfile>> {
+  const url = `${resolveMatadorBaseUrl()}/api/h5/user/userInfoApi/userInfo`;
+  const call = await fetchJson(url, {
+    headers: {
+      ...buildSsoHeaders(sso),
+      "x-channel": "dfc",
+    },
+  });
+  return fromUpstream("matadorUserInfo", call);
+}
+
 export async function resolveDfcUserProfileFromSso(
   sso: SsoCredentials,
   options?: { refresh?: boolean },
@@ -427,13 +478,14 @@ export async function resolveDfcUserProfileFromSso(
     }
   }
 
-  const [workbenchUser, ssoUser, dfcName] = await Promise.all([
+  const [workbenchUser, ssoUser, dfcName, matadorUserInfo] = await Promise.all([
     fetchMatadorLoginUser(sso),
     fetchSsoTokenUser(sso),
     fetchMatadorDfcName(sso),
+    fetchMatadorUserInfo(sso),
   ]);
 
-  const merged = mergeProfile(workbenchUser, ssoUser, dfcName);
+  const merged = mergeProfile(workbenchUser, ssoUser, dfcName, matadorUserInfo);
   if (merged.linked) {
     rememberDfcUserProfile(sso, merged);
   } else {

@@ -155,6 +155,41 @@ describe("dfc-api-test-config", () => {
         token: "tGWJmDMZ9kFfSaSmS",
         userIds: [],
       });
+
+      const initRoleUsers = catalog.find(
+        (item) => item.id === "danube-authorization:http:POST:/init/role/users:initUserBelongResource",
+      )!;
+      const initRoleUsersConfig = inferDefaultTestConfig(initRoleUsers, { backendRoot });
+      expect(initRoleUsersConfig.headers.tt).toBe("QHQ4utc5KuVcW4AIpB3vk7pRNfjOGLaB");
+      expect(initRoleUsersConfig.body).toEqual(["LYa4PsNN4J"]);
+
+      const checkUserShop = catalog.find(
+        (item) => item.id === "danube-authorization:http:POST:/danubeAdmin/checkUserShop:checkUserShop",
+      )!;
+      const checkUserShopConfig = inferDefaultTestConfig(checkUserShop, { backendRoot });
+      expect(checkUserShopConfig.headers.tt).toBe("cquh79awAaZaybt6vtnKV43jAfuZXGCB");
+      expect(checkUserShopConfig.body).toMatchObject({ size: 1 });
+
+      const initRoleShops = catalog.find(
+        (item) => item.id === "danube-authorization:http:POST:/init/role/shops:initRoleAndBelongResource",
+      )!;
+      const initRoleShopsConfig = inferDefaultTestConfig(initRoleShops, { backendRoot });
+      expect(initRoleShopsConfig.headers.tt).toBe("QHQ4utc5KuVcW4AIpB3vk7pRNfjOGLaB");
+      expect(initRoleShopsConfig.body).toMatchObject({ shopCodes: [] });
+
+      const getOrgAll = catalog.find(
+        (item) => item.id === "danube-authorization:http:GET:/test/getOrgAll:getOrgAll",
+      )!;
+      const getOrgAllConfig = inferDefaultTestConfig(getOrgAll, { backendRoot });
+      expect(getOrgAllConfig.query.token).toBe("souche_hello_world");
+
+      const userRoles = catalog.find(
+        (item) => item.id === "danube-authorization:http:POST:/DataMigration/user/roles:baseRoles",
+      )!;
+      const userRolesConfig = inferDefaultTestConfig(userRoles, { backendRoot });
+      expect(userRolesConfig.body).toMatchObject({
+        roleMaps: "{}",
+      });
     },
     15_000,
   );

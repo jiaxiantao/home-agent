@@ -26,7 +26,7 @@ export type ProjectDatabaseEntry = {
 };
 
 /** 大风车 DBHub 全量业务库数量（与 config/dbhub-dfc-sources.toml 对齐） */
-export const DFC_DATABASE_COUNT = 42;
+export const DFC_DATABASE_COUNT = 43;
 
 /**
  * 大风车项目已知 MySQL 业务库登记（DBHub sources 全量）。
@@ -74,6 +74,21 @@ export const dfcProjectDatabaseRegistry: ProjectDatabaseEntry[] = [
     domain: "ops",
     env: "test",
     keywords: ["数据分析", "da_vinci", "达芬奇", "分析平台"],
+  },
+  {
+    name: "ghm",
+    description: "客服/Udesk 业务数据（customer-biz-data-system）",
+    domain: "crm",
+    env: "test",
+    keywords: [
+      "ghm",
+      "customer-biz-data-system",
+      "udesk",
+      "客服",
+      "通话记录",
+      "工单",
+      "ccImport",
+    ],
   },
   {
     name: "danube-activity-center",

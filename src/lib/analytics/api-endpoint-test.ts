@@ -22,6 +22,14 @@ import { shouldSkipHttpProbe, shouldSkipHttpProbeEndpoint } from "@/lib/analytic
 import { isDfcApiCatalogNoiseEndpoint } from "@/lib/analytics/dfc-api-catalog-noise";
 import type { DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
 import {
+  applyProbeBootstrapToApiParams,
+  applyProbeBootstrapToBody,
+  applyProbeBootstrapToQuery,
+  getCachedDfcApiProbeBootstrap,
+  resolveDfcApiProbeBootstrap,
+  type DfcApiProbeBootstrap,
+} from "@/lib/analytics/dfc-api-probe-bootstrap";
+import {
   applyLoggedInUserToApiParams,
   applyLoggedInUserToBody,
   applyLoggedInUserToQuery,
@@ -72,6 +80,8 @@ export type DfcApiTestOptions = {
   query?: Record<string, string>;
   body?: Record<string, unknown>;
   cookies?: Record<string, string>;
+  /** 批量探测时预取的 estimatePrice 品牌/车系/车型，避免重复请求 */
+  probeBootstrap?: DfcApiProbeBootstrap | null;
 };
 
 function resolveEnvConfigured(endpoint: DfcApiEndpoint) {
@@ -118,29 +128,66 @@ function mapHttpPreview(
   };
 }
 
+async function resolveProbeBootstrapForTest(
+  sso: ReturnType<typeof getSsoRequestContext>,
+  preset?: DfcApiProbeBootstrap | null,
+): Promise<DfcApiProbeBootstrap | null> {
+  if (preset !== undefined) {
+    return preset;
+  }
+  if (!sso) {
+    return null;
+  }
+  return (
+    getCachedDfcApiProbeBootstrap(sso) ?? (await resolveDfcApiProbeBootstrap(sso))
+  );
+}
+
 async function enrichTestConfigWithLoggedInUser(
   config: DfcApiTestConfig,
+  options?: Pick<DfcApiTestOptions, "probeBootstrap">,
 ): Promise<DfcApiTestConfig> {
   const sso = getSsoRequestContext() ?? getDevSsoCredentials();
+  const bootstrap = await resolveProbeBootstrapForTest(
+    sso,
+    options?.probeBootstrap,
+  );
+
+  let next = { ...config };
+  if (bootstrap?.linked) {
+    next = {
+      ...next,
+      params: applyProbeBootstrapToApiParams(next.params, bootstrap),
+      query: applyProbeBootstrapToQuery(next.query, bootstrap) ?? {},
+      body:
+        next.body && typeof next.body === "object" && !Array.isArray(next.body)
+          ? applyProbeBootstrapToBody(
+              next.body as Record<string, unknown>,
+              bootstrap,
+            )
+          : next.body,
+    };
+  }
+
   if (!sso) {
-    return config;
+    return next;
   }
   const user =
     getCachedDfcUserProfile(sso) ?? (await resolveDfcUserProfileFromSso(sso));
   if (!user?.linked) {
-    return config;
+    return next;
   }
   return {
-    ...config,
-    params: applyLoggedInUserToApiParams(config.params, user),
-    query: applyLoggedInUserToQuery(config.query, user) ?? {},
+    ...next,
+    params: applyLoggedInUserToApiParams(next.params, user),
+    query: applyLoggedInUserToQuery(next.query, user) ?? {},
     body:
-      config.body && typeof config.body === "object" && !Array.isArray(config.body)
+      next.body && typeof next.body === "object" && !Array.isArray(next.body)
         ? applyLoggedInUserToBody(
-            config.body as Record<string, unknown>,
+            next.body as Record<string, unknown>,
             user,
           )
-        : config.body,
+        : next.body,
   };
 }
 
@@ -156,6 +203,7 @@ export async function previewDfcApiEndpointRequest(
 
   const config = await enrichTestConfigWithLoggedInUser(
     await resolveTestConfigForEndpoint(trimmed, options),
+    options,
   );
   const envConfigured = resolveEnvConfigured(endpoint);
 
@@ -194,6 +242,7 @@ export async function testDfcApiEndpoint(
 
   const config = await enrichTestConfigWithLoggedInUser(
     await resolveTestConfigForEndpoint(trimmed, options),
+    options,
   );
   const envConfigured = resolveEnvConfigured(endpoint);
   const requestPreview = await previewDfcApiEndpointRequest(trimmed, options);
@@ -427,13 +476,18 @@ export async function testDfcApiEndpointsBatch(
     options?.params,
     options?.paramsByEndpoint,
   );
+  const sso = getSsoRequestContext() ?? getDevSsoCredentials();
+  const probeBootstrap = sso ? await resolveDfcApiProbeBootstrap(sso) : null;
   const results: DfcApiTestResult[] = [];
 
   for (let index = 0; index < unique.length; index += concurrency) {
     const chunk = unique.slice(index, index + concurrency);
     const chunkResults = await Promise.all(
       chunk.map((endpointId) =>
-        testDfcApiEndpoint(endpointId, { params: paramsMap[endpointId] }),
+        testDfcApiEndpoint(endpointId, {
+          params: paramsMap[endpointId],
+          probeBootstrap,
+        }),
       ),
     );
     results.push(...chunkResults);
@@ -464,6 +518,8 @@ export async function* testDfcApiEndpointsBatchStream(
     options?.params,
     options?.paramsByEndpoint,
   );
+  const sso = getSsoRequestContext() ?? getDevSsoCredentials();
+  const probeBootstrap = sso ? await resolveDfcApiProbeBootstrap(sso) : null;
 
   for (let index = 0; index < unique.length; index += concurrency) {
     const chunk = unique.slice(index, index + concurrency);
@@ -472,7 +528,10 @@ export async function* testDfcApiEndpointsBatchStream(
     }
     const chunkResults = await Promise.all(
       chunk.map((endpointId) =>
-        testDfcApiEndpoint(endpointId, { params: paramsMap[endpointId] }),
+        testDfcApiEndpoint(endpointId, {
+          params: paramsMap[endpointId],
+          probeBootstrap,
+        }),
       ),
     );
     for (const result of chunkResults) {

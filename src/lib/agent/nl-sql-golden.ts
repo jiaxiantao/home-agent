@@ -143,7 +143,7 @@ export const nlSqlGoldenCases: GoldenCase[] = [
         data: {
           bestMatch: {
             endpoint: {
-              id: "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
+              id: "super-mario:http:GET:/v1/customerAction/queryCustomerDetailsByContact.json:queryCustomerDetailsByContact",
             },
             httpCallable: true,
             extractedParams: { phone: "16612341112" },
@@ -154,7 +154,7 @@ export const nlSqlGoldenCases: GoldenCase[] = [
         tool: "call_backend_api",
         args: {
           endpointId:
-            "super-mario:http:GET:/queryCustomerDetailsByContact:queryCustomerDetailsByContact",
+            "super-mario:http:GET:/v1/customerAction/queryCustomerDetailsByContact.json:queryCustomerDetailsByContact",
           phone: "16612341112",
         },
         output: "未配置",

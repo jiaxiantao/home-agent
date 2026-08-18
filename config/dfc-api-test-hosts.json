@@ -6,11 +6,19 @@
     "crazyracing-kartrider": "https://crazyracing-kartrider.stable.dasouche.net",
     "matador": "http://matador.dasouche.net",
     "ai-backend-algorithm": "https://ai-backend-algorithm.dasouche.net",
+    "danube-admin-web": "https://danube-admin-web.dasouche-inc.net",
     "danube-plug-in-web": "https://danube-plug-in-web.dasouche.net",
     "ai-privacy-number": "https://ai-privacy-number.dasouche-inc.net"
   },
+  "stripGatewayV1Prefix": ["danube-admin-web", "danube-plug-in-web"],
   "skipHttpProbe": ["cheniu-user", "customer-biz-data-system"],
   "skipHttpProbeEndpoints": [
-    "matador:http:GET:/api/backup/idlefish/IdleFishBackupApi/initCarSourceDivision:initCarSourceDivision"
+    "matador:http:GET:/api/backup/idlefish/IdleFishBackupApi/initCarSourceDivision:initCarSourceDivision",
+    "huaguo:http:GET:/bot-wall/v1/carDetailsApi/carDetailInfoV2.json:carDetailInfoV2Waf",
+    "danube-authorization:http:GET:/duplicateV1/releaseWorkFlowByVersionIds:releaseWorkFlowByVersionIds",
+    "danube-authorization:http:POST:/danubeAdmin/handleAllUserTool:handleAllUserTool",
+    "danube-authorization:http:POST:/DataMigration/selectDeleteUser:selectDeleteUser",
+    "danube-authorization:http:POST:/duplicateV1/deleteNotUsedTools:deleteNotUsedTools",
+    "danube-authorization:http:POST:/duplicateV1/versionMetaDataOrgInit:versionMetaDataOrgInit"
   ]
 }
