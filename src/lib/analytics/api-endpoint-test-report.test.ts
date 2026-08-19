@@ -47,13 +47,16 @@ describe("api-endpoint-test-report", () => {
 
   it("formats batch report with failed section first", () => {
     const passed: DfcApiTestResult = { ...sampleResult, ok: true, status: "success" };
-    const report = formatDfcApiBatchTestReport([sampleResult, passed], {
+    const skipped: DfcApiTestResult = { ...sampleResult, ok: false, status: "skipped" };
+    const report = formatDfcApiBatchTestReport([sampleResult, passed, skipped], {
       testedAt: new Date("2026-08-17T09:00:00.000Z"),
     });
     expect(report).toContain("# DFC 接口批量测试报告");
-    expect(report).toContain("总数: 2");
+    expect(report).toContain("总数: 3");
     expect(report).toContain("失败: 1");
+    expect(report).toContain("跳过: 1");
     expect(report).toContain("## 失败接口（优先修复）");
+    expect(report).toContain("## 跳过探测");
     expect(report).toContain("## 通过接口");
     expect(report).toContain("若大量失败为 HTTP 503");
     expect(report).toContain("若失败为 HTTP 5xx");

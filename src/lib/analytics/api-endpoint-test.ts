@@ -1,4 +1,4 @@
-import type { ApiRouteParams } from "@/lib/analytics/api-catalog-types";
+import type { ApiRouteParams, DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
 import {
   getDfcApiCatalogSource,
   getDfcApiEndpointById,
@@ -20,7 +20,12 @@ import {
 } from "@/lib/analytics/backend-api-client";
 import { shouldSkipHttpProbe, shouldSkipHttpProbeEndpoint } from "@/lib/analytics/dfc-api-test-hosts";
 import { isDfcApiCatalogNoiseEndpoint } from "@/lib/analytics/dfc-api-catalog-noise";
-import type { DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
+import {
+  isDfcApiProbeFailed,
+  isDfcApiProbeSkipped,
+  type DfcApiTestRequestPreview,
+  type DfcApiTestResult,
+} from "@/lib/analytics/api-endpoint-test-types";
 import {
   applyProbeBootstrapToApiParams,
   applyProbeBootstrapToBody,
@@ -39,40 +44,11 @@ import {
 import { getDevSsoCredentials } from "@/lib/security/sso-config";
 import { getSsoRequestContext } from "@/lib/security/sso-context";
 
-export type DfcApiTestRequestPreview = {
-  kind: "http" | "dubbo";
-  method?: string;
-  url?: string;
-  query?: Record<string, string>;
-  body?: unknown;
-  headers?: Record<string, string>;
-  cookies?: Record<string, string>;
-  dubbo?: {
-    interfaceName: string;
-    method: string;
-    params: ApiRouteParams;
-  };
-  envConfigured: boolean;
-  baseUrlEnvKey: string;
-};
-
-export type DfcApiTestResult = {
-  endpointId: string;
-  title: string;
-  kind: "http" | "dubbo";
-  ok: boolean;
-  durationMs: number;
-  status: string;
-  message: string;
-  warning?: string;
-  envConfigured?: boolean;
-  request?: DfcApiTestRequestPreview;
-  response?: {
-    httpStatus?: number;
-    headers?: Record<string, string>;
-    body?: unknown;
-  };
-};
+export type {
+  DfcApiTestRequestPreview,
+  DfcApiTestResult,
+} from "@/lib/analytics/api-endpoint-test-types";
+export { isDfcApiProbeFailed, isDfcApiProbeSkipped } from "@/lib/analytics/api-endpoint-test-types";
 
 export type DfcApiTestOptions = {
   params?: ApiRouteParams;
@@ -271,8 +247,8 @@ export async function testDfcApiEndpoint(
       status: "skipped",
       envConfigured,
       message:
-        "该接口是长耗时后台初始化任务，目录探测已跳过。上游应用可达，勿改 default_test_config；请 propose_sql。",
-      warning: "不是缺参或域名错误。",
+        "该接口在测试环境不宜 HTTP 目录探测（未注册 PATH_NOT_EXISTS、写操作或长任务），已跳过。勿改 default_test_config；请 propose_sql。",
+      warning: "不是缺参或域名错误；Agent 仍可按 endpointId 调用或走 SQL。",
       request: requestPreview ?? undefined,
     };
   }
@@ -496,7 +472,8 @@ export async function testDfcApiEndpointsBatch(
   return {
     total: unique.length,
     passed: results.filter((item) => item.ok).length,
-    failed: results.filter((item) => !item.ok).length,
+    skipped: results.filter((item) => isDfcApiProbeSkipped(item)).length,
+    failed: results.filter((item) => isDfcApiProbeFailed(item)).length,
     results,
   };
 }

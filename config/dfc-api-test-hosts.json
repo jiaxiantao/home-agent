@@ -1,5 +1,5 @@
 {
-  "comment": "测试环境 HTTP 根地址。默认 https://{app}.stable.dasouche.net（与内部 Swagger 一致；裸 {app}.dasouche.net 常 503）。apps 为探测确认的例外。skipHttpProbe：测试集群确认无 upstream 的服务。skipHttpProbeEndpoints：单接口长任务/全量初始化，探测会超时，勿当缺参修。",
+  "comment": "测试环境 HTTP 根地址。默认 https://{app}.stable.dasouche.net（与内部 Swagger 一致；裸 {app}.dasouche.net 常 503）。apps 为探测确认的例外。skipHttpProbe：测试集群确认无 upstream 的服务。skipHttpProbeEndpoints：测试环境不宜 HTTP 探测的单接口（长任务/未注册 PATH_NOT_EXISTS/写操作等），勿当缺参修。",
   "defaultTemplate": "https://{app}.stable.dasouche.net",
   "apps": {
     "super-mario": "http://super-mario.stable.dasouche.net",
@@ -24,6 +24,15 @@
     "danube-authorization:http:POST:/danubeAdmin/handleAllUserTool:handleAllUserTool",
     "danube-authorization:http:POST:/DataMigration/selectDeleteUser:selectDeleteUser",
     "danube-authorization:http:POST:/duplicateV1/deleteNotUsedTools:deleteNotUsedTools",
-    "danube-authorization:http:POST:/duplicateV1/versionMetaDataOrgInit:versionMetaDataOrgInit"
+    "danube-authorization:http:POST:/duplicateV1/versionMetaDataOrgInit:versionMetaDataOrgInit",
+    "crazyracing-kartrider:http:GET:/v1/grossProfit/getCarGrossProfit.json:getCarGrossProfit",
+    "crazyracing-kartrider:http:GET:/v1/grossProfit/profitList/progress.json:profitListProgress",
+    "crazyracing-kartrider:http:POST:/v1/grossProfit/profitList.json:profitList",
+    "crazyracing-kartrider:http:POST:/v1/grossProfit/profitList/export.json:profitListExport",
+    "crazyracing-kartrider:http:POST:/appbotwall/web/carCommand/createRecord:createRecordForApp",
+    "crazyracing-kartrider:http:POST:/appbotwall/web/carCommand/modifyRecord:modifyRecordForApp",
+    "crazyracing-kartrider:http:POST:/pcbotwall/web/carCommand/createRecord:createRecordForPc",
+    "crazyracing-kartrider:http:POST:/pcbotwall/web/carCommand/modifyRecord:modifyRecordForPc",
+    "crazyracing-kartrider:http:POST:/pcbotwall/web/v3/carViewQuery/queryRecordPageInfoForPc:queryRecordPageInfoForPcBot"
   ]
 }

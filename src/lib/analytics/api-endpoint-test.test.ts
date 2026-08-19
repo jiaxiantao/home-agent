@@ -119,7 +119,16 @@ describe("api-endpoint-test", () => {
     );
     expect(initJob.ok).toBe(false);
     expect(initJob.status).toBe("skipped");
-    expect(initJob.message).toMatch(/初始化/);
+    expect(initJob.message).toMatch(/跳过/);
+  });
+
+  it("skips kartrider grossProfit and carCommand write endpoints in batch probe", async () => {
+    const result = await testDfcApiEndpoint(
+      "crazyracing-kartrider:http:GET:/v1/grossProfit/getCarGrossProfit.json:getCarGrossProfit",
+    );
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe("skipped");
+    expect(result.message).toMatch(/PATH_NOT_EXISTS|不宜 HTTP|跳过/);
   });
 
   it("validates http endpoint catalog entry", async () => {

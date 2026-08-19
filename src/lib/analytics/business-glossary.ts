@@ -56,7 +56,7 @@ export const dfcBusinessEntities: BusinessEntity[] = [
     description: "matador 正式车源主表（test_type=0）；不是门店车辆管理库存",
     filters: ["test_type = 0"],
     disambiguation:
-      "仅当问题明确「正式车源 / 运营日报」时用 matador.car；门店在售/库存/车牌用 crazy_kartrider.car",
+      "仅当问题明确「正式车源 / 运营日报」时用 matador.car；门店在售/库存/车牌用 crazy_kartrider.car。售价在 matador.car.sale_price（分），不在 car_extra",
   },
   {
     terms: ["车辆管理", "车牌", "车牌号", "车辆信息", "查车辆", "在售车辆", "库存车", "门店库存"],

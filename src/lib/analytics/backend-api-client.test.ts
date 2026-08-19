@@ -143,6 +143,28 @@ describe("buildSuggestedSqlForEndpoint", () => {
     expect(sql).toMatch(/`matador`\.`cheniu_user`/);
     expect(sql).toContain("U123");
   });
+
+  it("builds crazyracing-kartrider car sql by recordId when table is wildcard", () => {
+    const kartriderEndpoint = {
+      ...endpoint,
+      id: "crazyracing-kartrider:http:GET:/v1/grossProfit/getCarGrossProfit.json:getCarGrossProfit",
+      appCode: "crazyracing-kartrider",
+      entity: "car",
+      http: { method: "GET", path: "/v1/grossProfit/getCarGrossProfit.json" },
+      sqlFallback: {
+        database: "crazy_kartrider",
+        table: "*",
+        hint: "route_question",
+      },
+      baseUrlEnvKey: "DFC_API_KARTRIDER_BASE_URL",
+    } satisfies DfcApiEndpoint;
+    const sql = buildSuggestedSqlForEndpoint(kartriderEndpoint, {
+      recordId: "LYa4PsNN4J",
+    });
+    expect(sql).toMatch(/`crazy_kartrider`\.`car`/);
+    expect(sql).toContain("LYa4PsNN4J");
+    expect(sql).toContain("date_delete = 0");
+  });
 });
 
 describe("buildDfcUpstreamSsoHeaders", () => {

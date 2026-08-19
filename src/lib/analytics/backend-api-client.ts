@@ -180,6 +180,21 @@ export function buildSuggestedSqlForEndpoint(
     return undefined;
   }
 
+  if (table === "*" && endpoint.appCode === "crazyracing-kartrider") {
+    if (/car|grossprofit|plate|vin|carviewquery|cardetail/i.test(`${httpPath} ${endpoint.entity}`)) {
+      if (params.plate) {
+        const plate = escapeSqlLiteral(params.plate);
+        return `SELECT id, JSON_UNQUOTE(JSON_EXTRACT(name, '$.displayValue')) AS car_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.brandName')) AS brand_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.seriesName')) AS series_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.modelName')) AS model_name, plate_number, vin_number, mileage, JSON_UNQUOTE(JSON_EXTRACT(area, '$.displayValue')) AS area, sale_price, shop_code, date_create FROM \`crazy_kartrider\`.\`car\` WHERE plate_number = '${plate}' AND date_delete = 0 LIMIT 20`;
+      }
+      if (params.recordId) {
+        const id = escapeSqlLiteral(params.recordId);
+        return `SELECT id, JSON_UNQUOTE(JSON_EXTRACT(name, '$.displayValue')) AS car_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.brandName')) AS brand_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.seriesName')) AS series_name, JSON_UNQUOTE(JSON_EXTRACT(name, '$.modelName')) AS model_name, plate_number, vin_number, mileage, JSON_UNQUOTE(JSON_EXTRACT(area, '$.displayValue')) AS area, sale_price, shop_code, date_create FROM \`crazy_kartrider\`.\`car\` WHERE id = '${id}' AND date_delete = 0 LIMIT 20`;
+      }
+      return `SELECT id, plate_number, vin_number, sale_price, shop_code, date_create FROM \`crazy_kartrider\`.\`car\` WHERE date_delete = 0 LIMIT 20`;
+    }
+    return undefined;
+  }
+
   if (table === "*" && endpoint.appCode === "danube-authorization") {
     if (/open\/user|getByCode|getByToken|getRolesByCode|getUserRoleByCode/i.test(httpPath)) {
       if (params.phone) {

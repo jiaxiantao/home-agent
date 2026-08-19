@@ -1,4 +1,8 @@
-import type { DfcApiTestResult } from "@/lib/analytics/api-endpoint-test";
+import {
+  isDfcApiProbeFailed,
+  isDfcApiProbeSkipped,
+  type DfcApiTestResult,
+} from "@/lib/analytics/api-endpoint-test-types";
 
 const MAX_JSON_CHARS = 12_000;
 
@@ -200,7 +204,8 @@ export function formatDfcApiBatchTestReport(
 ) {
   const testedAt = (options?.testedAt ?? new Date()).toISOString();
   const passed = results.filter((item) => item.ok);
-  const failed = results.filter((item) => !item.ok);
+  const skipped = results.filter((item) => isDfcApiProbeSkipped(item));
+  const failed = results.filter((item) => isDfcApiProbeFailed(item));
 
   const sections = [
     "# DFC 接口批量测试报告",
@@ -209,6 +214,7 @@ export function formatDfcApiBatchTestReport(
     `- 测试时间: ${testedAt}`,
     `- 总数: ${results.length}`,
     `- 通过: ${passed.length}`,
+    `- 跳过: ${skipped.length}`,
     `- 失败: ${failed.length}`,
     "",
   ];
@@ -218,6 +224,16 @@ export function formatDfcApiBatchTestReport(
     failed.forEach((result, index) => {
       sections.push(formatBatchItemDetail(result, index + 1), "");
     });
+  }
+
+  if (skipped.length) {
+    sections.push("## 跳过探测（测试环境不宜 HTTP 探测）", "");
+    skipped.forEach((result) => {
+      sections.push(
+        `- ${formatEndpointSummary(result)} | ${result.endpointId} | ${result.durationMs}ms | ${result.message}`,
+      );
+    });
+    sections.push("");
   }
 
   if (passed.length) {
@@ -236,7 +252,7 @@ export function formatDfcApiBatchTestReport(
     "若大量失败为 401/403 或业务码 10001：先看是否同一 token 下其它服务已通过。anduin CRM 运营接口要企业微信 access_token，Mars _security_token 无法通过，勿改 default_test_config。",
     "若为 missing_params，补充业务入参样例。",
     "若大量失败为 HTTP 503 / upstream connect error：这是测试域名或集群未部署，不是缺参。优先把 DFC_API_*_BASE_URL 改成 *.stable.dasouche.net（或 config/dfc-api-test-hosts.json 中的例外）；仍 503 则加入 skipHttpProbe，勿改 default_test_config，走 SQL。",
-    "若失败为 HTTP 5xx（应用 JSON，如 SYSTEM UNKNOWN ERROR）：host 已可达，勿改 default_test_config，走 SQL。",
+    "若失败为 HTTP 5xx（应用 JSON，如 SYSTEM UNKNOWN ERROR）：host 已可达，勿改 default_test_config，走 SQL；可加入 skipHttpProbeEndpoints 避免批量探测误报。",
     "若失败为 Spring HTTP 404 Not Found：映射已在源码注释/下线，从目录排除，勿改 default_test_config。",
     "",
     "## 全部失败明细（完整请求/响应）",

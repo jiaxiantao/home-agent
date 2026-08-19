@@ -82,6 +82,16 @@ describe("dfc-api-test-hosts", () => {
     ).toBe(true);
     expect(
       shouldSkipHttpProbeEndpoint(
+        "crazyracing-kartrider:http:GET:/v1/grossProfit/getCarGrossProfit.json:getCarGrossProfit",
+      ),
+    ).toBe(true);
+    expect(
+      shouldSkipHttpProbeEndpoint(
+        "crazyracing-kartrider:http:POST:/appbotwall/web/carCommand/createRecord:createRecordForApp",
+      ),
+    ).toBe(true);
+    expect(
+      shouldSkipHttpProbeEndpoint(
         "huaguo:http:GET:/bot-wall/v1/carDetailsApi/carDetailInfoV2.json:carDetailInfoV2Waf",
       ),
     ).toBe(true);

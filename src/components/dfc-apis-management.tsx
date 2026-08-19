@@ -690,7 +690,14 @@ function BatchTestProgressPanel({
 }) {
   const doneCount = items.filter((item) => item.status === "done").length;
   const passedCount = items.filter((item) => item.result?.ok).length;
-  const failedCount = doneCount - passedCount;
+  const skippedCount = items.filter((item) => item.result?.status === "skipped").length;
+  const failedCount = items.filter(
+    (item) =>
+      item.status === "done" &&
+      item.result &&
+      !item.result.ok &&
+      item.result.status !== "skipped",
+  ).length;
   const testingCount = items.filter((item) => item.status === "testing").length;
   const progressComplete = !testing && doneCount === items.length && items.length > 0;
   const progressBarClass = progressComplete
@@ -719,7 +726,8 @@ function BatchTestProgressPanel({
         </div>
         {doneCount > 0 ? (
           <p className="mt-2 text-xs text-muted">
-            通过 {passedCount} · 失败 {failedCount}
+            通过 {passedCount}
+            {skippedCount ? ` · 跳过 ${skippedCount}` : ""} · 失败 {failedCount}
           </p>
         ) : testing ? (
           <p className="mt-2 text-xs text-muted">正在逐个探测接口，请稍候…</p>

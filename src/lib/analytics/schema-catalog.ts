@@ -34,6 +34,14 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
       { name: "car_type", type: "int", description: "车源类型" },
       { name: "car_source", type: "int", description: "车源来源" },
       { name: "test_type", type: "int", description: "0=正式数据，非0可能为测试" },
+      { name: "price", type: "double", description: "车价（legacy，常为 NULL）" },
+      {
+        name: "sale_price",
+        type: "bigint",
+        description: "售价/网络标价，单位：分（展示万元用 sale_price/1000000）",
+      },
+      { name: "price_type", type: "int", description: "车价类型（1一口价 2可议价 3明盘 4带价咨询）" },
+      { name: "estimate_price", type: "bigint", description: "综合估价，单位：分" },
       { name: "display_mileage", type: "decimal", description: "表显里程" },
       { name: "car_city_name", type: "varchar", description: "车辆所在城市" },
       { name: "car_province_name", type: "varchar", description: "车辆所在省份" },
@@ -42,6 +50,8 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
     ],
     notes: [
       "统计正式车源时常用 test_type = 0",
+      "售价在 matador.car.sale_price（单位分），不在 car_extra；勿 JOIN car_extra 取价",
+      "按售价区间分桶时阈值用分（如 5 万 = 5000000），或先 sale_price/1000000 再分桶",
       "在售车源车牌字段是 license_number，测试环境常为空",
       "在售常用 car_status = 1（具体枚举以业务为准）",
     ],
@@ -57,7 +67,7 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
       { name: "vin_number", type: "varchar", description: "车架号 VIN" },
       { name: "name", type: "json", description: "品牌/车系/车型 JSON，displayValue 可读" },
       { name: "mileage", type: "decimal", description: "表显里程" },
-      { name: "sale_price", type: "decimal", description: "网络标价" },
+      { name: "sale_price", type: "decimal", description: "网络标价（元，与 matador.car 分单位不同）" },
       { name: "shop_code", type: "varchar", description: "店铺 code" },
       { name: "date_delete", type: "bigint", description: "0=未删除" },
       { name: "date_create", type: "datetime", description: "创建时间" },
@@ -71,11 +81,16 @@ export const analyticsSchemaCatalog: SchemaTable[] = [
     name: "car_extra",
     database: "matador",
     domain: "car",
-    description: "车源扩展信息",
+    description: "车源扩展信息（车况/手续/钥匙等，不含售价）",
     columns: [
       { name: "car_id", type: "varchar", description: "关联 car.car_id" },
-      { name: "sale_price", type: "decimal", description: "售价（如有）" },
+      { name: "formalities", type: "int", description: "过户手续是否齐全" },
+      { name: "loan", type: "int", description: "是否抵押/贷款" },
+      { name: "key_number", type: "int", description: "钥匙数量" },
+      { name: "transfer_count", type: "int", description: "过户次数" },
+      { name: "car_condition_desc", type: "varchar", description: "车况描述" },
     ],
+    notes: ["售价在 matador.car.sale_price，不在 car_extra"],
   },
   {
     name: "main_order",
@@ -234,7 +249,7 @@ export function formatSchemaCatalogForPrompt(
           haystack.includes(table.name.toLowerCase()) ||
           question.includes(table.description.slice(0, 4)) ||
           question.toLowerCase().includes(db.toLowerCase()) ||
-          (table.domain === "car" && /车源|在售|库存/.test(question)) ||
+          (table.domain === "car" && /车源|在售|库存|售价|价格|标价/.test(question)) ||
           (table.domain === "crm" && /客户管理|crm|跟进|客户档案/.test(question)) ||
           (table.domain === "member" && /会员/.test(question)) ||
           (table.domain === "user" && /用户|车牛/.test(question))
