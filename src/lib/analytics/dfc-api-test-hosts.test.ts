@@ -69,6 +69,8 @@ describe("dfc-api-test-hosts", () => {
   it("skips HTTP probe for undeployed cheniu-user and customer-biz-data-system", () => {
     expect(shouldSkipHttpProbe("cheniu-user")).toBe(true);
     expect(shouldSkipHttpProbe("customer-biz-data-system")).toBe(true);
+    expect(shouldSkipHttpProbe("danube-megatron")).toBe(true);
+    expect(shouldSkipHttpProbe("megatron")).toBe(true);
     expect(shouldSkipHttpProbe("anduin")).toBe(false);
   });
 

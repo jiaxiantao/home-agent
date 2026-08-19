@@ -11,7 +11,12 @@
     "ai-privacy-number": "https://ai-privacy-number.dasouche-inc.net"
   },
   "stripGatewayV1Prefix": ["danube-admin-web", "danube-plug-in-web"],
-  "skipHttpProbe": ["cheniu-user", "customer-biz-data-system"],
+  "skipHttpProbe": [
+    "cheniu-user",
+    "customer-biz-data-system",
+    "danube-megatron",
+    "megatron"
+  ],
   "skipHttpProbeEndpoints": [
     "matador:http:GET:/api/backup/idlefish/IdleFishBackupApi/initCarSourceDivision:initCarSourceDivision",
     "huaguo:http:GET:/bot-wall/v1/carDetailsApi/carDetailInfoV2.json:carDetailInfoV2Waf",

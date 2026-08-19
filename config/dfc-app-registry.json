@@ -7,6 +7,8 @@
     "danube-topcars": { "repo": "danube/danube-topcars", "database": "danube_topcars", "baseUrlEnvKey": "DFC_API_DANUBE_TOPCARS_BASE_URL" },
     "danube-business-service": { "repo": "gourd/danube-business", "database": "danube_business", "baseUrlEnvKey": "DFC_API_DANUBE_BUSINESS_BASE_URL" },
     "danube-authorization": { "repo": "danube/danube-authorization", "database": "matador", "baseUrlEnvKey": "DFC_API_DANUBE_AUTHORIZATION_BASE_URL" },
+    "danube-megatron": { "repo": "danube/danube-megatron", "database": "matador", "baseUrlEnvKey": "DFC_API_DANUBE_MEGATRON_BASE_URL" },
+    "megatron": { "repo": "megatron", "database": "matador", "baseUrlEnvKey": "DFC_API_MEGATRON_BASE_URL" },
     "danube-service-market": { "repo": "danube/danube-service-market", "database": "danube_service_market", "baseUrlEnvKey": "DFC_API_DANUBE_SERVICE_MARKET_BASE_URL" },
     "danube-plug-in-web": { "repo": "danube-plug-in-web", "database": "car_model", "baseUrlEnvKey": "DFC_API_DANUBE_PLUG_IN_WEB_BASE_URL" },
     "danube-chaos": { "repo": "danube/danube-chaos", "database": "danube_chaos", "baseUrlEnvKey": "DFC_API_DANUBE_CHAOS_BASE_URL" },

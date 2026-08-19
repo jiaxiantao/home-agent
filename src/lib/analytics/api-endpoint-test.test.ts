@@ -58,6 +58,34 @@ describe("api-endpoint-test", () => {
     expect(result.message).toMatch(/customer-biz-data-system/);
   });
 
+  it("skips HTTP probe for undeployed danube-megatron even if catalog still has it", async () => {
+    const endpoints = loadDfcApiCatalogFromJsonFile();
+    const synthetic = {
+      id: "danube-megatron:http:GET:/user/getById:getById",
+      appCode: "danube-megatron",
+      repo: "danube/danube-megatron",
+      entity: "cheniu_user",
+      title: "getById",
+      description: "",
+      matchPatterns: [],
+      kind: "http" as const,
+      readOnly: true,
+      preferOverSql: false,
+      http: { method: "GET" as const, path: "/user/getById" },
+      keywords: [],
+      sqlFallback: { database: "danube_megatron", table: "*", hint: "" },
+      baseUrlEnvKey: "DFC_API_DANUBE_MEGATRON_BASE_URL",
+    };
+    setDfcApiCatalogCache([...endpoints, synthetic], {
+      total: endpoints.length + 1,
+    });
+    const result = await testDfcApiEndpoint(synthetic.id);
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe("skipped");
+    expect(result.message).toMatch(/danube-megatron/);
+    expect(result.message).toMatch(/503/);
+  });
+
   it("skips retired and long-running matador idlefish backup endpoints", async () => {
     const endpoints = loadDfcApiCatalogFromJsonFile();
     const retired = {

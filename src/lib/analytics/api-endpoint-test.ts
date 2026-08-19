@@ -261,22 +261,6 @@ export async function testDfcApiEndpoint(
     };
   }
 
-  if (isDfcApiCatalogNoiseEndpoint(endpoint)) {
-    return {
-      endpointId: endpoint.id,
-      title: endpoint.title,
-      kind: "http",
-      ok: false,
-      durationMs: Date.now() - started,
-      status: "skipped",
-      envConfigured,
-      message:
-        "该 HTTP 映射已在源码中注释/下线（探测会 404），已跳过。请用仍存在的同组接口或 SQL，勿改 default_test_config。",
-      warning: "不是缺参；Spring 映射已删除。",
-      request: requestPreview ?? undefined,
-    };
-  }
-
   if (shouldSkipHttpProbeEndpoint(endpoint.id)) {
     return {
       endpointId: endpoint.id,
@@ -304,6 +288,22 @@ export async function testDfcApiEndpoint(
       envConfigured,
       message: `${endpoint.appCode} 测试集群无可用 HTTP 实例（网关 503），已跳过探测。目录保留供 SQL 回退，勿改 default_test_config。`,
       warning: "不是缺参；该服务当前未部署到可探测的测试网关。",
+      request: requestPreview ?? undefined,
+    };
+  }
+
+  if (isDfcApiCatalogNoiseEndpoint(endpoint)) {
+    return {
+      endpointId: endpoint.id,
+      title: endpoint.title,
+      kind: "http",
+      ok: false,
+      durationMs: Date.now() - started,
+      status: "skipped",
+      envConfigured,
+      message:
+        "该 HTTP 映射已在源码中注释/下线（探测会 404），已跳过。请用仍存在的同组接口或 SQL，勿改 default_test_config。",
+      warning: "不是缺参；Spring 映射已删除。",
       request: requestPreview ?? undefined,
     };
   }

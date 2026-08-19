@@ -122,6 +122,27 @@ describe("buildSuggestedSqlForEndpoint", () => {
     expect(sql).toMatch(/`matador`\.`cheniu_user`/);
     expect(sql).toContain("16612341112");
   });
+
+  it("builds danube-megatron user sql against matador.cheniu_user", () => {
+    const megatronEndpoint = {
+      ...endpoint,
+      id: "danube-megatron:http:GET:/user/getById:getById",
+      appCode: "danube-megatron",
+      entity: "cheniu_user",
+      http: { method: "GET", path: "/user/getById" },
+      sqlFallback: {
+        database: "danube_megatron",
+        table: "*",
+        hint: "route_question",
+      },
+      baseUrlEnvKey: "DFC_API_DANUBE_MEGATRON_BASE_URL",
+    } satisfies DfcApiEndpoint;
+    const sql = buildSuggestedSqlForEndpoint(megatronEndpoint, {
+      recordId: "U123",
+    });
+    expect(sql).toMatch(/`matador`\.`cheniu_user`/);
+    expect(sql).toContain("U123");
+  });
 });
 
 describe("buildDfcUpstreamSsoHeaders", () => {
@@ -221,6 +242,33 @@ describe("callBackendApi skipHttpProbe", () => {
     expect(result.status).toBe("skipped");
     expect(result.message).toMatch(/customer-biz-data-system/);
     expect(result.suggestedSql).toContain("`ghm`");
+    fetchSpy.mockRestore();
+  });
+
+  it("skips undeployed danube-megatron without HTTP", async () => {
+    const endpoint = {
+      id: "danube-megatron:http:GET:/user/getById:getById",
+      appCode: "danube-megatron",
+      repo: "danube/danube-megatron",
+      entity: "cheniu_user",
+      title: "getById",
+      description: "",
+      matchPatterns: [],
+      kind: "http",
+      readOnly: true,
+      preferOverSql: false,
+      keywords: [],
+      sqlFallback: { database: "danube_megatron", table: "*", hint: "route_question" },
+      baseUrlEnvKey: "DFC_API_DANUBE_MEGATRON_BASE_URL",
+      http: { method: "GET", path: "/user/getById" },
+    } satisfies DfcApiEndpoint;
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const result = await callBackendApi(endpoint, { recordId: "U123" });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result.status).toBe("skipped");
+    expect(result.message).toMatch(/danube-megatron/);
+    expect(result.suggestedSql).toMatch(/`matador`\.`cheniu_user`/);
     fetchSpy.mockRestore();
   });
 });

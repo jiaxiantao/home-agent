@@ -1,7 +1,11 @@
 /** 扫描噪声：example / demo 控制器，不应进入 Agent 接口目录 */
 
 const NOISE_PATH =
-  /(^|\/)(example|examples|demo|samples?|playground|mock)(\/|$)/i;
+  /(^|\/)([^/]*-)?(example|examples|demo|samples?|playground|mock)(\/|$)/i;
+
+/** swagger-core 泛型 Dubbo 转发，不是业务 HTTP */
+const GENERIC_SWAGGER_INVOKE_PATH =
+  /\/dubbo\/(\{classSimpleName\}|_classSimpleName_)\/(\{methodName\}|_methodName_)/i;
 
 /** 源码已注释掉 @GetMapping，线上 404，不应再探测 */
 const RETIRED_HTTP_PATH =
@@ -45,6 +49,9 @@ export function isDfcApiCatalogNoiseEndpoint(endpoint: {
     return true;
   }
   const path = endpoint.http?.path ?? "";
+  if (GENERIC_SWAGGER_INVOKE_PATH.test(path)) {
+    return true;
+  }
   if (RETIRED_HTTP_PATH.test(path)) {
     return true;
   }

@@ -42,10 +42,15 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function shouldSkipDirName(name) {
+  if (SKIP_DIRS.has(name)) return true;
+  return /-(example|examples|demo|samples?|playground|mock)$/i.test(name);
+}
+
 function walkJavaFiles(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (SKIP_DIRS.has(ent.name)) continue;
+    if (shouldSkipDirName(ent.name)) continue;
     const full = path.join(dir, ent.name);
     if (ent.isDirectory()) walkJavaFiles(full, out);
     else if (ent.name.endsWith(".java")) out.push(full);
@@ -454,10 +459,25 @@ function main() {
     }
   }
 
+  function isNoiseEndpoint(ep) {
+    const source = String(ep.sourceFile ?? "").replaceAll("\\", "/");
+    if (/(^|\/)([^/]*-)?(example|examples|demo|samples?|playground|mock)(\/|$)/i.test(source)) {
+      return true;
+    }
+    if (/^(Example|Demo|Sample|Mock)/i.test(String(ep.className ?? ""))) {
+      return true;
+    }
+    if (/\/dubbo\/\{classSimpleName\}\/\{methodName\}/i.test(String(ep.path ?? ""))) {
+      return true;
+    }
+    return false;
+  }
+
   // dedupe by id
   const deduped = [];
   const seen = new Set();
   for (const ep of allEndpoints) {
+    if (isNoiseEndpoint(ep)) continue;
     if (seen.has(ep.id)) continue;
     seen.add(ep.id);
     deduped.push(ep);

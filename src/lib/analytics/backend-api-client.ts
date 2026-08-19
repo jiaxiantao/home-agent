@@ -163,6 +163,23 @@ export function buildSuggestedSqlForEndpoint(
   const table = fallback.table;
   const httpPath = endpoint.http?.path ?? "";
 
+  if (
+    table === "*" &&
+    (endpoint.appCode === "danube-megatron" || endpoint.appCode === "megatron")
+  ) {
+    if (/\/user\b|cheniu_user/i.test(`${httpPath} ${endpoint.entity}`)) {
+      if (params.phone) {
+        return `SELECT user_id, dfc_user_id, name, phone, area, is_auth, date_create FROM \`matador\`.\`cheniu_user\` WHERE phone = '${escapeSqlLiteral(params.phone)}' AND date_delete IS NULL LIMIT 20`;
+      }
+      if (params.recordId) {
+        const id = escapeSqlLiteral(params.recordId);
+        return `SELECT user_id, dfc_user_id, name, phone, area, is_auth, date_create FROM \`matador\`.\`cheniu_user\` WHERE (user_id = '${id}' OR dfc_user_id = '${id}') AND date_delete IS NULL LIMIT 20`;
+      }
+      return `SELECT user_id, dfc_user_id, name, phone, area, is_auth, date_create FROM \`matador\`.\`cheniu_user\` WHERE date_delete IS NULL LIMIT 20`;
+    }
+    return undefined;
+  }
+
   if (table === "*" && endpoint.appCode === "danube-authorization") {
     if (/open\/user|getByCode|getByToken|getRolesByCode|getUserRoleByCode/i.test(httpPath)) {
       if (params.phone) {

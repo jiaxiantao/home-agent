@@ -18,6 +18,30 @@ describe("dfc-api-catalog-noise", () => {
     ).toBe(true);
   });
 
+  it("treats springboot-demo generator controllers as noise", () => {
+    expect(
+      isDfcApiCatalogNoiseEndpoint({
+        appCode: "danube-megatron",
+        className: "UserController",
+        sourceFile:
+          "danube-megatron/megatron-generator/megatron-generator-mybatisplus-maven-plugin-springboot-demo/src/main/java/com/souche/template/controller/UserController.java",
+        http: { path: "/user/getById" },
+      }),
+    ).toBe(true);
+  });
+
+  it("treats swagger-core generic dubbo invoke as noise", () => {
+    expect(
+      isDfcApiCatalogNoiseEndpoint({
+        appCode: "danube-megatron",
+        className: "ApiInvokeController",
+        sourceFile:
+          "danube-megatron/megatron-swagger/megatron-swagger-core/src/main/java/com/souche/megatron/swagger/core/web/ApiInvokeController.java",
+        http: { path: "/dubbo/{classSimpleName}/{methodName}" },
+      }),
+    ).toBe(true);
+  });
+
   it("keeps business endpoints", () => {
     expect(
       isDfcApiCatalogNoiseEndpoint({
