@@ -59,11 +59,13 @@ export type AgentToolResult = {
 };
 
 export type AgentResumeAction = {
-  actionId: "confirm_sql" | "cancel_sql";
+  actionId: "confirm_sql" | "cancel_sql" | "explain_sql" | "regenerate_sql";
   payload?: {
     runId?: string;
     /** 用户在确认前编辑后的 SQL */
     sql?: string;
+    /** 重新生成 SQL 时用户附带的理由 */
+    reason?: string;
   };
 };
 

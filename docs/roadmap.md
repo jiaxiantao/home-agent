@@ -22,13 +22,18 @@
 - [x] 问题自动路由：`route_question` 按语义规划候选库/表；业务问数先探索再 `propose_sql`；跨库 `search_schema`
 - [x] 项目更名为 DFC Data Agent（包名 `dfc-data-agent`）
 
-## 可选增强
+## 可选增强（已完成）
 
-- [ ] 审计写入独立 DB
-- [ ] 元数据结果 A2UI 化（list_tables / describe_table）
-- [ ] 确认卡增加「重新生成 SQL / 先 EXPLAIN」
-- [ ] 非 matador 库的手写业务口径目录
-- [ ] 路由规则从业务知识库/表注释持续扩充
+- [x] 审计写入独立 DB（app_mysql audit_events 多维检索 + CSV 导出）
+- [x] 元数据结果 A2UI 化（list_tables / describe_table 结构化表格渲染）
+- [x] 确认卡增加「重新生成 SQL / 先 EXPLAIN」
+- [x] 非 matador 库的手写业务口径目录（danube_member / super_mario / danube_topcars / danube_mammon / crazy_kartrider / danube_service_market）
+- [x] 路由规则从业务知识库/表注释持续扩充（app_mysql route_rules 动态管理 + 表注释提取）
+- [x] 错误体验优化（A2UI 错误卡 + 路由引导卡）
+- [x] 趋势/对比分析意图识别（自动选折线/分组柱状图）
+- [x] 数据看板（Pin 查询结果为共享卡片）
+- [x] MCP Server 外部工具接入（managed-mcp-tool）
+- [x] RAG 语义检索（keyword-index + 业务口径/历史 Q&A 增强路由和 prompt）
 
 ## 文档
 

@@ -25,11 +25,12 @@ const agentSchema = z.object({
   llmProvider: z.string().optional(),
   resume: z
     .object({
-      actionId: z.enum(["confirm_sql", "cancel_sql"]),
+      actionId: z.enum(["confirm_sql", "cancel_sql", "explain_sql", "regenerate_sql"]),
       payload: z
         .object({
           runId: z.string().optional(),
           sql: z.string().optional(),
+          reason: z.string().optional(),
         })
         .optional(),
     })
@@ -57,6 +58,11 @@ export async function POST(request: Request) {
     };
 
     await ensureDfcApiCatalogFromDatabase();
+
+    const { loadDynamicRouteRules } = await import("@/lib/analytics/route-rules-store");
+    const { setDynamicRouteRules } = await import("@/lib/analytics/question-router");
+    const dynamicRules = await loadDynamicRouteRules();
+    setDynamicRouteRules(dynamicRules);
 
     const rate = await checkAgentRateLimit(authUser.userId);
 

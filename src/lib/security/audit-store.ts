@@ -117,6 +117,10 @@ export async function listAuditRecords(options?: {
   limit?: number;
   userId?: string;
   event?: string;
+  startTime?: string;
+  endTime?: string;
+  threadId?: string;
+  outcome?: string;
 }) {
   const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200);
   let records: AuditRecord[] = [];
@@ -131,6 +135,22 @@ export async function listAuditRecords(options?: {
     if (options?.event) {
       clauses.push("event = ?");
       params.push(options.event);
+    }
+    if (options?.startTime) {
+      clauses.push("created_at >= ?");
+      params.push(options.startTime);
+    }
+    if (options?.endTime) {
+      clauses.push("created_at <= ?");
+      params.push(options.endTime);
+    }
+    if (options?.threadId) {
+      clauses.push("JSON_EXTRACT(payload_json, '$.threadId') = ?");
+      params.push(options.threadId);
+    }
+    if (options?.outcome) {
+      clauses.push("JSON_EXTRACT(payload_json, '$.outcome') = ?");
+      params.push(options.outcome);
     }
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     const rows = await queryAppMysql<AuditRow>(

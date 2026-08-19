@@ -20,7 +20,7 @@ import {
   supportsForcedToolChoice,
 } from "@/lib/agent/langgraph/model";
 import type { LlmProvider } from "@/lib/llm-providers-catalog";
-import { buildAgentSystemPrompt } from "@/lib/agent/langgraph/prompts";
+import { buildAgentSystemPrompt, fetchRagContext } from "@/lib/agent/langgraph/prompts";
 import type { DfcAgentStateType } from "@/lib/agent/langgraph/state";
 import { createLangChainTools } from "@/lib/agent/langgraph/tools";
 import { streamWithLlmRetry } from "@/lib/agent/llm-retry";
@@ -432,7 +432,8 @@ export async function* streamLlmAgentNode(
   | { kind: "done"; update: Partial<DfcAgentStateType> }
 > {
   const tools = await createLangChainTools({ userId: options.userId });
-  const systemPrompt = buildAgentSystemPrompt(state.userMessage);
+  const ragContext = await fetchRagContext(state.userMessage);
+  const systemPrompt = buildAgentSystemPrompt(state.userMessage, ragContext);
   const trimmed = trimMessagesToBudget(state.messages, {
     reservedTokens: estimateTokens(systemPrompt),
   });

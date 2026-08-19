@@ -97,6 +97,18 @@ export function buildSqlConfirmSurface(input: {
           payload: { runId: input.runId },
         },
         {
+          id: "explain",
+          label: "先 EXPLAIN",
+          action: "explain_sql",
+          payload: { runId: input.runId },
+        },
+        {
+          id: "regenerate",
+          label: "重新生成 SQL",
+          action: "regenerate_sql",
+          payload: { runId: input.runId },
+        },
+        {
           id: "cancel",
           label: "取消",
           action: "cancel_sql",
@@ -156,6 +168,179 @@ export function buildQueryResultSurface(input: {
   return {
     surfaceId: input.surfaceId,
     title: "查询结果",
+    components,
+  };
+}
+
+export function buildExplainResultSurface(input: {
+  surfaceId: string;
+  runId: string;
+  sql: string;
+  explanation: string;
+  explainRows: Record<string, unknown>[];
+  explainColumns: string[];
+}): A2UISurface {
+  return {
+    surfaceId: input.surfaceId,
+    title: "EXPLAIN 查询计划",
+    components: [
+      {
+        id: `${input.surfaceId}-text`,
+        type: "Text",
+        text: input.explanation || "以下是查询执行计划，确认无性能风险后可继续执行：",
+      },
+      {
+        id: `${input.surfaceId}-sql`,
+        type: "Code",
+        language: "sql",
+        code: input.sql,
+        editable: true,
+      },
+      {
+        id: `${input.surfaceId}-plan`,
+        type: "Table",
+        columns: input.explainColumns,
+        rows: input.explainRows,
+      },
+      {
+        id: `${input.surfaceId}-actions`,
+        type: "ButtonGroup",
+        buttons: [
+          {
+            id: "confirm",
+            label: "确认执行",
+            action: "confirm_sql",
+            payload: { runId: input.runId },
+          },
+          {
+            id: "cancel",
+            label: "取消",
+            action: "cancel_sql",
+            payload: { runId: input.runId },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export function buildMetadataTableSurface(input: {
+  surfaceId: string;
+  title: string;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  summary?: string;
+}): A2UISurface {
+  const components: A2UIComponent[] = [];
+
+  if (input.summary) {
+    components.push({
+      id: `${input.surfaceId}-summary`,
+      type: "Text",
+      text: input.summary,
+    });
+  }
+
+  components.push({
+    id: `${input.surfaceId}-table`,
+    type: "Table",
+    columns: input.columns,
+    rows: input.rows,
+  });
+
+  return {
+    surfaceId: input.surfaceId,
+    title: input.title,
+    components,
+  };
+}
+
+export function buildErrorSurface(input: {
+  surfaceId: string;
+  errorMessage: string;
+  sql?: string;
+  runId?: string;
+}): A2UISurface {
+  const components: A2UIComponent[] = [
+    {
+      id: `${input.surfaceId}-error`,
+      type: "Text",
+      text: `执行失败：${input.errorMessage}`,
+    },
+  ];
+
+  if (input.sql) {
+    components.push({
+      id: `${input.surfaceId}-sql`,
+      type: "Code",
+      language: "sql",
+      code: input.sql,
+    });
+  }
+
+  const buttons: A2UIComponent & { type: "ButtonGroup" } = {
+    id: `${input.surfaceId}-actions`,
+    type: "ButtonGroup",
+    buttons: [],
+  };
+
+  if (input.runId) {
+    buttons.buttons.push({
+      id: "regenerate",
+      label: "让 Agent 修复",
+      action: "regenerate_sql",
+      payload: { runId: input.runId, reason: input.errorMessage },
+    });
+  }
+
+  if (buttons.buttons.length) {
+    components.push(buttons);
+  }
+
+  return {
+    surfaceId: input.surfaceId,
+    title: "查询失败",
+    components,
+  };
+}
+
+export function buildRouteGuidanceSurface(input: {
+  surfaceId: string;
+  message: string;
+  availableDatabases: Array<{ name: string; description?: string }>;
+  suggestedPrompts?: string[];
+}): A2UISurface {
+  const components: A2UIComponent[] = [
+    {
+      id: `${input.surfaceId}-text`,
+      type: "Text",
+      text: input.message,
+    },
+  ];
+
+  if (input.availableDatabases.length) {
+    components.push({
+      id: `${input.surfaceId}-dbs`,
+      type: "Table",
+      columns: ["name", "description"],
+      rows: input.availableDatabases.map((db) => ({
+        name: db.name,
+        description: db.description ?? "",
+      })),
+    });
+  }
+
+  if (input.suggestedPrompts?.length) {
+    components.push({
+      id: `${input.surfaceId}-hints`,
+      type: "Text",
+      text: `推荐问法：\n${input.suggestedPrompts.map((p) => `• ${p}`).join("\n")}`,
+    });
+  }
+
+  return {
+    surfaceId: input.surfaceId,
+    title: "路由引导",
     components,
   };
 }

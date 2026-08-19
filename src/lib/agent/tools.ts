@@ -29,6 +29,7 @@ import { assertAllowedDatabases } from "@/lib/security/database-allowlist";
 import { assertAllowedTables } from "@/lib/security/table-allowlist";
 import { getManagedToolByName } from "@/lib/agent/managed-tools";
 import { invokeManagedHttpTool } from "@/lib/agent/managed-http-tool";
+import { invokeManagedMcpTool } from "@/lib/agent/managed-mcp-tool";
 import {
   runCallBackendApiTool,
   runRouteApiTool,
@@ -510,6 +511,9 @@ export async function runAgentTool(
       const custom = await getManagedToolByName(tool);
       if (custom?.kind === "http" && custom.enabled && custom.http) {
         return invokeManagedHttpTool(custom, args);
+      }
+      if (custom?.kind === "mcp" && custom.enabled && custom.mcp) {
+        return invokeManagedMcpTool(custom.mcp, args);
       }
       return { output: `未知工具：${tool}` };
     }

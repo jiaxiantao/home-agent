@@ -1,5 +1,5 @@
 import { summarizeSqlResult } from "@/lib/agent/answer-format";
-import { buildQueryResultSurface, buildSqlConfirmSurface } from "@/lib/a2ui/types";
+import { buildQueryResultSurface, buildSqlConfirmSurface, buildExplainResultSurface } from "@/lib/a2ui/types";
 import { buildChartSpecFromRows } from "@/lib/analytics/chart-spec";
 import { assertReadOnlySql } from "@/lib/analytics/sql-guard";
 import {
@@ -7,6 +7,7 @@ import {
   sanitizeAgentSql,
 } from "@/lib/analytics/sql-sanitize";
 import { userRequestedChart, inferPreferredChartType } from "@/lib/agent/chart-intent";
+import { detectTrendIntent, inferTrendChartType } from "@/lib/agent/trend-intent";
 import { getAgentMaxSteps } from "@/lib/agent/config";
 import { AgentLoopGuard } from "@/lib/agent/loop-guard";
 import { tryDirectAnswer } from "@/lib/agent/direct-answer";
@@ -226,6 +227,72 @@ async function* resumeConfirmedSql(
     return;
   }
 
+  if (resume.actionId === "explain_sql") {
+    let sqlToExplain = peeked.sql;
+    const editedSql = resume.payload?.sql?.trim();
+    if (editedSql) {
+      try {
+        sqlToExplain = validateExecutableSql(editedSql);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "SQL 校验失败";
+        yield* requeueSqlConfirm(peeked, editedSql || peeked.sql, message);
+        return;
+      }
+    }
+
+    yield { type: "trace", phase: "tool", message: "正在执行 EXPLAIN 查询计划…" };
+
+    try {
+      const explainResult = await runExecuteSqlTool(`EXPLAIN ${sqlToExplain}`);
+      const query = explainResult.data as ExecuteSqlData;
+
+      yield {
+        type: "a2ui",
+        surface: buildExplainResultSurface({
+          surfaceId: `explain_${runId}_${Date.now().toString(36)}`,
+          runId,
+          sql: sqlToExplain,
+          explanation: peeked.explanation,
+          explainColumns: query.columns,
+          explainRows: query.rows,
+        }),
+      };
+      yield {
+        type: "awaiting_input",
+        runId,
+        reason: "confirm_sql",
+        sql: sqlToExplain,
+        explanation: peeked.explanation,
+      };
+
+      await savePendingSqlRun({ ...peeked, sql: sqlToExplain, createdAt: Date.now() });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "EXPLAIN 执行失败";
+      yield* requeueSqlConfirm(peeked, sqlToExplain, `EXPLAIN 失败：${message}`);
+    }
+    return;
+  }
+
+  if (resume.actionId === "regenerate_sql") {
+    await savePendingSqlRun({ ...peeked, createdAt: Date.now() });
+    const reason = resume.payload?.reason?.trim() || "";
+    const regenerateMessage = reason
+      ? `请重新生成 SQL 来回答「${peeked.message}」。用户不满意之前的方案，原因：${reason}。之前的 SQL：${peeked.sql}`
+      : `请重新生成 SQL 来回答「${peeked.message}」。用户不满意之前的方案，请换一种查询思路。之前的 SQL：${peeked.sql}`;
+
+    yield { type: "trace", phase: "plan", message: "用户要求重新生成 SQL，重新进入规划…" };
+
+    return {
+      message: regenerateMessage,
+      prior: peeked.prior,
+      threadId: peeked.threadId,
+      userId: peeked.userId,
+      startedAt,
+      steps: 0,
+      toolCalls: 0,
+    };
+  }
+
   if (peeked.threadId) {
     yield { type: "thread", threadId: peeked.threadId };
   }
@@ -307,11 +374,15 @@ async function* resumeConfirmedSql(
       outcome: "success",
     });
 
-    const wantsChart = userRequestedChart(pending.message);
+    const trendIntent = detectTrendIntent(pending.message);
+    const wantsChart = userRequestedChart(pending.message) || trendIntent !== null;
+    const preferredType = trendIntent
+      ? inferTrendChartType(trendIntent)
+      : inferPreferredChartType(pending.message);
     const chart = wantsChart
       ? buildChartSpecFromRows(query.columns, query.rows, {
-          title: "查询结果",
-          preferredType: inferPreferredChartType(pending.message),
+          title: trendIntent ? (trendIntent.kind === "comparison" ? trendIntent.vsLabel : "趋势分析") : "查询结果",
+          preferredType,
         })
       : null;
 

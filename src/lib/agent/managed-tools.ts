@@ -16,7 +16,7 @@ import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
 import { PRODUCT_SLUG } from "@/lib/product";
 import { bumpToolCatalogVersion } from "@/lib/agent/tool-catalog-version";
 
-export type ManagedToolKind = "builtin" | "http";
+export type ManagedToolKind = "builtin" | "http" | "mcp";
 
 export type ManagedHttpConfig = {
   method: "GET" | "POST";
@@ -24,6 +24,12 @@ export type ManagedHttpConfig = {
   queryTemplate?: Record<string, unknown>;
   bodyTemplate?: Record<string, unknown>;
   headers?: Record<string, unknown>;
+};
+
+export type ManagedMcpConfig = {
+  serverUrl: string;
+  toolName: string;
+  authToken?: string;
 };
 
 export type ManagedAgentTool = {
@@ -35,6 +41,7 @@ export type ManagedAgentTool = {
   enabled: boolean;
   kind: ManagedToolKind;
   http?: ManagedHttpConfig;
+  mcp?: ManagedMcpConfig;
   builtin: boolean;
   createdAt: string;
   updatedAt: string;
@@ -307,6 +314,68 @@ export async function createManagedHttpTool(input: {
     enabled: input.enabled !== false,
     kind: "http",
     http: normalizeHttp(input.http),
+    builtin: false,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    createdBy: input.createdBy,
+  };
+
+  if (isAppMysqlConfigured()) {
+    await upsertMysqlManagedTool(tool);
+    return tool;
+  }
+
+  const stored = await readStored();
+  await writeStored([...stored.filter((item) => item.name !== name), tool]);
+  return tool;
+}
+
+export async function createManagedMcpTool(input: {
+  name: string;
+  label: string;
+  description: string;
+  args?: Record<string, string>;
+  mcp: ManagedMcpConfig;
+  enabled?: boolean;
+  createdBy: string;
+}) {
+  bumpToolCatalogVersion();
+  const name = input.name.trim();
+  const label = input.label.trim().slice(0, 80);
+  const description = input.description.trim().slice(0, 1000);
+  assertToolName(name);
+  if (!label || !description) {
+    throw new Error("工具名称与说明不能为空");
+  }
+  if (!input.mcp.serverUrl?.trim()) {
+    throw new Error("MCP Server URL 不能为空");
+  }
+  if (!input.mcp.toolName?.trim()) {
+    throw new Error("MCP 工具名不能为空");
+  }
+
+  const existing = await listManagedTools();
+  if (existing.some((item) => item.name === name)) {
+    throw new Error(`工具名 ${name} 已存在`);
+  }
+  const customCount = existing.filter((item) => !item.builtin).length;
+  if (customCount >= MAX_CUSTOM) {
+    throw new Error(`自定义工具最多 ${MAX_CUSTOM} 个`);
+  }
+
+  const tool: ManagedAgentTool = {
+    id: randomUUID().replace(/-/g, "").slice(0, 16),
+    name,
+    label,
+    description,
+    args: normalizeArgs(input.args),
+    enabled: input.enabled !== false,
+    kind: "mcp",
+    mcp: {
+      serverUrl: input.mcp.serverUrl.trim(),
+      toolName: input.mcp.toolName.trim(),
+      authToken: input.mcp.authToken?.trim() || undefined,
+    },
     builtin: false,
     createdAt: nowIso(),
     updatedAt: nowIso(),

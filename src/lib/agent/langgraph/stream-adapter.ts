@@ -1,4 +1,5 @@
 import type { AgentTraceEvent } from "@/lib/agent/types";
+import { buildErrorSurface } from "@/lib/a2ui/types";
 
 export type SynthesizedAnswer = {
   text: string;
@@ -26,6 +27,13 @@ export async function* emitTerminalError(
   steps = 0,
   toolCalls = 0,
 ): AsyncGenerator<AgentTraceEvent> {
+  yield {
+    type: "a2ui",
+    surface: buildErrorSurface({
+      surfaceId: `error_${Date.now().toString(36)}`,
+      errorMessage: message,
+    }),
+  };
   yield { type: "error", message };
   yield doneEvent(startedAt, steps, toolCalls);
 }

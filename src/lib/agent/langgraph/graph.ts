@@ -16,6 +16,7 @@ import type {
   ProposeSqlData,
 } from "@/lib/agent/types";
 import { DfcAgentState, type DfcAgentStateType } from "@/lib/agent/langgraph/state";
+import { buildMetadataTableSurface, buildRouteGuidanceSurface } from "@/lib/a2ui/types";
 import { createToolsNodeHandler } from "@/lib/agent/langgraph/graph-runner";
 import {
   afterToolsRoute,
@@ -240,6 +241,11 @@ export function compileDfcAgentGraph(options: AgentGraphDeps = {}) {
         output: result.output,
         data: result.data,
       });
+
+      const metaSurface = buildMetadataA2uiSurface(result);
+      if (metaSurface) {
+        emit(config, { type: "a2ui", surface: metaSurface });
+      }
     }
 
     emit(
@@ -421,6 +427,68 @@ export function createGraphInput(
     awaitingInput: false,
     lastPlanMs: 0,
   };
+}
+
+function buildMetadataA2uiSurface(result: AgentToolResult) {
+  const stamp = Date.now().toString(36);
+  const data = result.data as Record<string, unknown> | undefined;
+  if (!data) return null;
+
+  if (result.tool === "list_tables") {
+    const tables = data.tables as Array<{ name: string; type?: string; comment?: string }> | undefined;
+    if (!tables?.length) return null;
+    return buildMetadataTableSurface({
+      surfaceId: `meta_tables_${stamp}`,
+      title: `表列表 — ${data.database ?? ""}`,
+      columns: ["name", "type", "comment"],
+      rows: tables.map((t) => ({ name: t.name, type: t.type ?? "TABLE", comment: t.comment ?? "" })),
+      summary: `共 ${tables.length} 张表`,
+    });
+  }
+
+  if (result.tool === "route_question") {
+    const candidates = data.candidates as Array<{ database: string; score: number; entry?: { description?: string } }> | undefined;
+    if (candidates && candidates.length === 0) {
+      return buildRouteGuidanceSurface({
+        surfaceId: `route_guide_${stamp}`,
+        message: "未找到与问题相关的数据库，请尝试更具体的描述或从以下库中选择：",
+        availableDatabases: [],
+        suggestedPrompts: [
+          "matador 正式车源有多少",
+          "super_mario 客户跟进记录",
+          "danube_member 会员信息",
+        ],
+      });
+    }
+    return null;
+  }
+
+  if (result.tool === "describe_table") {
+    const columns = data.columns as Array<{
+      name: string;
+      columnType?: string;
+      dataType?: string;
+      nullable?: boolean;
+      key?: string;
+      comment?: string;
+    }> | undefined;
+    if (!columns?.length) return null;
+    return buildMetadataTableSurface({
+      surfaceId: `meta_desc_${stamp}`,
+      title: `表结构 — ${data.database ?? ""}.${data.table ?? ""}`,
+      columns: ["name", "columnType", "nullable", "key", "comment"],
+      rows: columns.map((c) => ({
+        name: c.name,
+        columnType: c.columnType ?? c.dataType ?? "",
+        nullable: c.nullable ? "YES" : "NO",
+        key: c.key ?? "",
+        comment: c.comment ?? "",
+      })),
+      summary: `共 ${columns.length} 个字段`,
+    });
+  }
+
+  return null;
 }
 
 export { routePlannerNode };

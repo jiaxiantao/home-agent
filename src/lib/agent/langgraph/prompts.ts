@@ -9,7 +9,10 @@ import {
 } from "@/lib/analytics/business-glossary";
 import { formatProjectDatabasesForPrompt } from "@/lib/analytics/project-databases";
 import { getPreferredAnalyticsDatabase } from "@/lib/analytics/preferred-database";
-import { formatRouteHintForPrompt } from "@/lib/analytics/question-router";
+import { formatRouteHintForPrompt, rankDatabasesForQuestion } from "@/lib/analytics/question-router";
+import { getGlossaryForDatabases } from "@/lib/analytics/glossary-loader";
+import { detectTrendIntent, buildTrendPromptHint } from "@/lib/agent/trend-intent";
+import { searchRag, formatRagResultsForPrompt } from "@/lib/rag";
 import { getAgentMaxSteps } from "@/lib/agent/config";
 import { formatCallBackendApiReferenceForPrompt } from "@/lib/agent/backend-api-tool-guide";
 import { formatDfcUserForPrompt } from "@/lib/security/dfc-user-profile";
@@ -107,15 +110,53 @@ ${formatApiCatalogForPrompt(question)}
 ${formatProjectDatabasesForPrompt(question)}
 
 ## 核心表字段${question ? "（当前问题）" : ""}
-${formatSchemaCatalogForPrompt(undefined, question)}`;
+${formatSchemaCatalogForPrompt(undefined, question)}
+
+${buildGlossarySection(question)}
+
+${buildTrendSection(question)}`;
 }
 
 /**
  * 规划节点使用的完整系统提示。静态段必须排在动态段之前，
  * 否则可变内容会出现在前缀里，前缀缓存只能命中开头几十个 token。
  */
-export function buildAgentSystemPrompt(question?: string) {
-  return `${buildStaticAgentSystemPrompt()}\n\n${buildQuestionContextPrompt(question)}`;
+function buildTrendSection(question?: string): string {
+  if (!question) return "";
+  const intent = detectTrendIntent(question);
+  const hint = buildTrendPromptHint(intent);
+  if (!hint) return "";
+  return `## 趋势/对比分析提示\n${hint}`;
+}
+
+function buildGlossarySection(question?: string): string {
+  if (!question) return "";
+  const ranked = rankDatabasesForQuestion(question);
+  const topDbs = ranked.slice(0, 3).map((r) => r.database);
+  const content = getGlossaryForDatabases(topDbs);
+  if (!content) return "";
+  return `## 业务口径文档（候选库详细字段说明）\n${content}`;
+}
+
+export function buildAgentSystemPrompt(question?: string, ragContext?: string) {
+  const base = `${buildStaticAgentSystemPrompt()}\n\n${buildQuestionContextPrompt(question)}`;
+  if (ragContext) {
+    return `${base}\n\n## 语义检索参考（来自知识库和历史问答）\n${ragContext}`;
+  }
+  return base;
+}
+
+/**
+ * Pre-fetch RAG results for the question. Call before building the system prompt
+ * so the sync `buildAgentSystemPrompt` can receive the RAG context string.
+ */
+export async function fetchRagContext(question: string): Promise<string> {
+  try {
+    const results = await searchRag(question, 5);
+    return formatRagResultsForPrompt(results);
+  } catch {
+    return "";
+  }
 }
 
 /** 回答合成专用的小提示：此处不再需要接口目录与建表字段 */

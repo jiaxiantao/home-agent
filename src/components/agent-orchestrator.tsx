@@ -117,17 +117,19 @@ export function AgentOrchestratorDemo({
         return;
       }
 
-      if (action !== "confirm_sql" && action !== "cancel_sql") {
+      const validActions = new Set(["confirm_sql", "cancel_sql", "explain_sql", "regenerate_sql"]);
+      if (!validActions.has(action)) {
         return;
       }
 
       const runId =
         typeof payload?.runId === "string" ? payload.runId : pendingRunId ?? undefined;
       const sql = typeof payload?.sql === "string" ? payload.sql : undefined;
+      const reason = typeof payload?.reason === "string" ? payload.reason : undefined;
 
       void resume({
-        actionId: action,
-        payload: { runId, sql },
+        actionId: action as AgentResumeAction["actionId"],
+        payload: { runId, sql, reason },
       } satisfies AgentResumeAction);
     },
     [pendingRunId, resume, running],

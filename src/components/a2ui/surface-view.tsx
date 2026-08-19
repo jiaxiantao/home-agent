@@ -141,6 +141,7 @@ function ComponentView({
         >
           {component.buttons.map((button) => {
             const isPrimary = button.action === "confirm_sql";
+            const isSecondary = button.action === "explain_sql" || button.action === "regenerate_sql";
             return (
               <button
                 key={button.id}
@@ -151,7 +152,9 @@ function ComponentView({
                   "rounded-md px-3 py-1.5 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40",
                   isPrimary
                     ? "bg-brand text-white hover:bg-brand-hover"
-                    : "border border-border text-foreground hover:border-brand/25 hover:bg-brand/5 hover:text-brand-soft",
+                    : isSecondary
+                      ? "border border-brand/30 text-brand-soft hover:border-brand/50 hover:bg-brand/10"
+                      : "border border-border text-foreground hover:border-brand/25 hover:bg-brand/5 hover:text-brand-soft",
                 )}
               >
                 {button.label}

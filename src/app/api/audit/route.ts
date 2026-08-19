@@ -26,12 +26,45 @@ export async function GET(request: Request) {
   const limit = Number(url.searchParams.get("limit") ?? "50");
   const event = url.searchParams.get("event") ?? undefined;
   const userId = url.searchParams.get("userId") ?? undefined;
+  const startTime = url.searchParams.get("startTime") ?? undefined;
+  const endTime = url.searchParams.get("endTime") ?? undefined;
+  const threadId = url.searchParams.get("threadId") ?? undefined;
+  const outcome = url.searchParams.get("outcome") ?? undefined;
+  const format = url.searchParams.get("format") ?? "json";
 
   const records = await listAuditRecords({
     limit,
-    event: event ?? undefined,
-    userId: userId ?? undefined,
+    event,
+    userId,
+    startTime,
+    endTime,
+    threadId,
+    outcome,
   });
+
+  if (format === "csv") {
+    const headers = ["ts", "event", "userId", "userName", "sql", "outcome", "runId", "threadId"];
+    const csvRows = [
+      headers.join(","),
+      ...records.map((r) =>
+        headers
+          .map((h) => {
+            const v = (r as Record<string, unknown>)[h];
+            const s = v == null ? "" : String(v);
+            return s.includes(",") || s.includes('"') || s.includes("\n")
+              ? `"${s.replace(/"/g, '""')}"`
+              : s;
+          })
+          .join(","),
+      ),
+    ];
+    return new Response(csvRows.join("\n"), {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="audit-${Date.now()}.csv"`,
+      },
+    });
+  }
 
   return NextResponse.json({
     records,

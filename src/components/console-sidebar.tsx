@@ -9,6 +9,7 @@ import { getDfcMarsAccountUrl } from "@/lib/security/sso-config";
 
 const navItems = [
   { href: "/agents", label: "数据智能体" },
+  { href: "/dashboard", label: "数据看板" },
   { href: "/sessions", label: "历史会话" },
   { href: "/templates", label: "团队模板" },
   { href: "/tools", label: "工具管理" },

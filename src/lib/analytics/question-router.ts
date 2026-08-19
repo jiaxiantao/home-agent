@@ -284,7 +284,7 @@ export function suggestedTablesForQuestion(question: string) {
   const tables: Array<{ database: string; table: string; reason: string }> = [];
   const seen = new Set<string>();
 
-  for (const rule of questionRouteRules) {
+  for (const rule of getAllRouteRules()) {
     if (!rule.pattern.test(question) || !rule.suggestedTables?.length) {
       continue;
     }
@@ -342,7 +342,7 @@ export function extractQuestionSearchTerms(question: string): string[] {
   const terms = new Set<string>();
   const normalized = question.trim();
 
-  for (const rule of questionRouteRules) {
+  for (const rule of getAllRouteRules()) {
     if (rule.pattern.test(normalized)) {
       for (const term of rule.searchTerms) {
         terms.add(term);
@@ -367,6 +367,17 @@ export function extractQuestionSearchTerms(question: string): string[] {
   return [...terms].slice(0, 8);
 }
 
+/** Merge dynamic DB rules (loaded from app_mysql) with hardcoded rules */
+let _dynamicRules: RouteKeywordRule[] = [];
+
+export function setDynamicRouteRules(rules: RouteKeywordRule[]) {
+  _dynamicRules = rules;
+}
+
+export function getAllRouteRules(): RouteKeywordRule[] {
+  return [..._dynamicRules, ...questionRouteRules];
+}
+
 export function rankDatabasesForQuestion(question: string): Array<{
   database: string;
   score: number;
@@ -385,7 +396,7 @@ export function rankDatabasesForQuestion(question: string): Array<{
     scores.set(database, current);
   };
 
-  for (const rule of questionRouteRules) {
+  for (const rule of getAllRouteRules()) {
     if (rule.pattern.test(question)) {
       rule.databases.forEach((database, index) => {
         bump(database, 10 - index, rule.reason);
@@ -431,11 +442,12 @@ export function rankDatabasesForQuestion(question: string): Array<{
 }
 
 export function formatRouteHintForPrompt(question?: string) {
+  const allRules = getAllRouteRules();
   const rules = question
-    ? questionRouteRules.filter((rule) => rule.pattern.test(question))
-    : questionRouteRules;
+    ? allRules.filter((rule) => rule.pattern.test(question))
+    : allRules;
 
-  const selected = rules.length > 0 ? rules : questionRouteRules.slice(0, 10);
+  const selected = rules.length > 0 ? rules : allRules.slice(0, 10);
 
   return selected
     .map((rule) => {
