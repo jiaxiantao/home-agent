@@ -13,6 +13,33 @@ function substitute(template: string, args: Record<string, unknown>) {
   });
 }
 
+/**
+ * 占位符的值由模型决定。若 origin 段（scheme / host / port）里出现占位符，
+ * 模型就能把请求指向任意主机——assertTestSafeUpstreamUrl 是单点兜底，不该是唯一防线。
+ * 因此在替换之前就要求 origin 必须是模板里写死的常量。
+ */
+export function assertStaticUrlOrigin(urlTemplate: string): string | null {
+  const originEnd = urlTemplate.indexOf("/", urlTemplate.indexOf("://") + 3);
+  const origin = originEnd === -1 ? urlTemplate : urlTemplate.slice(0, originEnd);
+
+  if (/\{\{\w+\}\}/.test(origin)) {
+    return `自定义工具 URL 的协议与域名不允许使用占位符：${origin}`;
+  }
+  return null;
+}
+
+/** 占位符值不得越出当前路径段，防止 ../ 穿越或注入新的 query/fragment */
+function sanitizeUrlPlaceholderValues(args: Record<string, unknown>) {
+  const safe: Record<string, unknown> = { ...args };
+  for (const [key, value] of Object.entries(safe)) {
+    if (value == null) {
+      continue;
+    }
+    safe[key] = encodeURIComponent(String(value));
+  }
+  return safe;
+}
+
 function substituteRecord(
   record: Record<string, unknown> | undefined,
   args: Record<string, unknown>,
@@ -45,7 +72,14 @@ export async function invokeManagedHttpTool(
   }
 
   const method = http.method === "POST" ? "POST" : "GET";
-  let urlText = substitute(http.url.trim(), args);
+  const urlTemplate = http.url.trim();
+
+  const unsafeOrigin = assertStaticUrlOrigin(urlTemplate);
+  if (unsafeOrigin) {
+    return { output: unsafeOrigin, data: { status: "error", url: urlTemplate, method } };
+  }
+
+  let urlText = substitute(urlTemplate, sanitizeUrlPlaceholderValues(args));
   const query = substituteRecord(http.queryTemplate, args);
   if (query) {
     const url = new URL(urlText);

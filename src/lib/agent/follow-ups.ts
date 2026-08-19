@@ -2,6 +2,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 import type { ThreadTurn } from "@/lib/agent/planner";
 import { createChatModel, isLangGraphLlmEnabled } from "@/lib/agent/langgraph/model";
+import { withLlmRetry } from "@/lib/agent/llm-retry";
 
 const MAX_FOLLOW_UPS = 3;
 
@@ -97,8 +98,17 @@ export function buildRuleFollowUps(input: {
 }
 
 /**
+ * 追问建议是界面糖，默认不值得为它多付一次模型调用。
+ * 需要更贴合上下文的推荐时置 AGENT_LLM_FOLLOW_UPS=1。
+ */
+export function isLlmFollowUpsEnabled() {
+  const flag = process.env.AGENT_LLM_FOLLOW_UPS?.toLowerCase();
+  return flag === "1" || flag === "true" || flag === "yes";
+}
+
+/**
  * 基于当前会话与本轮回答，生成可直接发送的追问建议。
- * 优先 LLM；失败时回退规则。
+ * 默认走零成本规则；开启 AGENT_LLM_FOLLOW_UPS 后优先 LLM，失败仍回退规则。
  */
 export async function suggestFollowUpQuestions(input: {
   message: string;
@@ -108,13 +118,17 @@ export async function suggestFollowUpQuestions(input: {
   const conversation = input.conversation ?? [];
   const fallback = buildRuleFollowUps(input);
 
+  if (!isLlmFollowUpsEnabled()) {
+    return { followUps: fallback, mock: true };
+  }
+
   if (!input.answer.trim() || !isLangGraphLlmEnabled()) {
     return { followUps: fallback, mock: true };
   }
 
   try {
     const model = createChatModel();
-    const response = await model.invoke([
+    const response = await withLlmRetry(() => model.invoke([
       new SystemMessage(
         [
           "你是大风车数据智能体的追问推荐器。",
@@ -135,7 +149,7 @@ export async function suggestFollowUpQuestions(input: {
           input.answer.slice(0, 1200),
         ].join("\n"),
       ),
-    ]);
+    ]), { maxAttempts: 2 });
 
     const text =
       typeof response.content === "string" ? response.content.trim() : "";

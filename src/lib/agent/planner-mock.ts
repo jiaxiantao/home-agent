@@ -700,6 +700,36 @@ export function buildMockPlan(
       };
     }
 
+    if (/售价|价格|标价/.test(normalized) && /车源|分布|柱状|区间/.test(normalized)) {
+      return {
+        action: "tool",
+        tool: "propose_sql",
+        args: {
+          sql: qualify(
+            "car",
+            `SELECT
+  CASE
+    WHEN sale_price IS NULL OR sale_price = 0 THEN '未定价/0'
+    WHEN sale_price < 5000000 THEN '0-5万'
+    WHEN sale_price < 10000000 THEN '5-10万'
+    WHEN sale_price < 20000000 THEN '10-20万'
+    WHEN sale_price < 30000000 THEN '20-30万'
+    WHEN sale_price < 50000000 THEN '30-50万'
+    WHEN sale_price < 100000000 THEN '50-100万'
+    ELSE '100万以上'
+  END AS price_range,
+  COUNT(*) AS car_count
+FROM car
+WHERE test_type = 0
+GROUP BY price_range
+ORDER BY MIN(sale_price)`,
+          ),
+          explanation: `按售价区间统计正式车源数量（库 ${targetDatabase}.car.sale_price，单位分）`,
+        },
+        reasoning: "自动规划完成：提出车源售价区间分布 SQL",
+      };
+    }
+
     if (/分布|状态/.test(normalized) && /车源/.test(normalized)) {
       return {
         action: "tool",

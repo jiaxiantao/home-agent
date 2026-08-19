@@ -4,11 +4,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { compileDfcAgentGraph, createGraphInput } from "@/lib/agent/langgraph/graph";
 import {
   afterToolsRoute,
+  applyPlannerOverride,
   mockPlanNode,
   needsRuleBasedFallback,
   postToolsNode,
+  resolvePrematureLlmOverrideUpdate,
   routePlannerNode,
   shouldContinueWithMockPlanner,
+  shouldOverridePrematureLlmAnswer,
   shouldUseTools,
 } from "@/lib/agent/langgraph/nodes/plan-or-act";
 import { runDfcAgentLoop } from "@/lib/agent/langgraph";
@@ -165,6 +168,39 @@ describe("langgraph graph", () => {
     };
 
     expect(needsRuleBasedFallback(llmUpdate, state)).toBe(false);
+    expect(shouldOverridePrematureLlmAnswer(llmUpdate, state)).toBe(true);
+  });
+
+  it("overrides premature LLM text with mock route_api for chart question", () => {
+    const question = "按售价区间统计正式车源数量分布，画柱状图";
+    const state = createGraphInput(question);
+    const llmUpdate = {
+      mock: false,
+      stepCount: 1,
+      messages: [
+        new AIMessage({
+          content:
+            "按售价区间分桶统计正式车源（test_type=0）数量，售价取自 car_extra.sale_price，用于柱状图展示",
+        }),
+      ],
+      finalAnswer:
+        "按售价区间分桶统计正式车源（test_type=0）数量，售价取自 car_extra.sale_price，用于柱状图展示",
+      shouldEnd: true,
+    };
+
+    expect(shouldOverridePrematureLlmAnswer(llmUpdate, state)).toBe(true);
+
+    const merged = applyPlannerOverride(
+      { ...state, ...llmUpdate, messages: [...state.messages, ...llmUpdate.messages] },
+      resolvePrematureLlmOverrideUpdate(
+        { ...state, ...llmUpdate, messages: [...state.messages, ...llmUpdate.messages] },
+        [],
+      )!,
+    );
+
+    expect(shouldUseTools(merged)).toBe("tools");
+    const last = merged.messages.at(-1);
+    expect(last instanceof AIMessage && last.tool_calls?.[0]?.name).toBe("route_api");
   });
 
   it("does not fallback when LLM emits tool calls", () => {

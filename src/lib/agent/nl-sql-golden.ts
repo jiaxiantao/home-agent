@@ -86,6 +86,17 @@ export const nlSqlGoldenCases: GoldenCase[] = [
     },
   },
   {
+    id: "car-price-range-dist",
+    question: "按售价区间统计正式车源数量分布，画柱状图",
+    prior: routedPrior("按售价区间统计正式车源数量分布，画柱状图"),
+    expect: {
+      action: "tool",
+      tool: "propose_sql",
+      sqlIncludes: ["matador", "car", "sale_price", "test_type = 0", "GROUP BY"],
+      sqlExcludes: ["car_extra"],
+    },
+  },
+  {
     id: "ops-trend",
     question: "看一下最近运营日报里新增车源和求购的趋势",
     prior: routedPrior("看一下最近运营日报里新增车源和求购的趋势"),

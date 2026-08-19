@@ -1,5 +1,11 @@
 import type { AgentTraceEvent } from "@/lib/agent/types";
 
+export type SynthesizedAnswer = {
+  text: string;
+  mock: boolean;
+  followUps: string[];
+};
+
 /** SSE 事件辅助：与前端 AgentTraceEvent 协议对齐 */
 export function doneEvent(
   startedAt: number,

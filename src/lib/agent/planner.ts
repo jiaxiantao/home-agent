@@ -101,6 +101,7 @@ ${formatServiceRepoMapForPrompt()}
 - 单条只读 SELECT/SHOW/DESCRIBE/EXPLAIN；禁止 USE / 多语句
 - 非默认库或跨库必须 \`db\`.\`table\`
 - 正式车源/求购常用 test_type=0；订单 delete_time IS NULL；用户表 date_delete IS NULL
+- matador.car 售价用 sale_price（单位分，不是 car_extra）；区间分桶阈值用分或 sale_price/1000000
 
 ## 核心表字段参考${question ? "（与当前问题相关）" : ""}
 ${formatSchemaCatalogForPrompt(undefined, question)}

@@ -14,6 +14,7 @@ import {
 import { isAppMysqlConfigured } from "@/lib/app-mysql/client";
 import { getRedisClient, isRedisConfigured } from "@/lib/redis/client";
 import { PRODUCT_SLUG } from "@/lib/product";
+import { bumpToolCatalogVersion } from "@/lib/agent/tool-catalog-version";
 
 export type ManagedToolKind = "builtin" | "http";
 
@@ -278,6 +279,7 @@ export async function createManagedHttpTool(input: {
   enabled?: boolean;
   createdBy: string;
 }) {
+  bumpToolCatalogVersion();
   const name = input.name.trim();
   const label = input.label.trim().slice(0, 80);
   const description = input.description.trim().slice(0, 1000);
@@ -331,6 +333,7 @@ export async function updateManagedTool(
     http?: ManagedHttpConfig | null;
   },
 ) {
+  bumpToolCatalogVersion();
   const current = (await listManagedTools()).find((item) => item.id === id);
   if (!current) {
     return null;
@@ -376,6 +379,7 @@ export async function updateManagedTool(
 }
 
 export async function deleteManagedTool(id: string) {
+  bumpToolCatalogVersion();
   const current = (await listManagedTools()).find((item) => item.id === id);
   if (!current) {
     return false;
@@ -394,5 +398,6 @@ export async function deleteManagedTool(id: string) {
 }
 
 export function resetManagedToolsForTest() {
+  bumpToolCatalogVersion();
   globalStore.__dfcAgentManagedTools = [];
 }

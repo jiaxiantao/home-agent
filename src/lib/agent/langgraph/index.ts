@@ -1,16 +1,6 @@
-import { AIMessage } from "@langchain/core/messages";
-
-import {
-  formatBackendApiAnswers,
-  summarizeBackendApiResult,
-  summarizeSqlResult,
-} from "@/lib/agent/answer-format";
-import { buildMockPlan } from "@/lib/agent/planner-mock";
-import { resolveApiFallbackPlan } from "@/lib/agent/backend-api-tool-guide";
-import type { ThreadTurn } from "@/lib/agent/planner";
+import { summarizeSqlResult } from "@/lib/agent/answer-format";
 import { buildQueryResultSurface, buildSqlConfirmSurface } from "@/lib/a2ui/types";
 import { buildChartSpecFromRows } from "@/lib/analytics/chart-spec";
-import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
 import { assertReadOnlySql } from "@/lib/analytics/sql-guard";
 import {
   fixSqlFromExecutionError,
@@ -18,42 +8,23 @@ import {
 } from "@/lib/analytics/sql-sanitize";
 import { userRequestedChart, inferPreferredChartType } from "@/lib/agent/chart-intent";
 import { getAgentMaxSteps } from "@/lib/agent/config";
+import { AgentLoopGuard } from "@/lib/agent/loop-guard";
+import { tryDirectAnswer } from "@/lib/agent/direct-answer";
 import type { DfcAgentStateType } from "@/lib/agent/langgraph/state";
-import { createGraphInput } from "@/lib/agent/langgraph/graph";
-import { createToolsNodeHandler } from "@/lib/agent/langgraph/graph-runner";
+import { compileDfcAgentGraph, createGraphInput } from "@/lib/agent/langgraph/graph";
 import {
-  afterToolsRoute,
-  agentPlanToStateUpdate,
-  buildAgentExhaustedAnswer,
-  postToolsNode,
-  streamRoutePlannerNode,
-  shouldUseTools,
-} from "@/lib/agent/langgraph/nodes/plan-or-act";
-import {
-  streamSynthesizeAnswerAfterQuery,
-  type SynthesizedAnswer,
-} from "@/lib/agent/langgraph/nodes/finalize";
-import { suggestFollowUpQuestions } from "@/lib/agent/follow-ups";
+  answerEvent,
+  emitAnswerStream,
+  withFollowUps,
+} from "@/lib/agent/langgraph/nodes/answer";
 import {
   answerStreamEvent,
   doneEvent,
   emitTerminalError,
-  planStreamEvent,
-  plannerModeEvent,
-  stepMetricEvent,
-  tracePlanStep,
+  type SynthesizedAnswer,
 } from "@/lib/agent/langgraph/stream-adapter";
+import { runBuildChartTool, runExecuteSqlTool } from "@/lib/agent/langgraph/tools";
 import {
-  STREAM_HEARTBEAT_MS,
-  withIdleHeartbeat,
-} from "@/lib/agent/stream-heartbeat";
-import {
-  runBuildChartTool,
-  runExecuteSqlTool,
-} from "@/lib/agent/langgraph/tools";
-import {
-  attachUserToPendingRun,
-  createRunId,
   getPendingSqlRun,
   savePendingSqlRun,
   takePendingSqlRun,
@@ -74,7 +45,6 @@ import type {
   AgentTraceEvent,
   AgentToolResult,
   ExecuteSqlData,
-  ProposeSqlData,
 } from "@/lib/agent/types";
 import {
   createServerHistory,
@@ -83,10 +53,7 @@ import {
 import { auditFromContext, type AuditContext } from "@/lib/security/audit-log";
 import { assertAllowedDatabases } from "@/lib/security/database-allowlist";
 import { assertAllowedTables } from "@/lib/security/table-allowlist";
-import {
-  isToolAllowedForUser,
-  toolAccessDeniedMessage,
-} from "@/lib/security/rbac";
+import { maskFreeTextPii } from "@/lib/security/pii-mask";
 import type { SsoCredentials } from "@/lib/security/sso-credentials";
 import { getSsoRequestContext } from "@/lib/security/sso-context";
 import { resolveLlmProvider } from "@/lib/agent/langgraph/model";
@@ -112,7 +79,6 @@ export type RunDfcAgentLoopOptions = {
   };
 };
 
-
 function assertNotAborted(signal?: AbortSignal) {
   if (!signal?.aborted) {
     return;
@@ -137,206 +103,6 @@ function validateExecutableSql(rawSql: string) {
   return guarded.sql;
 }
 
-function summarizeQuery(result: ExecuteSqlData) {
-  return summarizeSqlResult(result);
-}
-
-function findSuccessfulBackendApiResults(prior: AgentToolResult[]) {
-  return prior
-    .filter((item) => item.tool === "call_backend_api")
-    .map((item) => item.data as BackendApiCallResult | undefined)
-    .filter(
-      (item): item is BackendApiCallResult =>
-        Boolean(item?.status === "success" && item.table?.rows.length),
-    );
-}
-
-function findExecuteSqlResult(prior: AgentToolResult[]) {
-  const entry = [...prior].reverse().find((item) => item.tool === "execute_sql");
-  return entry?.data as ExecuteSqlData | undefined;
-}
-
-function backendApiA2uiEvents(prior: AgentToolResult[]) {
-  const stamp = Date.now().toString(36);
-  return findSuccessfulBackendApiResults(prior).map((apiPreview, index) => ({
-    type: "a2ui" as const,
-    surface: buildQueryResultSurface({
-      surfaceId: `api_${index}_${stamp}`,
-      sql: `-- 接口: ${apiPreview.endpointId}`,
-      columns: apiPreview.table!.columns,
-      rows: apiPreview.table!.rows,
-      summary: summarizeBackendApiResult(apiPreview),
-    }),
-  }));
-}
-
-async function withFollowUps(input: {
-  message: string;
-  answer: string;
-  conversation: ThreadTurn[];
-  mock?: boolean;
-  followUps?: string[];
-}): Promise<{
-  answer: string;
-  mock?: boolean;
-  followUps: string[];
-  apiResult?: BackendApiCallResult;
-  sqlResult?: ExecuteSqlData;
-}> {
-  if (input.followUps?.length) {
-    return {
-      answer: input.answer,
-      mock: input.mock,
-      followUps: input.followUps,
-    };
-  }
-  const suggested = await suggestFollowUpQuestions({
-    message: input.message,
-    answer: input.answer,
-    conversation: input.conversation,
-  });
-  return {
-    answer: input.answer,
-    mock: input.mock,
-    followUps: suggested.followUps,
-  };
-}
-
-function answerEvent(input: {
-  text: string;
-  mock?: boolean;
-  followUps?: string[];
-}): AgentTraceEvent {
-  return {
-    type: "answer",
-    text: input.text,
-    mock: input.mock,
-    ...(input.followUps?.length ? { followUps: input.followUps } : {}),
-  };
-}
-
-async function* emitAnswerStream(input: {
-  message: string;
-  prior: AgentToolResult[];
-  conversation: ThreadTurn[];
-  summary: string;
-}): AsyncGenerator<AgentTraceEvent, SynthesizedAnswer> {
-  let streamed = "";
-  let result: SynthesizedAnswer = { text: "", mock: true, followUps: [] };
-
-  async function* source() {
-    for await (const event of streamSynthesizeAnswerAfterQuery(input)) {
-      yield event;
-    }
-  }
-
-  for await (const item of withIdleHeartbeat(
-    source(),
-    STREAM_HEARTBEAT_MS,
-    () => ({
-      kind: "delta" as const,
-      text: streamed || "正在整理结论…",
-      delta: "",
-    }),
-  )) {
-    if (item.kind === "delta") {
-      streamed = item.text || streamed;
-      yield answerStreamEvent({ text: streamed, delta: item.delta });
-      continue;
-    }
-    result = {
-      text: item.text,
-      mock: item.mock,
-      followUps: item.followUps,
-    };
-  }
-
-  return result;
-}
-
-async function* streamFinalAnswerFromState(input: {
-  state: DfcAgentStateType;
-  message: string;
-  conversation: ThreadTurn[];
-  fallback: string;
-}): AsyncGenerator<
-  AgentTraceEvent,
-  {
-    answer: string;
-    mock?: boolean;
-    followUps: string[];
-    apiResult?: BackendApiCallResult;
-    sqlResult?: ExecuteSqlData;
-  }
-> {
-  const apiResults = findSuccessfulBackendApiResults(input.state.priorToolResults);
-  const apiResult = apiResults.at(-1);
-  if (apiResult) {
-    const summary =
-      apiResults.length > 1
-        ? `已调用 ${apiResults.length} 个接口并组装结果。`
-        : summarizeBackendApiResult(apiResult);
-    const synthesized = yield* emitAnswerStream({
-      message: input.message,
-      prior: input.state.priorToolResults,
-      conversation: input.conversation,
-      summary,
-    });
-    return {
-      answer: synthesized.text || formatBackendApiAnswers(apiResults),
-      mock: synthesized.mock,
-      followUps: synthesized.followUps,
-      apiResult,
-    };
-  }
-
-  const sqlResult = findExecuteSqlResult(input.state.priorToolResults);
-  if (sqlResult) {
-    const summary = summarizeSqlResult(sqlResult);
-    const synthesized = yield* emitAnswerStream({
-      message: input.message,
-      prior: input.state.priorToolResults,
-      conversation: input.conversation,
-      summary,
-    });
-    return {
-      answer: synthesized.text || input.fallback,
-      mock: synthesized.mock,
-      followUps: synthesized.followUps,
-      sqlResult,
-    };
-  }
-
-  const mockPlan = buildMockPlan(
-    input.message,
-    input.state.priorToolResults,
-    input.conversation,
-  );
-  if (mockPlan.action === "answer" && mockPlan.answer.trim()) {
-    yield answerStreamEvent({
-      text: mockPlan.answer,
-      delta: mockPlan.answer,
-    });
-    return withFollowUps({
-      message: input.message,
-      answer: mockPlan.answer,
-      conversation: input.conversation,
-      mock: true,
-    });
-  }
-
-  yield answerStreamEvent({
-    text: input.fallback,
-    delta: input.fallback,
-  });
-  return withFollowUps({
-    message: input.message,
-    answer: input.fallback,
-    conversation: input.conversation,
-    mock: input.state.mock ?? false,
-  });
-}
-
 async function appendAssistantThreadMessage(
   threadId: string | undefined,
   userId: string | undefined,
@@ -349,7 +115,7 @@ async function appendAssistantThreadMessage(
   const snapshot = extra?.turnUi?.snapshot();
   await appendThreadMessage(threadId, userId, {
     role: "assistant",
-    content,
+    content: maskFreeTextPii(content),
     sql: extra?.sql,
     ts: Date.now(),
     surfaces: snapshot?.surfaces.length ? snapshot.surfaces : undefined,
@@ -361,11 +127,7 @@ function assertPendingOwnership(
   pending: PendingSqlRun,
   currentUserId: string | undefined,
 ) {
-  if (
-    pending.userId &&
-    currentUserId &&
-    pending.userId !== currentUserId
-  ) {
+  if (pending.userId && currentUserId && pending.userId !== currentUserId) {
     throw new Error("无权确认或取消他人的 SQL 请求");
   }
 }
@@ -375,12 +137,7 @@ async function* requeueSqlConfirm(
   sql: string,
   errorMessage: string,
 ): AsyncGenerator<AgentTraceEvent> {
-  const nextPending: PendingSqlRun = {
-    ...pending,
-    sql,
-    createdAt: Date.now(),
-  };
-  await savePendingSqlRun(nextPending);
+  await savePendingSqlRun({ ...pending, sql, createdAt: Date.now() });
 
   yield { type: "error", message: errorMessage };
   yield {
@@ -511,11 +268,7 @@ async function* resumeConfirmedSql(
   let toolCalls = 0;
   let steps = 1;
 
-  yield {
-    type: "trace",
-    phase: "tool",
-    message: "用户已确认，开始执行只读 SQL",
-  };
+  yield { type: "trace", phase: "tool", message: "用户已确认，开始执行只读 SQL" };
   yield { type: "tool_call", tool: "execute_sql", args: { sql: sqlToRun } };
   toolCalls += 1;
 
@@ -589,7 +342,7 @@ async function* resumeConfirmedSql(
       };
     }
 
-    const summary = summarizeQuery(query);
+    const summary = summarizeSqlResult(query);
     yield {
       type: "a2ui",
       surface: buildQueryResultSurface({
@@ -619,26 +372,41 @@ async function* resumeConfirmedSql(
       };
     }
 
-    yield { type: "trace", phase: "answer", message: "基于查询结果合成最终回答" };
-
-    const synthesized = yield* emitAnswerStream({
-      message: pending.message,
-      prior,
-      conversation: pending.threadId && pending.userId
+    const conversation =
+      pending.threadId && pending.userId
         ? formatThreadForPlanner(
             await getThreadMessages(pending.threadId, pending.userId),
           )
-        : [],
-      summary,
-    });
+        : [];
+
+    // 结果无歧义时跳过合成调用
+    const direct = tryDirectAnswer(pending.message, prior);
+    let synthesized: SynthesizedAnswer;
+    if (direct) {
+      yield { type: "trace", phase: "answer", message: "结果无歧义，直接作答" };
+      yield answerStreamEvent({ text: direct.text, delta: direct.text });
+      const suggestions = await withFollowUps({
+        message: pending.message,
+        answer: direct.text,
+        conversation,
+        mock: true,
+      });
+      synthesized = { text: direct.text, mock: true, followUps: suggestions.followUps };
+    } else {
+      yield { type: "trace", phase: "answer", message: "基于查询结果合成最终回答" };
+      synthesized = yield* emitAnswerStream({
+        message: pending.message,
+        prior,
+        conversation,
+        summary,
+      });
+    }
 
     const answerText = synthesized.text;
-    await appendAssistantThreadMessage(
-      pending.threadId,
-      pending.userId,
-      answerText,
-      { sql: query.sql, turnUi: options.turnUi },
-    );
+    await appendAssistantThreadMessage(pending.threadId, pending.userId, answerText, {
+      sql: query.sql,
+      turnUi: options.turnUi,
+    });
 
     if (pending.userId) {
       await updateServerHistoryByRunId(pending.userId, runId, {
@@ -658,30 +426,6 @@ async function* resumeConfirmedSql(
   } catch (error) {
     const message = error instanceof Error ? error.message : "SQL 执行失败";
     const autoFix = fixSqlFromExecutionError(sqlToRun, message);
-    if (autoFix) {
-      auditFromContext(options.audit, {
-        event: "sql.execution_failed",
-        runId,
-        sql: sqlToRun,
-        outcome: "failure",
-        error: message,
-      });
-
-      if (pending.userId) {
-        await updateServerHistoryByRunId(pending.userId, runId, {
-          status: "awaiting",
-          sql: autoFix.sql,
-          answer: `已自动修正 SQL：${autoFix.notes.join("；")}`,
-        });
-      }
-
-      yield* requeueSqlConfirm(
-        pending,
-        autoFix.sql,
-        `执行失败：${message}。已自动移除 API 参数条件（objCode/recordId 不是数据库列），请确认修正后的 SQL 后重试。`,
-      );
-      return;
-    }
 
     auditFromContext(options.audit, {
       event: "sql.execution_failed",
@@ -690,6 +434,22 @@ async function* resumeConfirmedSql(
       outcome: "failure",
       error: message,
     });
+
+    if (autoFix) {
+      if (pending.userId) {
+        await updateServerHistoryByRunId(pending.userId, runId, {
+          status: "awaiting",
+          sql: autoFix.sql,
+          answer: `已自动修正 SQL：${autoFix.notes.join("；")}`,
+        });
+      }
+      yield* requeueSqlConfirm(
+        pending,
+        autoFix.sql,
+        `执行失败：${message}。已自动移除 API 参数条件（objCode/recordId 不是数据库列），请确认修正后的 SQL 后重试。`,
+      );
+      return;
+    }
 
     if (pending.userId) {
       await updateServerHistoryByRunId(pending.userId, runId, {
@@ -703,60 +463,10 @@ async function* resumeConfirmedSql(
   }
 }
 
-function resolveTerminalAnswer(state: DfcAgentStateType) {
-  const fromState = state.finalAnswer?.trim();
-  if (fromState && !looksLikePlanningReasoning(fromState, state)) {
-    return fromState;
-  }
-
-  const lastAi = state.messages.findLast((item) => item instanceof AIMessage);
-  if (lastAi instanceof AIMessage && typeof lastAi.content === "string") {
-    const text = lastAi.content.trim();
-    if (text && !looksLikePlanningReasoning(text, state)) {
-      return text;
-    }
-  }
-
-  const apiResults = findSuccessfulBackendApiResults(state.priorToolResults);
-  if (apiResults.length) {
-    return formatBackendApiAnswers(apiResults);
-  }
-
-  if (state.priorToolResults.length) {
-    return state.priorToolResults.map((item) => `${item.tool}: ${item.output}`).join("\n");
-  }
-
-  return "未能完成分析，请重试或换个问法。";
-}
-
-function looksLikePlanningReasoning(text: string, state: DfcAgentStateType) {
-  if (state.priorToolResults.length === 0) {
-    return false;
-  }
-
-  const plan = buildMockPlan(state.userMessage, state.priorToolResults, []);
-  if (plan.action === "tool") {
-    return true;
-  }
-
-  return /^(明细查询|业务问数|调用 super-mario|匹配大风车)/.test(text.trim());
-}
-
-function mergeState(
-  state: DfcAgentStateType,
-  patch: Partial<DfcAgentStateType>,
-): DfcAgentStateType {
-  return {
-    ...state,
-    ...patch,
-    messages: patch.messages ? [...state.messages, ...patch.messages] : state.messages,
-    priorToolResults: patch.priorToolResults
-      ? [...state.priorToolResults, ...patch.priorToolResults]
-      : state.priorToolResults,
-  };
-}
-
-/** LangGraph 驱动的 Agent 主循环 */
+/**
+ * Agent 主入口。真正的推理循环由编译后的 LangGraph 执行，
+ * 这里只负责：会话/审计准备、把图的 custom 事件转成 SSE、以及运行结束后的收尾。
+ */
 export async function* runDfcAgentLoop(
   message: string,
   options: RunDfcAgentLoopOptions = {},
@@ -781,10 +491,7 @@ export async function* runDfcAgentLoop(
         ...options,
         resume: undefined,
         threadId: continuation.threadId ?? options.threadId,
-        continueFrom: {
-          ...continuation,
-          skipAppendUser: true,
-        },
+        continueFrom: { ...continuation, skipAppendUser: true },
       });
     }
     return;
@@ -795,6 +502,7 @@ export async function* runDfcAgentLoop(
   const llmProvider = resolveLlmProvider(options.llmProvider);
   const userId = options.audit?.user.userId ?? "unknown";
   const thread = await ensureThread(options.threadId, userId);
+
   yield { type: "thread", threadId: thread.threadId };
   if (!continueFrom) {
     yield { type: "trace", phase: "start", message: "LangGraph Agent 循环启动" };
@@ -821,175 +529,24 @@ export async function* runDfcAgentLoop(
     });
   }
 
-  const runTools = createToolsNodeHandler(
-    options.sso ?? getSsoRequestContext(),
-  );
-  let state: DfcAgentStateType = createGraphInput(
-    message,
+  assertNotAborted(options.signal);
+
+  let awaitingInput = false;
+
+  const graph = compileDfcAgentGraph({
     conversation,
-    continueFrom?.prior ?? [],
-  );
-  let steps = continueFrom?.steps ?? 0;
-  let toolCalls = continueFrom?.toolCalls ?? 0;
-  let lastMock = false;
-  const maxSteps = getAgentMaxSteps();
-
-  while (steps < maxSteps) {
-    assertNotAborted(options.signal);
-    steps += 1;
-
-    yield tracePlanStep(steps);
-    yield planStreamEvent({
-      step: steps,
-      text: "正在规划…",
-      delta: "正在规划…",
-    });
-
-    const forcedPlan = resolveApiFallbackPlan(message, state.priorToolResults);
-    const planStartedAt = performance.now();
-    let agentUpdate: Partial<DfcAgentStateType> = {};
-
-    if (forcedPlan) {
-      agentUpdate = agentPlanToStateUpdate(forcedPlan, `fallback_${steps}`, state.stepCount);
-      lastMock = true;
-    } else {
-    type PlannerWait =
-      | { kind: "delta"; event: AgentTraceEvent }
-      | { kind: "done"; update: Partial<DfcAgentStateType> }
-      | { kind: "fail"; message: string };
-
-    async function* plannerWaitStream(): AsyncGenerator<PlannerWait> {
-      for await (const planEvent of streamRoutePlannerNode(
-        state,
-        conversation,
-        llmProvider,
-      )) {
-        if (planEvent.kind === "delta") {
-          yield {
-            kind: "delta",
-            event: planStreamEvent({
-              step: steps,
-              text: planEvent.text,
-              delta: planEvent.delta,
-            }),
-          };
-        } else if (planEvent.kind === "fail") {
-          yield { kind: "fail", message: planEvent.message };
-        } else {
-          yield { kind: "done", update: planEvent.update };
-        }
-      }
-    }
-
-    for await (const item of withIdleHeartbeat(
-      plannerWaitStream(),
-      STREAM_HEARTBEAT_MS,
-      (waitedMs) => ({
-        kind: "delta" as const,
-        event: planStreamEvent({
-          step: steps,
-          text: `规划进行中… 已等待 ${Math.max(1, Math.round(waitedMs / 1000))} 秒`,
-          delta: "",
-        }),
-      }),
-    )) {
-      assertNotAborted(options.signal);
-      if (item.kind === "fail") {
-        yield { type: "trace", phase: "plan", message: item.message };
-        await createServerHistory({
-          userId,
-          threadId: thread.threadId,
-          question: message,
-          status: "error",
-          answer: item.message,
-        });
-        yield* emitTerminalError(item.message, startedAt, steps, toolCalls);
-        return;
-      }
-      if (item.kind === "done") {
-        agentUpdate = item.update;
-        break;
-      }
-      yield item.event;
-    }
-    }
-
-    lastMock = agentUpdate.mock ?? lastMock;
-    state = mergeState(state, agentUpdate);
-
-    const planMs = Math.round(performance.now() - planStartedAt);
-    yield plannerModeEvent(lastMock);
-
-    const route = shouldUseTools(state);
-    if (route === "__end__") {
-      if (steps >= maxSteps && state.priorToolResults.length) {
-        const answer = buildAgentExhaustedAnswer(state.priorToolResults, maxSteps);
-        const withSuggestions = await withFollowUps({
-          message,
-          answer,
-          conversation,
-          mock: lastMock,
-        });
-        yield {
-          type: "plan",
-          plan: {
-            action: "answer",
-            answer: withSuggestions.answer,
-            reasoning: "已达步数上限",
-          },
-        };
-        yield stepMetricEvent({ step: steps, planMs, startedAt });
-        await appendAssistantThreadMessage(
-          thread.threadId,
-          userId,
-          withSuggestions.answer,
-          { turnUi: options.turnUi },
-        );
-        await createServerHistory({
-          userId,
-          threadId: thread.threadId,
-          question: message,
-          status: "done",
-          answer: withSuggestions.answer,
-        });
-        yield answerEvent({
-          text: withSuggestions.answer,
-          mock: withSuggestions.mock,
-          followUps: withSuggestions.followUps,
-        });
-        yield doneEvent(startedAt, steps, toolCalls);
-        return;
-      }
-
-      yield { type: "trace", phase: "answer", message: "整理最终回答" };
-
-      const fallback = resolveTerminalAnswer(state);
-      for (const event of backendApiA2uiEvents(state.priorToolResults)) {
-        yield event;
-      }
-
-      const finalized = yield* streamFinalAnswerFromState({
-        state,
-        message,
-        conversation,
-        fallback,
-      });
-      const answer = finalized.answer;
-
-      yield {
-        type: "plan",
-        plan: {
-          action: "answer",
-          answer,
-          reasoning: lastMock ? "规则规划器完成" : "生成最终回答",
-        },
-      };
-      yield stepMetricEvent({
-        step: steps,
-        planMs,
-        startedAt,
-      });
-      await appendAssistantThreadMessage(thread.threadId, userId, answer, {
+    llmProvider,
+    sso: options.sso ?? getSsoRequestContext(),
+    guard: new AgentLoopGuard(),
+    startedAt,
+    signal: options.signal,
+    // 恢复运行时 prior 已带上首轮的路由结果，无需再预取
+    preRetrieve: !continueFrom,
+    threadId: thread.threadId,
+    userId,
+    audit: options.audit,
+    onFinalAnswer: async (answer) => {
+      await appendAssistantThreadMessage(thread.threadId, userId, answer.text, {
         turnUi: options.turnUi,
       });
       await createServerHistory({
@@ -997,260 +554,62 @@ export async function* runDfcAgentLoop(
         threadId: thread.threadId,
         question: message,
         status: "done",
-        answer,
+        answer: answer.text,
       });
-      yield answerEvent({
-        text: answer,
-        mock: finalized.mock ?? lastMock,
-        followUps: finalized.followUps,
-      });
-      yield doneEvent(startedAt, steps, toolCalls);
-      return;
-    }
-
-    const lastAi = state.messages.findLast((item) => item instanceof AIMessage) as
-      | AIMessage
-      | undefined;
-    const toolCall = lastAi?.tool_calls?.[0];
-    if (!toolCall) {
-      break;
-    }
-
-    let toolName = toolCall.name as AgentToolResult["tool"];
-    let toolArgs = toolCall.args as Record<string, unknown>;
-    if (toolName === "execute_sql") {
-      toolName = "propose_sql";
-      toolArgs = {
-        sql: String(toolArgs.sql ?? ""),
-        explanation: String(toolArgs.explanation ?? "请确认后执行"),
-      };
-    }
-
-    yield {
-      type: "plan",
-      plan: {
-        action: "tool",
-        tool: toolName,
-        args: toolArgs,
-        reasoning:
-          typeof lastAi.content === "string" ? lastAi.content : "LangGraph 工具调用",
-      },
-    };
-
-    if (!isToolAllowedForUser(toolName, options.audit?.user.userId)) {
-      yield* emitTerminalError(
-        toolAccessDeniedMessage(toolName),
-        startedAt,
-        steps,
-        toolCalls,
+    },
+    onAwaitingInput: async (pause) => {
+      awaitingInput = true;
+      await appendAssistantThreadMessage(
+        thread.threadId,
+        userId,
+        pause.explanation?.trim() || "请确认是否执行查询。",
+        { sql: pause.sql, turnUi: options.turnUi },
       );
-      return;
+    },
+  });
+
+  const input = createGraphInput(message, conversation, continueFrom?.prior ?? []);
+
+  let finalState: DfcAgentStateType | undefined;
+
+  // recursionLimit 只是硬上限；正常收敛由 stepCount 与 afterToolsRoute 负责
+  const stream = await graph.stream(input, {
+    streamMode: ["custom", "values"],
+    recursionLimit: getAgentMaxSteps() * 4 + 10,
+    signal: options.signal,
+  });
+
+  for await (const [mode, chunk] of stream as AsyncIterable<
+    [string, AgentTraceEvent | DfcAgentStateType]
+  >) {
+    if (mode === "custom") {
+      yield chunk as AgentTraceEvent;
+      continue;
     }
-
-    yield { type: "tool_call", tool: toolName, args: toolArgs };
-    toolCalls += 1;
-
-    try {
-      const toolStartedAt = performance.now();
-      type ToolWait =
-        | { kind: "result"; update: Partial<DfcAgentStateType> }
-        | { kind: "beat"; waitedMs: number };
-
-      async function* toolWaitStream(): AsyncGenerator<ToolWait> {
-        yield { kind: "result", update: await runTools(state) };
-      }
-
-      let toolUpdate: Partial<DfcAgentStateType> = {};
-      for await (const item of withIdleHeartbeat(
-        toolWaitStream(),
-        STREAM_HEARTBEAT_MS,
-        (waitedMs) => ({ kind: "beat" as const, waitedMs }),
-      )) {
-        assertNotAborted(options.signal);
-        if (item.kind === "beat") {
-          yield {
-            type: "trace",
-            phase: "tool",
-            message: `${toolName} 执行中… 已等待 ${Math.max(1, Math.round(item.waitedMs / 1000))} 秒`,
-          };
-          continue;
-        }
-        toolUpdate = item.update;
-      }
-      state = mergeState(state, toolUpdate);
-      const postUpdate = postToolsNode(state);
-      state = mergeState(state, postUpdate);
-
-      const toolMs = Math.round(performance.now() - toolStartedAt);
-      const lastResult = state.priorToolResults.at(-1);
-      if (lastResult) {
-        yield {
-          type: "tool_result",
-          tool: lastResult.tool,
-          output: lastResult.output,
-          data: lastResult.data,
-        };
-      }
-
-      yield stepMetricEvent({
-        step: steps,
-        planMs,
-        toolMs,
-        startedAt,
-      });
-
-      if (state.pendingSql || lastResult?.tool === "propose_sql") {
-        const data = (lastResult?.data ?? state.pendingSql) as ProposeSqlData;
-        const runId = createRunId();
-        const pending = attachUserToPendingRun(
-          {
-            runId,
-            message,
-            prior: state.priorToolResults,
-            sql: data.sql,
-            explanation: data.explanation,
-            createdAt: Date.now(),
-            mock: lastMock,
-            threadId: thread.threadId,
-          },
-          options.audit?.user ?? { userId: "unknown", authMode: "disabled" },
-          options.audit?.clientIp,
-          thread.threadId,
-        );
-
-        await savePendingSqlRun(pending);
-        auditFromContext(options.audit, {
-          event: "sql.proposed",
-          runId,
-          message,
-          sql: data.sql,
-          explanation: data.explanation,
-          outcome: "success",
-        });
-        await createServerHistory({
-          userId,
-          threadId: thread.threadId,
-          question: message,
-          status: "awaiting",
-          sql: data.sql,
-          runId,
-        });
-
-        yield {
-          type: "a2ui",
-          surface: buildSqlConfirmSurface({
-            surfaceId: `confirm_${runId}`,
-            runId,
-            sql: data.sql,
-            explanation: data.explanation,
-          }),
-        };
-        yield {
-          type: "awaiting_input",
-          runId,
-          reason: "confirm_sql",
-          sql: data.sql,
-          explanation: data.explanation,
-        };
-        await appendAssistantThreadMessage(
-          thread.threadId,
-          userId,
-          data.explanation?.trim() || "请确认是否执行查询。",
-          { sql: data.sql, turnUi: options.turnUi },
-        );
-        return;
-      }
-
-      const next = afterToolsRoute(state);
-      if (next === "__end__") {
-        const hasQueryableResults =
-          findSuccessfulBackendApiResults(state.priorToolResults).length > 0 ||
-          Boolean(findExecuteSqlResult(state.priorToolResults));
-
-        if (state.finalAnswer && hasQueryableResults) {
-          for (const event of backendApiA2uiEvents(state.priorToolResults)) {
-            yield event;
-          }
-
-          const finalized = yield* streamFinalAnswerFromState({
-            state,
-            message,
-            conversation,
-            fallback: state.finalAnswer,
-          });
-          const answer = finalized.answer;
-
-          await appendAssistantThreadMessage(thread.threadId, userId, answer, {
-            turnUi: options.turnUi,
-          });
-          yield answerEvent({
-            text: answer,
-            mock: finalized.mock ?? lastMock,
-            followUps: finalized.followUps,
-          });
-          yield doneEvent(startedAt, steps, toolCalls);
-          return;
-        }
-
-        if (state.finalAnswer) {
-          const withSuggestions = await withFollowUps({
-            message,
-            answer: state.finalAnswer,
-            conversation,
-            mock: lastMock,
-          });
-          await appendAssistantThreadMessage(
-            thread.threadId,
-            userId,
-            withSuggestions.answer,
-            { turnUi: options.turnUi },
-          );
-          yield answerEvent({
-            text: withSuggestions.answer,
-            mock: withSuggestions.mock,
-            followUps: withSuggestions.followUps,
-          });
-          yield doneEvent(startedAt, steps, toolCalls);
-          return;
-        }
-        break;
-      }
-    } catch (error) {
-      yield* emitTerminalError(
-        error instanceof Error ? error.message : "工具执行失败",
-        startedAt,
-        steps,
-        toolCalls,
-      );
-      return;
-    }
+    finalState = chunk as DfcAgentStateType;
   }
 
-  const exhausted =
-    state.finalAnswer ??
-    (steps >= maxSteps && state.priorToolResults.length
-      ? buildAgentExhaustedAnswer(state.priorToolResults, maxSteps)
-      : state.priorToolResults.length
-        ? `已达最大步数（${maxSteps}）。\n${state.priorToolResults.map((item) => `${item.tool}: ${item.output}`).join("\n")}`
-        : `已达最大步数（${maxSteps}），请缩小问题范围后重试。`);
+  const steps = finalState?.stepCount ?? continueFrom?.steps ?? 0;
+  const toolCalls =
+    (finalState?.toolCallCount ?? 0) + (continueFrom?.toolCalls ?? 0);
 
-  const exhaustedWithSuggestions = await withFollowUps({
-    message,
-    answer: exhausted,
-    conversation,
-    mock: lastMock,
-  });
-  await appendAssistantThreadMessage(
-    thread.threadId,
-    userId,
-    exhaustedWithSuggestions.answer,
-    { turnUi: options.turnUi },
-  );
-  yield answerEvent({
-    text: exhaustedWithSuggestions.answer,
-    mock: exhaustedWithSuggestions.mock,
-    followUps: exhaustedWithSuggestions.followUps,
-  });
+  if (finalState?.terminalError) {
+    await createServerHistory({
+      userId,
+      threadId: thread.threadId,
+      question: message,
+      status: "error",
+      answer: finalState.terminalError,
+    });
+    yield* emitTerminalError(finalState.terminalError, startedAt, steps, toolCalls);
+    return;
+  }
+
+  // HITL 挂起：本次运行没有结论，等待用户确认后由新一次请求继续
+  if (awaitingInput || finalState?.awaitingInput) {
+    return;
+  }
+
   yield doneEvent(startedAt, steps, toolCalls);
 }
 

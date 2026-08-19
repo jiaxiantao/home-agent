@@ -14,12 +14,22 @@ import type { AgentToolResult } from "@/lib/agent/types";
 import {
   createChatModel,
   describeLlmFailure,
+  isForcedToolChoiceRejection,
   isLangGraphLlmEnabled,
+  markForcedToolChoiceUnsupported,
+  supportsForcedToolChoice,
 } from "@/lib/agent/langgraph/model";
 import type { LlmProvider } from "@/lib/llm-providers-catalog";
 import { buildAgentSystemPrompt } from "@/lib/agent/langgraph/prompts";
 import type { DfcAgentStateType } from "@/lib/agent/langgraph/state";
 import { createLangChainTools } from "@/lib/agent/langgraph/tools";
+import { streamWithLlmRetry } from "@/lib/agent/llm-retry";
+import { estimateTokens, trimMessagesToBudget } from "@/lib/agent/context-budget";
+
+export type PlannerNodeOptions = {
+  userId?: string;
+  signal?: AbortSignal;
+};
 
 function planToMessages(
   plan: ReturnType<typeof buildMockPlan>,
@@ -183,6 +193,110 @@ export function needsRuleBasedFallback(
   return !text;
 }
 
+function hasQueryableToolResults(prior: AgentToolResult[]) {
+  for (const item of prior) {
+    if (item.tool === "execute_sql") {
+      const data = item.data as { rows?: unknown[] } | undefined;
+      if (Array.isArray(data?.rows) && data.rows.length > 0) {
+        return true;
+      }
+    }
+    if (item.tool === "call_backend_api") {
+      const data = item.data as
+        | { status?: string; table?: { rows?: unknown[] } }
+        | undefined;
+      if (data?.status === "success" && (data.table?.rows?.length ?? 0) > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** LLM 只输出说明文字、未调工具，但规则规划器仍知下一步时应切规则 */
+export function shouldOverridePrematureLlmAnswer(
+  update: Partial<DfcAgentStateType>,
+  state: DfcAgentStateType,
+  conversation: ThreadTurn[] = [],
+): boolean {
+  const lastAi = update.messages?.at(-1);
+  if (!(lastAi instanceof AIMessage) || lastAi.tool_calls?.length) {
+    return false;
+  }
+
+  const text = String(
+    update.finalAnswer ?? extractAiText(lastAi),
+  ).trim();
+  if (!text) {
+    return false;
+  }
+
+  if (state.pendingSql || hasQueryableToolResults(state.priorToolResults)) {
+    return false;
+  }
+
+  const mockPlan = buildMockPlan(
+    state.userMessage,
+    state.priorToolResults,
+    conversation,
+  );
+  return mockPlan.action === "tool";
+}
+
+export function resolvePrematureLlmOverrideUpdate(
+  state: DfcAgentStateType,
+  conversation: ThreadTurn[] = [],
+): Partial<DfcAgentStateType> | null {
+  const lastAi = state.messages.at(-1);
+  if (!(lastAi instanceof AIMessage) || lastAi.tool_calls?.length) {
+    return null;
+  }
+
+  const probe = {
+    messages: [lastAi],
+    finalAnswer: state.finalAnswer,
+    shouldEnd: state.shouldEnd,
+  };
+
+  if (!shouldOverridePrematureLlmAnswer(probe, state, conversation)) {
+    return null;
+  }
+
+  const mockPlan = buildMockPlan(
+    state.userMessage,
+    state.priorToolResults,
+    conversation,
+  );
+  if (mockPlan.action !== "tool") {
+    return null;
+  }
+
+  return agentPlanToStateUpdate(
+    mockPlan,
+    `override_${state.stepCount + 1}`,
+    state.stepCount,
+  );
+}
+
+export function applyPlannerOverride(
+  state: DfcAgentStateType,
+  override: Partial<DfcAgentStateType>,
+): DfcAgentStateType {
+  const baseMessages =
+    state.messages.length && state.messages.at(-1) instanceof AIMessage
+      ? state.messages.slice(0, -1)
+      : state.messages;
+
+  return {
+    ...state,
+    ...override,
+    messages: [...baseMessages, ...(override.messages ?? [])],
+    mock: override.mock ?? true,
+    shouldEnd: override.shouldEnd ?? false,
+    finalAnswer: override.finalAnswer ?? null,
+  };
+}
+
 export function shouldContinueWithMockPlanner(
   state: DfcAgentStateType,
   conversation: ThreadTurn[] = [],
@@ -282,6 +396,17 @@ function finalizeStreamedAiMessage(gathered: AIMessageChunk | undefined): AIMess
   });
 }
 
+/**
+ * 只在「还没有任何工具结果的第一步」强制调工具。
+ * 拿到结果之后必须放开，否则模型没法收尾作答，会一直被逼着调工具直到步数耗尽。
+ */
+export function shouldForceToolCall(state: DfcAgentStateType) {
+  if (state.priorToolResults.length > 0 || state.pendingSql) {
+    return false;
+  }
+  return state.stepCount === 0;
+}
+
 function buildAgentUpdateFromResponse(
   state: DfcAgentStateType,
   response: AIMessage,
@@ -301,18 +426,43 @@ function buildAgentUpdateFromResponse(
 export async function* streamLlmAgentNode(
   state: DfcAgentStateType,
   provider?: LlmProvider,
+  options: PlannerNodeOptions = {},
 ): AsyncGenerator<
   | { kind: "delta"; text: string; delta: string }
   | { kind: "done"; update: Partial<DfcAgentStateType> }
 > {
-  const model = createChatModel(provider).bindTools(await createLangChainTools());
-  const stream = await model.stream([
-    new SystemMessage(buildAgentSystemPrompt(state.userMessage)),
-    ...state.messages,
-  ]);
+  const tools = await createLangChainTools({ userId: options.userId });
+  const systemPrompt = buildAgentSystemPrompt(state.userMessage);
+  const trimmed = trimMessagesToBudget(state.messages, {
+    reservedTokens: estimateTokens(systemPrompt),
+  });
+  const messages = [new SystemMessage(systemPrompt), ...trimmed.messages];
 
   let gathered: AIMessageChunk | undefined;
   let text = "";
+
+  // 首步强制调工具，取代提示词里「禁止只输出说明文字」那条靠自觉的约束
+  let forceTool = shouldForceToolCall(state) && supportsForcedToolChoice(provider);
+
+  const openStream = async () => {
+    const model = createChatModel(provider).bindTools(
+      tools,
+      forceTool ? { tool_choice: "any" } : undefined,
+    );
+    try {
+      return await model.stream(messages);
+    } catch (error) {
+      if (forceTool && isForcedToolChoiceRejection(error)) {
+        // 该 provider 不支持强制调用，退回普通模式并记住，后续不再尝试
+        markForcedToolChoiceUnsupported(provider);
+        forceTool = false;
+        return createChatModel(provider).bindTools(tools).stream(messages);
+      }
+      throw error;
+    }
+  };
+
+  const stream = streamWithLlmRetry(openStream, { signal: options.signal });
 
   for await (const chunk of stream) {
     gathered = gathered ? gathered.concat(chunk) : chunk;
@@ -333,6 +483,7 @@ export async function* streamRoutePlannerNode(
   state: DfcAgentStateType,
   conversation: ThreadTurn[] = [],
   provider?: LlmProvider,
+  options: PlannerNodeOptions = {},
 ): AsyncGenerator<
   | { kind: "delta"; text: string; delta: string }
   | { kind: "done"; update: Partial<DfcAgentStateType> }
@@ -345,7 +496,7 @@ export async function* streamRoutePlannerNode(
 
   try {
     let llmUpdate: Partial<DfcAgentStateType> = {};
-    for await (const event of streamLlmAgentNode(state, provider)) {
+    for await (const event of streamLlmAgentNode(state, provider, options)) {
       if (event.kind === "delta") {
         yield event;
       } else {
@@ -362,6 +513,25 @@ export async function* streamRoutePlannerNode(
         ),
       };
       return;
+    }
+
+    if (shouldOverridePrematureLlmAnswer(llmUpdate, state, conversation)) {
+      const mockPlan = buildMockPlan(
+        state.userMessage,
+        state.priorToolResults,
+        conversation,
+      );
+      if (mockPlan.action === "tool") {
+        yield {
+          kind: "done",
+          update: agentPlanToStateUpdate(
+            mockPlan,
+            `override_${state.stepCount + 1}`,
+            state.stepCount,
+          ),
+        };
+        return;
+      }
     }
 
     yield { kind: "done", update: llmUpdate };
@@ -441,18 +611,61 @@ export function afterToolsRoute(state: DfcAgentStateType): "agent" | "__end__" {
   return "agent";
 }
 
+/** 历史会话可用的 token 预算：留出余量给本轮的规划与工具结果 */
+const CONVERSATION_TOKEN_BUDGET = 4_000;
+
+/**
+ * 被挤出预算的早期轮次做抽取式摘要——只保留用户问过什么。
+ * 用 LLM 生成摘要会与「减少调用次数」的目标冲突，这里零成本保住意图连续性。
+ */
+function summarizeDroppedTurns(turns: ThreadTurn[]): string | null {
+  const questions = turns
+    .filter((turn) => turn.role === "user")
+    .map((turn) => turn.content.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .map((text) => (text.length > 60 ? `${text.slice(0, 60)}…` : text));
+
+  if (!questions.length) {
+    return null;
+  }
+
+  const recent = questions.slice(-6);
+  return [
+    `（更早的 ${turns.length} 轮已省略，用户先前问过：）`,
+    ...recent.map((text) => `- ${text}`),
+  ].join("\n");
+}
+
 export function buildInitialMessages(
   userMessage: string,
   conversation: ThreadTurn[],
 ): BaseMessage[] {
-  const messages: BaseMessage[] = [];
-  for (const turn of conversation.slice(-10)) {
-    if (turn.role === "user") {
-      messages.push(new HumanMessage(turn.content));
-    } else {
-      messages.push(new AIMessage(turn.content));
+  // 从最近一轮往回收，直到用满预算；替代原来固定 slice(-10) 的硬切
+  let used = 0;
+  let cutoff = conversation.length;
+  for (let index = conversation.length - 1; index >= 0; index -= 1) {
+    const cost = estimateTokens(conversation[index]!.content) + 4;
+    if (used + cost > CONVERSATION_TOKEN_BUDGET) {
+      break;
     }
+    used += cost;
+    cutoff = index;
   }
+
+  const messages: BaseMessage[] = [];
+  const summary = summarizeDroppedTurns(conversation.slice(0, cutoff));
+  if (summary) {
+    messages.push(new HumanMessage(summary));
+  }
+
+  for (const turn of conversation.slice(cutoff)) {
+    messages.push(
+      turn.role === "user"
+        ? new HumanMessage(turn.content)
+        : new AIMessage(turn.content),
+    );
+  }
+
   if (!messages.length || !(messages.at(-1) instanceof HumanMessage)) {
     messages.push(new HumanMessage(userMessage));
   }
