@@ -94,10 +94,12 @@ export function AgentTeamTemplatesPanel({
         const items = data.templates ?? [];
         const nextTotal = data.total ?? items.length;
         setTotal(nextTotal);
-        setCategories([
-          "全部",
-          ...(data.categories ?? []).sort((a, b) => a.localeCompare(b, "zh-CN")),
-        ]);
+        const rawCategories = data.categories ?? [];
+        const favorites = rawCategories.filter((c) => c === "我的收藏");
+        const rest = rawCategories
+          .filter((c) => c !== "我的收藏")
+          .sort((a, b) => a.localeCompare(b, "zh-CN"));
+        setCategories(["全部", ...favorites, ...rest]);
         setTemplates((current) => (append ? [...current, ...items] : items));
         setPage(nextPage);
         setHasMore(nextPage * PAGE_SIZE < nextTotal);

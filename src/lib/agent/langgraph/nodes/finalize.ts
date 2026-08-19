@@ -11,6 +11,7 @@ import { wrapUntrustedData } from "@/lib/agent/untrusted-data";
 import { streamWithLlmRetry } from "@/lib/agent/llm-retry";
 import type { AgentToolResult, ExecuteSqlData } from "@/lib/agent/types";
 import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
+import { isSuccessfulBackendApiResult } from "@/lib/analytics/backend-api-client";
 import { createChatModel, isLangGraphLlmEnabled } from "@/lib/agent/langgraph/model";
 import { buildAnswerSynthesisSystemPrompt } from "@/lib/agent/langgraph/prompts";
 
@@ -25,16 +26,20 @@ export type SynthesizeAnswerEvent =
   | { kind: "done"; text: string; mock: boolean; followUps: string[] };
 
 function buildPriorContext(prior: AgentToolResult[]) {
+  const sqlEntry = [...prior].reverse().find((item) => item.tool === "execute_sql");
+  const sqlResult = sqlEntry?.data as ExecuteSqlData | undefined;
+  if (sqlResult && sqlResult.rowCount > 0) {
+    return formatSqlAnswer(sqlResult);
+  }
+
   const apiResults = prior
     .filter((item) => item.tool === "call_backend_api")
     .map((item) => item.data as BackendApiCallResult | undefined)
-    .filter((item): item is BackendApiCallResult => Boolean(item));
-  if (apiResults.some((item) => item.status === "success" && item.table?.rows.length)) {
+    .filter((item): item is BackendApiCallResult => isSuccessfulBackendApiResult(item));
+  if (apiResults.length) {
     return formatBackendApiAnswers(apiResults);
   }
 
-  const sqlEntry = [...prior].reverse().find((item) => item.tool === "execute_sql");
-  const sqlResult = sqlEntry?.data as ExecuteSqlData | undefined;
   if (sqlResult) {
     return formatSqlAnswer(sqlResult);
   }

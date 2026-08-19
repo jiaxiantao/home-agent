@@ -326,10 +326,23 @@ export function pickBestApiForQuestion(question: string): ApiRouteMatch | undefi
     /客户/.test(question) &&
     (paramsHasPhone(top.extractedParams) || top.extractedParams.wechat)
   ) {
-    const byContact = ranked.find(
-      (item) => item.endpoint.methodName === "queryCustomerDetailsByContact",
-    );
-    if (byContact) return byContact;
+    const crmPhoneLookup = ranked.find((item) => {
+      const endpoint = item.endpoint;
+      if (endpoint.entity !== "crm_customer" || !endpoint.http) {
+        return false;
+      }
+      const queryParams = endpoint.http.queryParams;
+      if (queryParams?.phone === "phone" || queryParams?.contact === "phone") {
+        return true;
+      }
+      return (
+        endpoint.methodName === "queryCustomerDetailsByContact" ||
+        endpoint.methodName === "getCustomerIdByPhone"
+      );
+    });
+    if (crmPhoneLookup && crmPhoneLookup.score >= 8) {
+      return crmPhoneLookup;
+    }
     const crm = ranked.find((item) => item.endpoint.entity === "crm_customer");
     if (crm && crm.score >= top.score - 2) return crm;
   }

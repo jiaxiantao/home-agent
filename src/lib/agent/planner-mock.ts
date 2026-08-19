@@ -10,6 +10,7 @@ import {
 import { extractPhoneFromQuestion } from "@/lib/analytics/api-catalog";
 import type { ApiRouteMatch } from "@/lib/analytics/api-catalog-types";
 import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
+import { isSuccessfulBackendApiResult } from "@/lib/analytics/backend-api-client";
 import {
   buildCallBackendApiArgsFromMatch,
   mergeApiRouteCandidates,
@@ -60,10 +61,7 @@ function successfulApiResults(prior: AgentToolResult[]) {
   return prior
     .filter((item) => item.tool === "call_backend_api")
     .map((item) => item.data as BackendApiCallResult | undefined)
-    .filter(
-      (item): item is BackendApiCallResult =>
-        Boolean(item?.status === "success" && item.table?.rows.length),
-    );
+    .filter((item): item is BackendApiCallResult => isSuccessfulBackendApiResult(item));
 }
 
 function nextHttpCandidate(

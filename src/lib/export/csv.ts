@@ -1,9 +1,14 @@
+import { formatDisplayValue } from "@/lib/analytics/display-value";
+
 export function escapeCsvCell(value: unknown) {
   if (value === null || value === undefined) {
     return "";
   }
 
-  const text = String(value);
+  const text =
+    typeof value === "object"
+      ? formatDisplayValue(value, 10_000)
+      : String(value);
   if (/[",\n\r]/.test(text)) {
     return `"${text.replace(/"/g, '""')}"`;
   }

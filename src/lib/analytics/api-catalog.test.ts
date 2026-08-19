@@ -36,13 +36,18 @@ describe("api-catalog", () => {
     ).toBe("13166990795");
   });
 
-  it("prefers CRM API for customer phone lookup", () => {
+  it("prefers highest-scored CRM phone lookup API", () => {
     const best = pickBestApiForQuestion(
       "我想知道客户手机号为 13166990795 的客户信息",
     );
     expect(best?.endpoint.appCode).toBe("super-mario");
-    expect(best?.endpoint.methodName).toBe("queryCustomerDetailsByContact");
+    expect(best?.endpoint.entity).toBe("crm_customer");
     expect(best?.extractedParams.phone).toBe("13166990795");
+    expect(
+      ["getCustomerIdByPhone", "queryCustomerDetailsByContact"].includes(
+        best?.endpoint.methodName ?? "",
+      ),
+    ).toBe(true);
     expect(isApiFirstQuestion("我想知道客户手机号为 13166990795 的客户信息")).toBe(
       true,
     );

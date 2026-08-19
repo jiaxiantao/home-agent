@@ -9,6 +9,7 @@ import {
   getThreadMessages,
   getUserThread,
   listUserThreadsPage,
+  shouldSkipDuplicateThreadMessage,
   threadListUpdatedAt,
 } from "@/lib/agent/thread-store";
 import { threadMessagesToTurns } from "@/lib/agent/thread-turns";
@@ -143,5 +144,51 @@ describe("thread-store", () => {
 
     const listed = await listUserThreadsPage({ userId: "user-a", pageSize: 10 });
     expect(listed.items[0]?.updatedAt).toBe(new Date(messageAt).toISOString());
+  });
+
+  it("skips duplicate adjacent messages", () => {
+    expect(
+      shouldSkipDuplicateThreadMessage(
+        [{ role: "user", content: "你好", ts: 1 }],
+        { role: "user", content: "你好" },
+      ),
+    ).toBe(true);
+    expect(
+      shouldSkipDuplicateThreadMessage(
+        [{ role: "user", content: "你好", ts: 1 }],
+        { role: "user", content: "再见" },
+      ),
+    ).toBe(false);
+  });
+
+  it("lists more than 20 saved threads with correct total", async () => {
+    clearThreadsForTest();
+
+    for (let index = 0; index < 25; index += 1) {
+      const threadId = createThreadId();
+      await ensureThread(threadId, "user-a");
+      await appendThreadMessage(threadId, "user-a", {
+        role: "user",
+        content: `问题 ${index + 1}`,
+        ts: Date.now() + index,
+      });
+    }
+
+    const listed = await listUserThreadsPage({
+      userId: "user-a",
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(listed.total).toBe(25);
+    expect(listed.items).toHaveLength(20);
+
+    const page2 = await listUserThreadsPage({
+      userId: "user-a",
+      page: 2,
+      pageSize: 20,
+    });
+    expect(page2.total).toBe(25);
+    expect(page2.items).toHaveLength(5);
   });
 });

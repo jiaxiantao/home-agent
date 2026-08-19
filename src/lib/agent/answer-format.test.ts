@@ -4,6 +4,7 @@ import {
   formatBackendApiAnswer,
   formatBackendApiAnswers,
   formatRowsAsMarkdownTable,
+  formatSqlAnswer,
 } from "@/lib/agent/answer-format";
 
 describe("answer-format", () => {
@@ -62,5 +63,26 @@ describe("answer-format", () => {
     expect(text).toContain("张三");
     expect(text).toContain("数据源 2");
     expect(text).toContain("皖JV066M");
+  });
+
+  it("formats single-row SQL as bullet list with readable nested fields", () => {
+    const text = formatSqlAnswer({
+      sql: "select ...",
+      columns: ["vin_number", "name", "mileage"],
+      rows: [
+        {
+          vin_number: "TEST5566345677888",
+          name: { displayValue: "奥迪Q5 2018款 典藏版 40 TFSI 进取型" },
+          mileage: 20000,
+        },
+      ],
+      rowCount: 1,
+      truncated: false,
+    });
+
+    expect(text).toContain("查询成功，返回 1 行");
+    expect(text).toContain("**name**：奥迪Q5 2018款 典藏版 40 TFSI 进取型");
+    expect(text).not.toContain("[object Object]");
+    expect(text).not.toContain("| name |");
   });
 });

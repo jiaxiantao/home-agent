@@ -1,4 +1,11 @@
-import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
+import {
+  isSuccessfulBackendApiResult,
+  type BackendApiCallResult,
+} from "@/lib/analytics/backend-api-client";
+import {
+  formatDisplayValue,
+  formatRecordAsBulletList,
+} from "@/lib/analytics/display-value";
 import type { ExecuteSqlData } from "@/lib/agent/types";
 
 export function formatRowsAsMarkdownTable(
@@ -24,17 +31,11 @@ export function formatRowsAsMarkdownTable(
 }
 
 function formatCell(value: unknown) {
-  if (value == null) {
-    return "";
-  }
-  if (typeof value === "object") {
-    return JSON.stringify(value).replace(/\|/g, "\\|");
-  }
-  return String(value).replace(/\|/g, "\\|").replace(/\n/g, " ");
+  return formatDisplayValue(value).replace(/\|/g, "\\|").replace(/\n/g, " ");
 }
 
 export function summarizeBackendApiResult(result: BackendApiCallResult) {
-  if (result.status !== "success" || !result.table?.rows.length) {
+  if (!isSuccessfulBackendApiResult(result)) {
     return result.message || "接口未返回可用数据。";
   }
 
@@ -43,7 +44,7 @@ export function summarizeBackendApiResult(result: BackendApiCallResult) {
 }
 
 export function formatBackendApiAnswer(result: BackendApiCallResult) {
-  if (result.status !== "success" || !result.table?.rows.length) {
+  if (!isSuccessfulBackendApiResult(result)) {
     return result.message || "接口调用未返回可用数据，请稍后重试或改用 SQL 查询。";
   }
 
@@ -53,9 +54,7 @@ export function formatBackendApiAnswer(result: BackendApiCallResult) {
 }
 
 export function formatBackendApiAnswers(results: BackendApiCallResult[]) {
-  const ok = results.filter(
-    (item) => item.status === "success" && item.table?.rows.length,
-  );
+  const ok = results.filter((item) => isSuccessfulBackendApiResult(item));
   if (ok.length === 0) {
     return "接口调用未返回可用数据，请稍后重试或改用 SQL 查询。";
   }
@@ -82,6 +81,10 @@ export function formatSqlAnswer(result: ExecuteSqlData) {
   const summary = summarizeSqlResult(result);
   if (!result.rows.length) {
     return summary;
+  }
+  if (result.rowCount === 1 && result.columns.length > 1) {
+    const detail = formatRecordAsBulletList(result.columns, result.rows[0]!);
+    return detail ? `${summary}\n\n${detail}` : summary;
   }
   return `${summary}\n\n${formatRowsAsMarkdownTable(result.columns, result.rows)}`;
 }

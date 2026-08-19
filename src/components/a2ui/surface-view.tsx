@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { A2UIComponent, A2UISurface } from "@/lib/a2ui/types";
 import { ChartCard } from "@/components/a2ui/chart-view";
+import { formatDisplayValue } from "@/lib/analytics/display-value";
 import { buildCsv, downloadCsv } from "@/lib/export/csv";
 import { cn } from "@/lib/utils";
 
@@ -42,13 +43,14 @@ function TableView({
           <tbody>
             {component.rows.slice(0, 100).map((row, index) => (
               <tr key={index} className="border-t border-border text-foreground">
-                {component.columns.map((column) => (
-                  <td key={column} className="px-3 py-2 font-mono text-[11px]">
-                    {row[column] === null || row[column] === undefined
-                      ? "—"
-                      : String(row[column])}
-                  </td>
-                ))}
+                {component.columns.map((column) => {
+                  const display = formatDisplayValue(row[column]);
+                  return (
+                    <td key={column} className="px-3 py-2 font-mono text-[11px]">
+                      {display || "—"}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

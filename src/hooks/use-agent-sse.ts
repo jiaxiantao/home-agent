@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { A2UISurface } from "@/lib/a2ui/types";
+import {
+  createThreadId,
+  ensureThreadOnServer,
+  persistThreadOnServer,
+  persistUserMessage,
+} from "@/lib/agent/thread-client";
 import type { AgentPlan, AgentResumeAction, AgentToolName, AgentTraceEvent } from "@/lib/agent/types";
 import { formatAgentPlanTitle, getAgentToolLabel } from "@/lib/agent/tool-labels";
 import {
@@ -276,19 +282,30 @@ export function useAgentStream(options?: {
 
   useEffect(() => {
     if (forceNew) {
-      const nextThread = `thread_${crypto.randomUUID().slice(0, 12)}`;
+      const nextThread = createThreadId();
       setThreadId(nextThread);
       storeThreadId(nextThread);
       setConversation([]);
       setCurrentQuestion("");
+      void ensureThreadOnServer(nextThread);
       return;
     }
     if (initialThreadId) {
       setThreadId(initialThreadId);
       storeThreadId(initialThreadId);
+      void ensureThreadOnServer(initialThreadId);
       return;
     }
-    setThreadId(getStoredThreadId());
+    const stored = getStoredThreadId();
+    if (stored) {
+      setThreadId(stored);
+      void ensureThreadOnServer(stored);
+      return;
+    }
+    const nextThread = createThreadId();
+    setThreadId(nextThread);
+    storeThreadId(nextThread);
+    void ensureThreadOnServer(nextThread);
   }, [forceNew, initialThreadId]);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -310,13 +327,18 @@ export function useAgentStream(options?: {
     historyRef.current = null;
   }, []);
 
-  const resetAll = useCallback(() => {
+  const resetAll = useCallback(async () => {
+    abortRef.current?.abort();
     resetCurrentTurn();
     setConversation([]);
     setCurrentQuestion("");
-    const nextThread = `thread_${crypto.randomUUID().slice(0, 12)}`;
+    setPhase("idle");
+    setRunning(false);
+    const nextThread = createThreadId();
     setThreadId(nextThread);
     storeThreadId(nextThread);
+    await ensureThreadOnServer(nextThread);
+    return nextThread;
   }, [resetCurrentTurn]);
 
   const appendLine = useCallback((kind: string, text: string) => {
@@ -655,12 +677,27 @@ export function useAgentStream(options?: {
   );
 
   const stop = useCallback(() => {
+    const activeThreadId = threadId;
+    const turn = turnRef.current;
     abortRef.current?.abort();
     finalizeRunningSteps();
     setRunning(false);
     setPhase("idle");
     appendLine("trace", "[client] 已手动停止");
-  }, [appendLine, finalizeRunningSteps]);
+
+    if (activeThreadId && turn) {
+      const partial =
+        turn.finalAnswer?.trim() ||
+        turn.planStreamText?.trim() ||
+        (turn.status === "running" ? "（会话已中断，可继续追问）" : "");
+      if (partial) {
+        void persistThreadOnServer({
+          threadId: activeThreadId,
+          message: { role: "assistant", content: partial, ts: Date.now() },
+        });
+      }
+    }
+  }, [appendLine, finalizeRunningSteps, threadId]);
 
   const beginTurn = useCallback(
     (question: string) => {
@@ -699,9 +736,19 @@ export function useAgentStream(options?: {
       beginTurn(message.trim());
       setPhase("planning");
 
+      let activeThreadId = threadId;
+      if (!activeThreadId) {
+        activeThreadId = createThreadId();
+        setThreadId(activeThreadId);
+        storeThreadId(activeThreadId);
+      }
+
+      const trimmed = message.trim();
+      await persistUserMessage(activeThreadId, trimmed);
+
       try {
         await consumeAgentStream(
-          { message: message.trim(), threadId, llmProvider },
+          { message: trimmed, threadId: activeThreadId, llmProvider },
           controller.signal,
           handlePayload,
         );

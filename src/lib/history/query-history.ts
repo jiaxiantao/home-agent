@@ -13,7 +13,8 @@ export type QueryHistoryEntry = {
 
 
 const STORAGE_KEY = `${PRODUCT_SLUG}-query-history-v1`;
-const MAX_ENTRIES = 50;
+/** 本地缓存上限；与侧栏「最近 20 条」展示无关 */
+const MAX_STORED_ENTRIES = 500;
 
 function readAll(): QueryHistoryEntry[] {
   if (typeof window === "undefined") {
@@ -40,7 +41,7 @@ function writeAll(entries: QueryHistoryEntry[]) {
 
   window.localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify(entries.slice(0, MAX_ENTRIES)),
+    JSON.stringify(entries.slice(0, MAX_STORED_ENTRIES)),
   );
 }
 

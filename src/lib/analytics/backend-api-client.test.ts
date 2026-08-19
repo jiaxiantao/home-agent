@@ -6,8 +6,11 @@ import {
   buildSuggestedSqlForEndpoint,
   callBackendApi,
   isBotWallWafBlock,
+  isBusinessFailure,
+  isSuccessfulBackendApiResult,
   isDfcApiEndpointEnvConfigured,
   parseSpringMissingParameterMessage,
+  previewBackendApiCall,
   resolveDfcApiEndpointBaseUrl,
 } from "@/lib/analytics/backend-api-client";
 import type { DfcApiEndpoint } from "@/lib/analytics/api-catalog-types";
@@ -27,6 +30,91 @@ describe("parseSpringMissingParameterMessage", () => {
       }),
     ).toBe("pageNum");
     expect(parseSpringMissingParameterMessage({ message: "Not found" })).toBeNull();
+  });
+});
+
+describe("isBusinessFailure", () => {
+  it("detects Mars-style business error payloads", () => {
+    expect(
+      isBusinessFailure({ success: false, code: "500", msg: "参数异常" }),
+    ).toBe(true);
+    expect(
+      isBusinessFailure({
+        success: false,
+        code: "PATH_NOT_EXISTS",
+        msg: "json方法未找到",
+      }),
+    ).toBe(true);
+    expect(isBusinessFailure({ success: true, code: "200", data: {} })).toBe(false);
+    expect(isBusinessFailure({ code: "200", data: {} })).toBe(false);
+  });
+});
+
+describe("isSuccessfulBackendApiResult", () => {
+  it("rejects legacy success status with business error payload", () => {
+    expect(
+      isSuccessfulBackendApiResult({
+        status: "success",
+        endpointId: "x",
+        appCode: "super-mario",
+        message: "ok",
+        response: { success: false, code: "500", msg: "参数异常" },
+        table: {
+          columns: ["code", "msg", "success"],
+          rows: [{ code: "500", msg: "参数异常", success: false }],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("accepts real tabular API data", () => {
+    expect(
+      isSuccessfulBackendApiResult({
+        status: "success",
+        endpointId: "x",
+        appCode: "super-mario",
+        message: "ok",
+        response: { success: true, data: [{ id: "1" }] },
+        table: { columns: ["id"], rows: [{ id: "1" }] },
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("applyKnownQueryParamFallbacks via previewBackendApiCall", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("maps phone to contact for queryCustomerDetailsByContact without catalog queryParams", () => {
+    vi.stubEnv(
+      "DFC_API_SUPER_MARIO_BASE_URL",
+      "http://super-mario.stable.dasouche.net",
+    );
+    const endpoint = {
+      id: "super-mario:http:GET:/v1/customerAction/queryCustomerDetailsByContact.json:queryCustomerDetailsByContact",
+      appCode: "super-mario",
+      repo: "gourd/super-mario",
+      entity: "crm_customer",
+      title: "CRM 客户详情",
+      description: "",
+      matchPatterns: [],
+      kind: "http",
+      readOnly: true,
+      preferOverSql: true,
+      keywords: [],
+      methodName: "queryCustomerDetailsByContact",
+      sqlFallback: { database: "super_mario", table: "customer", hint: "phone" },
+      baseUrlEnvKey: "DFC_API_SUPER_MARIO_BASE_URL",
+      http: {
+        method: "GET",
+        path: "/v1/customerAction/queryCustomerDetailsByContact.json",
+      },
+    } satisfies DfcApiEndpoint;
+
+    const preview = previewBackendApiCall(endpoint, { phone: "13166990795" });
+    expect(preview?.query?.contact).toBe("13166990795");
+    expect(preview?.url).toContain("contact=13166990795");
   });
 });
 

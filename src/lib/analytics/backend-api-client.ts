@@ -326,6 +326,114 @@ function isBusinessAuthFailure(payload: unknown): boolean {
   );
 }
 
+/** HTTP 200 但 body 含业务失败（success:false / code=500 / PATH_NOT_EXISTS 等） */
+export function isBusinessFailure(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const record = payload as Record<string, unknown>;
+  if (record.success === false) {
+    return true;
+  }
+  if (record.success === true) {
+    return false;
+  }
+
+  const code = record.code ?? record.errorCode ?? record.errno;
+  if (code == null) {
+    return false;
+  }
+
+  const normalized = String(code).trim();
+  const upper = normalized.toUpperCase();
+  if (upper === "200" || upper === "0" || upper === "OK" || upper === "SUCCESS") {
+    return false;
+  }
+  if (
+    upper === "PATH_NOT_EXISTS" ||
+    upper === "NOT_FOUND" ||
+    upper.endsWith("_NOT_EXISTS")
+  ) {
+    return true;
+  }
+  if (/^[45]\d{2}$/.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
+/** 工具结果 / 回答合成：排除 HTTP 200 但业务失败的「伪成功」表格 */
+export function isSuccessfulBackendApiResult(
+  result: BackendApiCallResult | null | undefined,
+): result is BackendApiCallResult {
+  if (!result || result.status !== "success") {
+    return false;
+  }
+  const rowCount = result.table?.rows.length ?? 0;
+  if (rowCount === 0) {
+    return false;
+  }
+  if (result.response != null && isBusinessFailure(result.response)) {
+    return false;
+  }
+  if (rowCount === 1) {
+    const row = result.table!.rows[0];
+    if (row && isBusinessFailure(row)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function businessFailureMessage(payload: unknown): string {
+  if (!payload || typeof payload !== "object") {
+    return "业务返回失败";
+  }
+  const record = payload as Record<string, unknown>;
+  const msg = String(record.msg ?? record.message ?? "").trim();
+  const code = record.code ?? record.errorCode ?? record.errno;
+  if (msg && code != null) {
+    return `业务返回失败（code=${String(code)}）：${msg}`;
+  }
+  if (msg) {
+    return `业务返回失败：${msg}`;
+  }
+  if (code != null) {
+    return `业务返回失败（code=${String(code)}）`;
+  }
+  return "业务返回失败（success=false）";
+}
+
+function applyKnownQueryParamFallbacks(
+  endpoint: DfcApiEndpoint,
+  params: ApiRouteParams,
+  url: URL,
+  query: Record<string, string>,
+) {
+  const contact = params.phone || params.wechat;
+  if (
+    contact &&
+    !url.searchParams.has("contact") &&
+    (endpoint.methodName === "queryCustomerDetailsByContact" ||
+      endpoint.http?.path?.includes("queryCustomerDetailsByContact"))
+  ) {
+    url.searchParams.set("contact", String(contact));
+    query.contact = String(contact);
+  }
+
+  if (
+    params.phone &&
+    !url.searchParams.has("phone") &&
+    (endpoint.methodName === "getCustomerIdByPhone" ||
+      endpoint.http?.queryParams?.phone === "phone")
+  ) {
+    url.searchParams.set("phone", String(params.phone));
+    query.phone = String(params.phone);
+  }
+}
+
 /** Spring Boot 400：Required String parameter 'articleId' is not present */
 export function parseSpringMissingParameterMessage(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") {
@@ -539,6 +647,8 @@ function buildRequest(
       query[queryKey] = String(value);
     }
   }
+
+  applyKnownQueryParamFallbacks(endpoint, params, url, query);
 
   let body: unknown;
   if (endpoint.http.bodyTemplate) {
@@ -968,6 +1078,25 @@ export async function callBackendApi(
             endpoint.appCode === "anduin"
               ? `大风车业务鉴权失败（${msg}）。anduin 走企业微信 WxLoginInterceptor，需要 Cookie/Header access_token，Mars _security_token 无法通过。上游已可达，勿改 default_test_config；请 propose_sql。`
               : `大风车业务鉴权失败（${msg}）。请侧栏重新同步测试环境 SSO / 更新 DFC_API_DEV_SSO_TOKEN 后重试。`,
+          sqlFallback,
+        },
+        endpoint,
+        params,
+      );
+    }
+
+    if (response.ok && isBusinessFailure(payload)) {
+      return withSqlFallback(
+        {
+          status: "error",
+          failureKind: "http",
+          endpointId: endpoint.id,
+          appCode: endpoint.appCode,
+          request: requestMeta,
+          httpStatus,
+          responseHeaders,
+          response: payload,
+          message: `${businessFailureMessage(payload)}。host 已可达，请换 route_api/search_api 其它 endpointId 重试，或 propose_sql 使用 suggestedSql，禁止向用户索取 shop_code。`,
           sqlFallback,
         },
         endpoint,

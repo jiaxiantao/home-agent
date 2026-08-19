@@ -37,21 +37,50 @@ describe("tryDirectAnswer", () => {
     expect(answer?.text).toContain("1258");
   });
 
-  it("多行结果仍交给模型总结", () => {
+  it("多行 SQL 在接口业务失败时直接作答", () => {
+    const prior: AgentToolResult[] = [
+      {
+        tool: "call_backend_api",
+        args: {},
+        output: "ok",
+        data: {
+          status: "success",
+          endpointId: "x",
+          response: { success: false, code: "500", msg: "参数异常" },
+          table: {
+            columns: ["code", "msg", "success"],
+            rows: [{ code: "500", msg: "参数异常", success: false }],
+          },
+        } as unknown as AgentToolResult["data"],
+      },
+      sqlResult(["id", "name"], [
+        { id: "1", name: "牧艺" },
+        { id: "2", name: "贾宝玉" },
+      ]),
+    ];
+    const answer = tryDirectAnswer("客户手机号 13166990795", prior);
+    expect(answer?.reason).toBe("tabular_result");
+    expect(answer?.text).toContain("牧艺");
+    expect(answer?.text).not.toContain("参数异常");
+  });
+
+  it("多行结果在仅有 SQL 时直接作答", () => {
     const answer = tryDirectAnswer("按城市统计车源", [
       sqlResult(["city", "cnt"], [
         { city: "杭州", cnt: 10 },
         { city: "宁波", cnt: 8 },
       ]),
     ]);
-    expect(answer).toBeNull();
+    expect(answer?.reason).toBe("tabular_result");
+    expect(answer?.text).toContain("杭州");
   });
 
-  it("单行多列仍交给模型总结", () => {
+  it("单行多列在无接口成功时直接输出表格", () => {
     const answer = tryDirectAnswer("这辆车的信息", [
       sqlResult(["plate", "price"], [{ plate: "浙A12345", price: 88000 }]),
     ]);
-    expect(answer).toBeNull();
+    expect(answer?.reason).toBe("tabular_result");
+    expect(answer?.text).toContain("浙A12345");
   });
 
   it("用户要图表时不短路，需要模型判断能否出图", () => {
@@ -65,7 +94,7 @@ describe("tryDirectAnswer", () => {
     expect(tryDirectAnswer("杭州有多少车源", [])).toBeNull();
   });
 
-  it("接口返回的多字段结果不短路", () => {
+  it("接口与 SQL 均有可用数据时不短路", () => {
     const prior: AgentToolResult[] = [
       {
         tool: "call_backend_api",
@@ -74,10 +103,15 @@ describe("tryDirectAnswer", () => {
         data: {
           status: "success",
           endpointId: "x",
-          table: { columns: ["a"], rows: [{ a: 1 }] },
+          appCode: "super-mario",
+          response: { success: true, data: { name: "张三" } },
+          table: { columns: ["name"], rows: [{ name: "张三" }] },
         } as unknown as AgentToolResult["data"],
       },
-      sqlResult(["cnt"], [{ cnt: 1 }]),
+      sqlResult(["city", "cnt"], [
+        { city: "杭州", cnt: 10 },
+        { city: "宁波", cnt: 8 },
+      ]),
     ];
     expect(tryDirectAnswer("客户信息", prior)).toBeNull();
   });

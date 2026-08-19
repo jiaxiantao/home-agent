@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { AgentComposer } from "@/components/agent-composer";
 import { AgentConversation } from "@/components/agent-conversation";
@@ -30,6 +31,7 @@ export function AgentOrchestratorDemo({
   const [restoring, setRestoring] = useState(Boolean(initialThreadId));
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const router = useRouter();
 
   const {
     run,
@@ -102,6 +104,12 @@ export function AgentOrchestratorDemo({
       cancelled = true;
     };
   }, [initialThreadId, restoreThread]);
+
+  useEffect(() => {
+    if (forceNew && threadId) {
+      router.replace(`/agents?threadId=${encodeURIComponent(threadId)}`);
+    }
+  }, [forceNew, router, threadId]);
 
   const handleA2UIAction = useCallback(
     (action: string, payload?: Record<string, unknown>) => {
@@ -229,7 +237,11 @@ export function AgentOrchestratorDemo({
             onStop={stop}
             onReset={() => {
               setSelectedCategory(undefined);
-              reset();
+              void reset().then((nextThreadId) => {
+                router.replace(
+                  `/agents?threadId=${encodeURIComponent(nextThreadId)}`,
+                );
+              });
             }}
             running={running}
             hasConversation={hasConversation}
@@ -252,7 +264,7 @@ export function AgentOrchestratorDemo({
         <AgentTeamTemplatesPanel onSelect={fillPrompt} />
 
         <AgentHistoryPanel
-          refreshToken={conversation.length + (stats?.totalMs ?? 0)}
+          refreshToken={`${threadId ?? ""}:${conversation.length}:${stats?.totalMs ?? 0}`}
           currentThreadId={threadId}
         />
 

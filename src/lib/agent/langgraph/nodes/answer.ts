@@ -1,6 +1,6 @@
 import { AIMessage } from "@langchain/core/messages";
 
-import { formatBackendApiAnswers, summarizeBackendApiResult, summarizeSqlResult } from "@/lib/agent/answer-format";
+import { formatBackendApiAnswers, formatSqlAnswer, summarizeBackendApiResult, summarizeSqlResult } from "@/lib/agent/answer-format";
 import { tryDirectAnswer } from "@/lib/agent/direct-answer";
 import { suggestFollowUpQuestions } from "@/lib/agent/follow-ups";
 import { buildMockPlan } from "@/lib/agent/planner-mock";
@@ -14,6 +14,7 @@ import {
 import { streamSynthesizeAnswerAfterQuery } from "@/lib/agent/langgraph/nodes/finalize";
 import { buildQueryResultSurface } from "@/lib/a2ui/types";
 import type { BackendApiCallResult } from "@/lib/analytics/backend-api-client";
+import { isSuccessfulBackendApiResult } from "@/lib/analytics/backend-api-client";
 import {
   STREAM_HEARTBEAT_MS,
   withIdleHeartbeat,
@@ -24,10 +25,7 @@ export function findSuccessfulBackendApiResults(prior: AgentToolResult[]) {
   return prior
     .filter((item) => item.tool === "call_backend_api")
     .map((item) => item.data as BackendApiCallResult | undefined)
-    .filter(
-      (item): item is BackendApiCallResult =>
-        Boolean(item?.status === "success" && item.table?.rows.length),
-    );
+    .filter((item): item is BackendApiCallResult => isSuccessfulBackendApiResult(item));
 }
 
 export function findExecuteSqlResult(prior: AgentToolResult[]) {
@@ -134,6 +132,11 @@ export function resolveTerminalAnswer(state: DfcAgentStateType) {
     }
   }
 
+  const sqlResult = findExecuteSqlResult(state.priorToolResults);
+  if (sqlResult?.rowCount) {
+    return formatSqlAnswer(sqlResult);
+  }
+
   const apiResults = findSuccessfulBackendApiResults(state.priorToolResults);
   if (apiResults.length) {
     return formatBackendApiAnswers(apiResults);
@@ -172,6 +175,21 @@ export async function* streamFinalAnswerFromState(input: {
     });
   }
 
+  const sqlResult = findExecuteSqlResult(state.priorToolResults);
+  if (sqlResult?.rowCount) {
+    const synthesized = yield* emitAnswerStream({
+      message: input.message,
+      prior: state.priorToolResults,
+      conversation: input.conversation,
+      summary: summarizeSqlResult(sqlResult),
+    });
+    return {
+      answer: synthesized.text || formatSqlAnswer(sqlResult),
+      mock: synthesized.mock,
+      followUps: synthesized.followUps,
+    };
+  }
+
   const apiResults = findSuccessfulBackendApiResults(state.priorToolResults);
   const apiResult = apiResults.at(-1);
   if (apiResult) {
@@ -187,21 +205,6 @@ export async function* streamFinalAnswerFromState(input: {
     });
     return {
       answer: synthesized.text || formatBackendApiAnswers(apiResults),
-      mock: synthesized.mock,
-      followUps: synthesized.followUps,
-    };
-  }
-
-  const sqlResult = findExecuteSqlResult(state.priorToolResults);
-  if (sqlResult) {
-    const synthesized = yield* emitAnswerStream({
-      message: input.message,
-      prior: state.priorToolResults,
-      conversation: input.conversation,
-      summary: summarizeSqlResult(sqlResult),
-    });
-    return {
-      answer: synthesized.text || input.fallback,
       mock: synthesized.mock,
       followUps: synthesized.followUps,
     };

@@ -33,4 +33,23 @@ describe("server-history", () => {
     expect(list[0]?.status).toBe("done");
     expect(list[0]?.rowCount).toBe(1);
   });
+
+  it("keeps more than 100 entries in memory fallback storage", async () => {
+    clearServerHistoryForTest();
+
+    for (let index = 0; index < 105; index += 1) {
+      await createServerHistory({
+        userId: "u2",
+        threadId: `t-${index}`,
+        question: `问题 ${index}`,
+        status: "done",
+      });
+    }
+
+    const all = await listServerHistory("u2", 500);
+    expect(all.length).toBe(105);
+
+    const recent = await listServerHistory("u2", 20);
+    expect(recent).toHaveLength(20);
+  });
 });

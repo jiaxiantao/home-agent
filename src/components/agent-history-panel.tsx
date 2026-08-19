@@ -4,21 +4,29 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import type { ThreadListItem } from "@/lib/agent/thread-types";
+import { RECENT_THREADS_DISPLAY_LIMIT } from "@/lib/history/recent-threads";
 
-const HISTORY_LIMIT = 20;
-
-async function fetchRecentThreads(): Promise<ThreadListItem[] | null> {
+async function fetchRecentThreads(): Promise<{
+  items: ThreadListItem[];
+  total: number;
+} | null> {
   try {
     const response = await fetch(
-      `/api/agent-threads?page=1&pageSize=${HISTORY_LIMIT}`,
+      `/api/agent-threads?page=1&pageSize=${RECENT_THREADS_DISPLAY_LIMIT}`,
     );
 
     if (!response.ok) {
       return null;
     }
 
-    const data = (await response.json()) as { items?: ThreadListItem[] };
-    return (data.items ?? []).slice(0, HISTORY_LIMIT);
+    const data = (await response.json()) as {
+      items?: ThreadListItem[];
+      total?: number;
+    };
+    return {
+      items: (data.items ?? []).slice(0, RECENT_THREADS_DISPLAY_LIMIT),
+      total: data.total ?? data.items?.length ?? 0,
+    };
   } catch {
     return null;
   }
@@ -45,10 +53,11 @@ export function AgentHistoryPanel({
   refreshToken,
   currentThreadId,
 }: {
-  refreshToken?: number;
+  refreshToken?: string | number;
   currentThreadId?: string;
 }) {
   const [items, setItems] = useState<ThreadListItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
@@ -56,7 +65,8 @@ export function AgentHistoryPanel({
     setLoading(true);
     try {
       const threads = await fetchRecentThreads();
-      setItems(threads ?? []);
+      setItems(threads?.items ?? []);
+      setTotal(threads?.total ?? 0);
     } finally {
       setLoading(false);
       setInitialized(true);
@@ -73,12 +83,16 @@ export function AgentHistoryPanel({
   return (
     <div className="ui-panel p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted">
-          最近对话
-          <span className="ml-1 text-[10px] font-normal text-muted-foreground">
-            · 最近 {HISTORY_LIMIT} 条
-          </span>
-        </p>
+        <p className="text-xs font-medium text-muted">最近对话</p>
+        <div className="flex items-center gap-2">
+        {total > RECENT_THREADS_DISPLAY_LIMIT ? (
+          <Link
+            href="/sessions"
+            className="text-[10px] text-brand transition hover:text-brand-soft"
+          >
+            查看全部
+          </Link>
+        ) : null}
         <button
           type="button"
           disabled={loading}
@@ -97,6 +111,7 @@ export function AgentHistoryPanel({
             "刷新"
           )}
         </button>
+        </div>
       </div>
 
       {loading && !initialized ? (

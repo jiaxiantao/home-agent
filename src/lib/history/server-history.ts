@@ -19,7 +19,10 @@ export type ServerHistoryEntry = {
   runId?: string;
 };
 
-const MAX_PER_USER = 100;
+/** 列表接口默认返回条数；写入不做截断（MySQL） */
+const DEFAULT_LIST_LIMIT = 50;
+/** Redis/内存回退时的安全上限，避免进程内存无限增长 */
+const MAX_STORED_PER_USER_FALLBACK = 5000;
 const TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const REDIS_PREFIX = `${PRODUCT_SLUG}:history:`;
@@ -77,8 +80,8 @@ async function readUserHistory(userId: string): Promise<ServerHistoryEntry[]> {
   if (isAppMysqlConfigured()) {
     const rows = await queryAppMysql<HistoryRow>(
       `SELECT id, user_id, thread_id, question, answer, sql_text, row_count, status, run_id, created_at, updated_at
-       FROM query_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`,
-      [userId, MAX_PER_USER],
+       FROM query_history WHERE user_id = ? ORDER BY created_at DESC`,
+      [userId],
     );
     return rows.map(mapRow);
   }
@@ -98,26 +101,30 @@ async function readUserHistory(userId: string): Promise<ServerHistoryEntry[]> {
 }
 
 async function writeUserHistory(userId: string, entries: ServerHistoryEntry[]) {
-  const trimmed = sortByCreatedDesc(entries).slice(0, MAX_PER_USER);
+  const sorted = sortByCreatedDesc(entries);
+  const stored =
+    isAppMysqlConfigured() || sorted.length <= MAX_STORED_PER_USER_FALLBACK
+      ? sorted
+      : sorted.slice(0, MAX_STORED_PER_USER_FALLBACK);
 
   if (isRedisConfigured()) {
     const client = await getRedisClient();
 
     if (client) {
-      await client.set(redisKey(userId), JSON.stringify(trimmed), {
+      await client.set(redisKey(userId), JSON.stringify(stored), {
         PX: TTL_MS,
       });
-      return trimmed;
+      return stored;
     }
   }
 
-  memoryStore.set(userId, trimmed);
-  return trimmed;
+  memoryStore.set(userId, stored);
+  return stored;
 }
 
-export async function listServerHistory(userId: string, limit = 50) {
+export async function listServerHistory(userId: string, limit = DEFAULT_LIST_LIMIT) {
   const entries = await readUserHistory(userId);
-  return sortByCreatedDesc(entries).slice(0, Math.min(Math.max(limit, 1), 100));
+  return sortByCreatedDesc(entries).slice(0, Math.min(Math.max(limit, 1), 500));
 }
 
 export async function createServerHistory(input: {

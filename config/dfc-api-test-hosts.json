@@ -33,6 +33,7 @@
     "crazyracing-kartrider:http:POST:/appbotwall/web/carCommand/modifyRecord:modifyRecordForApp",
     "crazyracing-kartrider:http:POST:/pcbotwall/web/carCommand/createRecord:createRecordForPc",
     "crazyracing-kartrider:http:POST:/pcbotwall/web/carCommand/modifyRecord:modifyRecordForPc",
-    "crazyracing-kartrider:http:POST:/pcbotwall/web/v3/carViewQuery/queryRecordPageInfoForPc:queryRecordPageInfoForPcBot"
+    "crazyracing-kartrider:http:POST:/pcbotwall/web/v3/carViewQuery/queryRecordPageInfoForPc:queryRecordPageInfoForPcBot",
+    "super-mario:http:GET:/customer/customerDetail/getCustomerIdByPhone:getCustomerIdByPhone"
   ]
 }

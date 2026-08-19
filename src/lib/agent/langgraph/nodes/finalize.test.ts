@@ -51,4 +51,55 @@ describe("streamSynthesizeAnswerAfterQuery", () => {
     expect(doneText).toContain("皖JV066M");
     expect(doneText).toContain("sF4Y588y6i");
   });
+
+  it("prefers execute_sql rows over failed API envelopes when LLM is disabled", async () => {
+    process.env.LLM_DISABLED = "1";
+
+    let doneText = "";
+
+    for await (const event of streamSynthesizeAnswerAfterQuery({
+      message: "查询客户手机号 13166990795",
+      summary: "SQL 返回 5 行。",
+      prior: [
+        {
+          tool: "call_backend_api",
+          args: { phone: "13166990795" },
+          output: "ok",
+          data: {
+            status: "success",
+            endpointId: "queryCustomerDetailsByContact",
+            appCode: "super-mario",
+            message: "ok",
+            response: { success: false, code: "500", msg: "参数异常" },
+            table: {
+              columns: ["code", "msg", "success"],
+              rows: [{ code: "500", msg: "参数异常", success: false }],
+            },
+          },
+        },
+        {
+          tool: "execute_sql",
+          args: {},
+          output: "ok",
+          data: {
+            sql: "select ...",
+            columns: ["id", "name"],
+            rows: [
+              { id: "Boqi2otbaS", name: "牧艺" },
+              { id: "naMtTJ9TtC", name: "贾宝玉" },
+            ],
+            rowCount: 2,
+            truncated: false,
+          },
+        },
+      ],
+    })) {
+      if (event.kind === "done") {
+        doneText = event.text;
+      }
+    }
+
+    expect(doneText).toContain("牧艺");
+    expect(doneText).not.toContain("参数异常");
+  });
 });

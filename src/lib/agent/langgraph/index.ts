@@ -35,6 +35,7 @@ import {
   ensureThread,
   formatThreadForPlanner,
   getThreadMessages,
+  shouldSkipDuplicateThreadMessage,
 } from "@/lib/agent/thread-store";
 import {
   createTurnUiRecorder,
@@ -510,11 +511,19 @@ export async function* runDfcAgentLoop(
   }
 
   if (!continueFrom?.skipAppendUser) {
-    await appendThreadMessage(thread.threadId, userId, {
-      role: "user",
-      content: message,
-      ts: Date.now(),
-    });
+    const messages = await getThreadMessages(thread.threadId, userId);
+    if (
+      !shouldSkipDuplicateThreadMessage(messages, {
+        role: "user",
+        content: message,
+      })
+    ) {
+      await appendThreadMessage(thread.threadId, userId, {
+        role: "user",
+        content: message,
+        ts: Date.now(),
+      });
+    }
   }
 
   const conversation = formatThreadForPlanner(

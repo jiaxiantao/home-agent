@@ -8,11 +8,14 @@ import {
 import { PRODUCT_SLUG } from "@/lib/product";
 import type { RowDataPacket } from "mysql2/promise";
 
+import { createThreadId } from "@/lib/agent/thread-id";
 import type {
   AgentThread,
   ThreadListItem,
   ThreadMessage,
 } from "@/lib/agent/thread-types";
+
+export { createThreadId } from "@/lib/agent/thread-id";
 
 export type { AgentThread, ThreadListItem, ThreadMessage } from "@/lib/agent/thread-types";
 
@@ -29,7 +32,8 @@ if (!globalThreads.__dfcDataAgentThreads) {
 
 const TTL_MS = 180 * 24 * 60 * 60 * 1000;
 const MAX_MESSAGES = 100;
-const MAX_THREADS_PER_USER = 200;
+/** 仅用于 Redis/内存回退时的安全上限；MySQL 持久化不做截断 */
+const MAX_THREADS_PER_USER_FALLBACK = 5000;
 
 const REDIS_PREFIX = `${PRODUCT_SLUG}:thread:`;
 
@@ -152,10 +156,6 @@ function toListItem(thread: AgentThread): ThreadListItem {
   };
 }
 
-export function createThreadId() {
-  return `thread_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
 function mapMysqlRow(row: ThreadRow): AgentThread {
   const messages = parseMessages(row.messages_json);
   const updatedAt = new Date(row.updated_at).getTime();
@@ -257,12 +257,32 @@ async function writeThread(thread: AgentThread) {
     if (client) {
       await client.set(key, JSON.stringify(next), { PX: TTL_MS });
       memoryThreads.set(key, next);
+      trimFallbackThreadsForUser(next.userId);
       return next;
     }
   }
 
   memoryThreads.set(key, next);
+  trimFallbackThreadsForUser(next.userId);
   return next;
+}
+
+function trimFallbackThreadsForUser(userId: string) {
+  if (isAppMysqlConfigured()) {
+    return;
+  }
+
+  const keysForUser = [...memoryThreads.entries()]
+    .filter(([, thread]) => thread.userId === userId)
+    .sort(([, a], [, b]) => b.updatedAt - a.updatedAt);
+
+  if (keysForUser.length <= MAX_THREADS_PER_USER_FALLBACK) {
+    return;
+  }
+
+  for (const [key] of keysForUser.slice(MAX_THREADS_PER_USER_FALLBACK)) {
+    memoryThreads.delete(key);
+  }
 }
 
 async function listStoredThreads(userId: string): Promise<AgentThread[]> {
@@ -271,11 +291,11 @@ async function listStoredThreads(userId: string): Promise<AgentThread[]> {
     const rows = await queryMysqlThreadRows(
       `SELECT thread_id, user_id, messages_json, title, created_at, updated_at
        FROM agent_threads WHERE user_id = ?
-       ORDER BY updated_at DESC LIMIT ?`,
+       ORDER BY updated_at DESC`,
       `SELECT thread_id, user_id, messages_json, updated_at
        FROM agent_threads WHERE user_id = ?
-       ORDER BY updated_at DESC LIMIT ?`,
-      [userId, MAX_THREADS_PER_USER],
+       ORDER BY updated_at DESC`,
+      [userId],
     );
     return rows.map(mapMysqlRow);
   }
@@ -345,6 +365,18 @@ export async function listUserThreadsPage(input: {
     page,
     pageSize,
   };
+}
+
+export function shouldSkipDuplicateThreadMessage(
+  messages: ThreadMessage[],
+  message: Pick<ThreadMessage, "role" | "content">,
+) {
+  const last = messages.at(-1);
+  return (
+    Boolean(last) &&
+    last!.role === message.role &&
+    last!.content === message.content
+  );
 }
 
 export async function appendThreadMessage(
