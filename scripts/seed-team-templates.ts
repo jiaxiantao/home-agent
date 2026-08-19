@@ -63,8 +63,17 @@ async function runMigration() {
 
   for (const file of files) {
     const sql = readFileSync(join(migrationDir, file), "utf8");
-    await conn.query(sql);
-    console.log(`Migration applied: ${file}`);
+    try {
+      await conn.query(sql);
+      console.log(`Migration applied: ${file}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/Duplicate column|already exists|Duplicate key name/i.test(message)) {
+        console.log(`Migration skipped (already applied): ${file}`);
+        continue;
+      }
+      throw error;
+    }
   }
 
   await conn.end();

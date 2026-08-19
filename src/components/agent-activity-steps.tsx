@@ -52,11 +52,19 @@ function StepIcon({
   );
 }
 
-function ActivityStepRow({ step }: { step: AgentActivityStep }) {
+function ActivityStepRow({
+  step,
+  forceDone,
+}: {
+  step: AgentActivityStep;
+  forceDone?: boolean;
+}) {
   const [open, setOpen] = useState(
     step.kind === "error" || step.status === "running",
   );
   const hasDetail = Boolean(step.detail?.trim());
+  const status =
+    forceDone && step.status === "running" ? "done" : step.status;
 
   return (
     <div className="group">
@@ -69,12 +77,12 @@ function ActivityStepRow({ step }: { step: AgentActivityStep }) {
           hasDetail ? "hover:bg-brand/5" : "cursor-default",
         )}
       >
-        <StepIcon kind={step.kind} status={step.status} />
+        <StepIcon kind={step.kind} status={status} />
         <span
           className={cn(
             "min-w-0 flex-1 text-[12px] leading-5",
             step.kind === "error" ? "text-rose-300" : "text-muted",
-            step.status === "running" && "text-brand-soft",
+            status === "running" && "text-brand-soft",
           )}
         >
           {step.title}
@@ -160,7 +168,7 @@ export function AgentActivitySteps({
             </div>
           ) : null}
           {steps.map((step) => (
-            <ActivityStepRow key={step.id} step={step} />
+            <ActivityStepRow key={step.id} step={step} forceDone={!running} />
           ))}
           {running && !streamText ? (
             <div className="flex items-center gap-2 px-1.5 py-1 text-[12px] text-muted">

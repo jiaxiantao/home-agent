@@ -139,6 +139,24 @@ describe("buildChartSpecFromRows", () => {
       zKey: "cnt",
     });
   });
+
+  it("builds a pie chart when the dimension column has numeric codes", () => {
+    const chart = buildChartSpecFromRows(
+      ["状态", "车源数量"],
+      [
+        { 状态: 6, 车源数量: 3234 },
+        { 状态: 8, 车源数量: 557 },
+        { 状态: 9, 车源数量: 152 },
+      ],
+      { preferredType: "pie", title: "查询结果" },
+    );
+    expect(chart).toMatchObject({
+      type: "pie",
+      xKey: "状态",
+      yKey: "车源数量",
+      title: "查询结果",
+    });
+  });
 });
 
 describe("parseChartType", () => {

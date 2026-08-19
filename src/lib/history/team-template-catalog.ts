@@ -199,42 +199,101 @@ export const teamTemplateSeed: TeamTemplateSeed[] = [
   { category: "跨库综合", label: "昨日业务概览", prompt: "汇总昨天新增车源、求购、订单、客户的核心指标" },
 
   // —— 图表（问法需明确要求可视化，才会调用 build_chart）——
-  { category: "图表", label: "车源状态饼图", prompt: "统计各状态的正式车源数量，用饼图展示" },
-  { category: "图表", label: "车源品牌柱状图", prompt: "按品牌统计正式车源数量，看前 15 名，用柱状图展示" },
-  { category: "图表", label: "车源城市柱状图", prompt: "按城市统计正式车源数量，看前 15 名，用柱状图展示" },
-  { category: "图表", label: "车源上架趋势图", prompt: "最近 30 天每天上架了多少辆正式车源？画折线图" },
-  { category: "图表", label: "车源价格分布图", prompt: "正式车源售价大概落在哪些区间？各有多少辆？用柱状图展示" },
-  { category: "图表", label: "客户来源饼图", prompt: "这些 CRM 客户分别是从哪些渠道来的？各有多少？用饼图展示" },
-  { category: "图表", label: "客户城市柱状图", prompt: "按城市统计 CRM 客户数量，看前 15 名，用柱状图展示" },
-  { category: "图表", label: "客户新增趋势图", prompt: "最近 7 天每天新进了多少 CRM 客户？画折线图" },
-  { category: "图表", label: "求购状态饼图", prompt: "按状态统计求购线索数量分布，用饼图展示" },
-  { category: "图表", label: "求购品牌柱状图", prompt: "求购线索里最受欢迎的品牌有哪些？看前 15 名，用柱状图展示" },
-  { category: "图表", label: "求购新增趋势图", prompt: "最近 7 天每天新增了多少条求购线索？画折线图" },
-  { category: "图表", label: "订单状态饼图", prompt: "按订单状态看一下主订单数量分布，用饼图展示" },
-  { category: "图表", label: "成交趋势折线图", prompt: "最近 30 天每天成交了多少单？画折线图" },
-  { category: "图表", label: "门店成交柱状图", prompt: "各门店成交订单数排行，看前 15 名，用柱状图展示" },
-  { category: "图表", label: "会员类型饼图", prompt: "按会员类型看一下会员数量分布，用饼图展示" },
-  { category: "图表", label: "金融产品饼图", prompt: "按金融产品类型统计订单数量，用饼图展示" },
-  { category: "图表", label: "金融进件趋势图", prompt: "最近 7 天每天新进了多少金融进件？画折线图" },
-  { category: "图表", label: "合同签署饼图", prompt: "按签署状态看一下电子合同数量，用饼图展示" },
-  { category: "图表", label: "运营DAU趋势图", prompt: "最近 7 天运营日报里的 DAU 趋势怎样？画折线图" },
-  { category: "图表", label: "门店运营柱状图", prompt: "按门店对比最近 7 天新增车源和成交数，看前 15 名，用柱状图展示" },
-  { category: "图表", label: "业务漏斗柱状图", prompt: "对比正式车源数、求购线索数、主订单数，看转化漏斗，用柱状图展示" },
-  { category: "图表", label: "业务转化漏斗图", prompt: "对比正式车源数、求购线索数、主订单数，生成漏斗图" },
-  { category: "图表", label: "城市供需柱状图", prompt: "按城市对比正式车源数和成交订单数，看前 15 名，用柱状图展示" },
-  { category: "图表", label: "车源状态环形图", prompt: "统计各状态的正式车源数量，用环形图展示" },
-  { category: "图表", label: "品牌车源条形图", prompt: "按品牌统计正式车源数量，看前 15 名，用条形图展示" },
-  { category: "图表", label: "成交面积图", prompt: "最近 30 天每天成交了多少单？用面积图展示" },
-  { category: "图表", label: "售价直方图", prompt: "正式车源售价大概落在哪些区间？各有多少辆？用直方图展示" },
-  { category: "图表", label: "城市供需堆积柱", prompt: "按城市对比正式车源数和成交订单数，看前 10 名，用堆积柱状图展示" },
-  { category: "图表", label: "城市供需分组柱", prompt: "按城市对比正式车源数和成交订单数，看前 10 名，用分组柱状图展示" },
-  { category: "图表", label: "品牌供需雷达图", prompt: "按品牌对比正式车源数、求购线索数和成交订单数，看前 8 名，用雷达图展示" },
-  { category: "图表", label: "城市供需散点图", prompt: "各城市正式车源数和成交订单数，用散点图展示" },
-  { category: "图表", label: "品牌占比树图", prompt: "按品牌看正式车源数量占比，用矩形树图展示" },
-  { category: "图表", label: "订单状态玫瑰图", prompt: "按订单状态看一下主订单数量分布，用玫瑰图展示" },
-  { category: "图表", label: "业务转化瀑布图", prompt: "对比正式车源数、求购线索数、主订单数，用瀑布图展示" },
-  { category: "图表", label: "城市品牌热力图", prompt: "按城市和品牌交叉看正式车源数量，看数量最多的组合，用热力图展示" },
-  { category: "图表", label: "渠道转化桑基图", prompt: "客户从哪些渠道进来、最后落在哪些订单状态？用桑基图展示" },
+  // 每种 supported chartType 至少 1 条；label 含图形名便于筛选测试
+
+  // bar 柱状图
+  { category: "图表", label: "柱状图·车源品牌", prompt: "按品牌统计正式车源数量，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "柱状图·车源城市", prompt: "按城市统计正式车源数量，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "柱状图·售价区间", prompt: "正式车源售价大概落在哪些区间？各有多少辆？用柱状图展示" },
+  { category: "图表", label: "柱状图·客户城市", prompt: "按城市统计 CRM 客户数量，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "柱状图·求购品牌", prompt: "求购线索里最受欢迎的品牌有哪些？看前 15 名，用柱状图展示" },
+  { category: "图表", label: "柱状图·门店成交", prompt: "各门店成交订单数排行，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "柱状图·门店运营", prompt: "按门店对比最近 7 天新增车源和成交数，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "柱状图·城市供需", prompt: "按城市对比正式车源数和成交订单数，看前 15 名，用柱状图展示" },
+  { category: "图表", label: "柱状图·业务漏斗", prompt: "对比正式车源数、求购线索数、主订单数，看转化漏斗，用柱状图展示" },
+
+  // groupedBar 分组柱状图
+  { category: "图表", label: "分组柱·城市供需", prompt: "按城市对比正式车源数和成交订单数，看前 10 名，用分组柱状图展示" },
+
+  // stackedBar 堆积柱状图
+  { category: "图表", label: "堆积柱·城市供需", prompt: "按城市对比正式车源数和成交订单数，看前 10 名，用堆积柱状图展示" },
+
+  // horizontalBar 条形图
+  { category: "图表", label: "条形图·车源品牌", prompt: "按品牌统计正式车源数量，看前 15 名，用条形图展示" },
+
+  // histogram 直方图
+  { category: "图表", label: "直方图·售价分布", prompt: "正式车源售价大概落在哪些区间？各有多少辆？用直方图展示" },
+
+  // waterfall 瀑布图
+  { category: "图表", label: "瀑布图·业务转化", prompt: "对比正式车源数、求购线索数、主订单数，用瀑布图展示" },
+
+  // line 折线图
+  { category: "图表", label: "折线图·车源上架", prompt: "最近 30 天每天上架了多少辆正式车源？画折线图" },
+  { category: "图表", label: "折线图·客户新增", prompt: "最近 7 天每天新进了多少 CRM 客户？画折线图" },
+  { category: "图表", label: "折线图·求购新增", prompt: "最近 7 天每天新增了多少条求购线索？画折线图" },
+  { category: "图表", label: "折线图·成交趋势", prompt: "最近 30 天每天成交了多少单？画折线图" },
+  { category: "图表", label: "折线图·金融进件", prompt: "最近 7 天每天新进了多少金融进件？画折线图" },
+  { category: "图表", label: "折线图·运营DAU", prompt: "最近 7 天运营日报里的 DAU 趋势怎样？画折线图" },
+
+  // area 面积图
+  { category: "图表", label: "面积图·成交趋势", prompt: "最近 30 天每天成交了多少单？用面积图展示" },
+
+  // stackedArea 堆积面积图
+  { category: "图表", label: "堆积面积·车源求购", prompt: "最近 30 天每天新增车源和求购线索各有多少？用堆积面积图展示" },
+
+  // stepLine 阶梯图
+  { category: "图表", label: "阶梯图·成交趋势", prompt: "最近 7 天每天成交了多少单？用阶梯图展示" },
+
+  // pie 饼图
+  { category: "图表", label: "饼图·车源状态", prompt: "统计各状态的正式车源数量，用饼图展示" },
+  { category: "图表", label: "饼图·客户来源", prompt: "这些 CRM 客户分别是从哪些渠道来的？各有多少？用饼图展示" },
+  { category: "图表", label: "饼图·求购状态", prompt: "按状态统计求购线索数量分布，用饼图展示" },
+  { category: "图表", label: "饼图·订单状态", prompt: "按订单状态看一下主订单数量分布，用饼图展示" },
+  { category: "图表", label: "饼图·会员类型", prompt: "按会员类型看一下会员数量分布，用饼图展示" },
+  { category: "图表", label: "饼图·金融产品", prompt: "按金融产品类型统计订单数量，用饼图展示" },
+  { category: "图表", label: "饼图·合同签署", prompt: "按签署状态看一下电子合同数量，用饼图展示" },
+
+  // doughnut 环形图
+  { category: "图表", label: "环形图·车源状态", prompt: "统计各状态的正式车源数量，用环形图展示" },
+
+  // rose 玫瑰图
+  { category: "图表", label: "玫瑰图·订单状态", prompt: "按订单状态看一下主订单数量分布，用玫瑰图展示" },
+
+  // funnel 漏斗图
+  { category: "图表", label: "漏斗图·业务转化", prompt: "对比正式车源数、求购线索数、主订单数，生成漏斗图" },
+
+  // radar 雷达图
+  { category: "图表", label: "雷达图·品牌供需", prompt: "按品牌对比正式车源数、求购线索数和成交订单数，看前 8 名，用雷达图展示" },
+
+  // scatter 散点图
+  { category: "图表", label: "散点图·城市供需", prompt: "各城市正式车源数和成交订单数，用散点图展示" },
+
+  // bubble 气泡图
+  { category: "图表", label: "气泡图·城市供需", prompt: "各城市正式车源数、成交订单数和平均售价，用气泡图展示" },
+
+  // treemap 矩形树图
+  { category: "图表", label: "树图·品牌占比", prompt: "按品牌看正式车源数量占比，用矩形树图展示" },
+
+  // sunburst 旭日图
+  { category: "图表", label: "旭日图·城市品牌", prompt: "按城市和品牌层级看正式车源数量，用旭日图展示" },
+
+  // sankey 桑基图
+  { category: "图表", label: "桑基图·渠道转化", prompt: "客户从哪些渠道进来、最后落在哪些订单状态？用桑基图展示" },
+
+  // radialBar 径向柱图
+  { category: "图表", label: "径向柱·门店成交", prompt: "各门店成交订单数排行，看前 10 名，用径向柱图展示" },
+
+  // composed 组合图
+  { category: "图表", label: "组合图·成交趋势", prompt: "最近 30 天每天成交单数和成交金额，用组合图展示" },
+
+  // candlestick K线图
+  { category: "图表", label: "K线图·成交价格", prompt: "最近 30 天每天成交的最高价、最低价、开盘价和收盘价，用K线图展示" },
+
+  // gauge 仪表盘
+  { category: "图表", label: "仪表盘·车源总量", prompt: "大风车正式车源一共有多少辆？用仪表盘展示" },
+
+  // heatmap 热力图
+  { category: "图表", label: "热力图·城市品牌", prompt: "按城市和品牌交叉看正式车源数量，看数量最多的组合，用热力图展示" },
 ];
 
 export const teamTemplateSeedCount = teamTemplateSeed.length;

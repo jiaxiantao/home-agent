@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { userRequestedChart } from "@/lib/agent/chart-intent";
+import { inferPreferredChartType, userRequestedChart } from "@/lib/agent/chart-intent";
+import { CHART_TYPES } from "@/lib/analytics/chart-types";
 import { teamTemplateSeed, teamTemplateSeedCount } from "@/lib/history/team-template-catalog";
 
 describe("team template seed", () => {
@@ -38,6 +39,16 @@ describe("team template seed", () => {
     expect(chartPrompts.length).toBeGreaterThanOrEqual(15);
     for (const item of chartPrompts) {
       expect(userRequestedChart(item.prompt), item.label).toBe(true);
+    }
+  });
+
+  it("chart category covers all supported chart types", () => {
+    const chartPrompts = teamTemplateSeed.filter((item) => item.category === "图表");
+    const covered = new Set(
+      chartPrompts.map((item) => inferPreferredChartType(item.prompt)),
+    );
+    for (const type of CHART_TYPES) {
+      expect(covered.has(type), `missing template for ${type}`).toBe(true);
     }
   });
 });

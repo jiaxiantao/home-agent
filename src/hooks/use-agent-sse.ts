@@ -326,13 +326,6 @@ export function useAgentStream(options?: {
     ]);
   }, []);
 
-  const stop = useCallback(() => {
-    abortRef.current?.abort();
-    setRunning(false);
-    setPhase("idle");
-    appendLine("trace", "[client] 已手动停止");
-  }, [appendLine]);
-
   const updateTurn = useCallback((patch: Partial<ConversationTurn>) => {
     const current = turnRef.current;
 
@@ -396,6 +389,75 @@ export function useAgentStream(options?: {
     [],
   );
 
+  const patchFirstRunningTurnStep = useCallback(
+    (
+      predicate: (step: AgentActivityStep) => boolean,
+      patch: Partial<AgentActivityStep>,
+    ) => {
+      const current = turnRef.current;
+
+      if (!current?.steps.length) {
+        return;
+      }
+
+      const steps = [...current.steps];
+      for (let index = 0; index < steps.length; index += 1) {
+        const step = steps[index];
+        if (step && step.status === "running" && predicate(step)) {
+          steps[index] = { ...step, ...patch };
+          const next = { ...current, steps };
+          turnRef.current = next;
+          setConversation((items) => {
+            const without = items.filter((item) => item.id !== next.id);
+            return [...without, next];
+          });
+          return;
+        }
+      }
+    },
+    [],
+  );
+
+  const finalizeRunningSteps = useCallback(
+    (
+      options?: {
+        status?: "done" | "error";
+        kinds?: AgentActivityStep["kind"][];
+      },
+    ) => {
+      const current = turnRef.current;
+      if (!current?.steps.length) {
+        return;
+      }
+
+      const status = options?.status ?? "done";
+      const kinds = options?.kinds;
+      let changed = false;
+      const steps = current.steps.map((step) => {
+        if (step.status !== "running") {
+          return step;
+        }
+        if (kinds && !kinds.includes(step.kind)) {
+          return step;
+        }
+        changed = true;
+        return { ...step, status };
+      });
+
+      if (!changed) {
+        return;
+      }
+
+      const next = { ...current, steps };
+      turnRef.current = next;
+      setConversation((items) => {
+        const without = items.filter((item) => item.id !== next.id);
+        return [...without, next];
+      });
+    },
+    [],
+  );
+
   const handlePayload = useCallback(
     (payload: AgentTraceEvent) => {
       const nextPhase = phaseFromEvent(payload);
@@ -413,20 +475,12 @@ export function useAgentStream(options?: {
         storeThreadId(payload.threadId);
       } else if (payload.type === "trace") {
         if (payload.phase === "plan") {
-          const last = turnRef.current?.steps.at(-1);
-          if (last?.kind === "plan" && last.status === "running") {
-            patchLastTurnStep(
-              (step) => step.kind === "plan" && step.status === "running",
-              { title: payload.message },
-            );
-          } else {
-            appendTurnStep({
-              id: crypto.randomUUID(),
-              kind: "plan",
-              title: payload.message,
-              status: "running",
-            });
-          }
+          appendTurnStep({
+            id: crypto.randomUUID(),
+            kind: "plan",
+            title: payload.message,
+            status: "done",
+          });
         } else if (payload.phase === "tool") {
           patchLastTurnStep(
             (step) => step.kind === "tool" && step.status === "running",
@@ -472,6 +526,7 @@ export function useAgentStream(options?: {
         }
       } else if (payload.type === "tool_call") {
         updateTurn({ planStreamText: undefined });
+        finalizeRunningSteps({ kinds: ["plan"] });
         setCurrentStep((current) => current + 1);
         appendTurnStep({
           id: crypto.randomUUID(),
@@ -482,7 +537,7 @@ export function useAgentStream(options?: {
           tool: payload.tool,
         });
       } else if (payload.type === "tool_result") {
-        patchLastTurnStep(
+        patchFirstRunningTurnStep(
           (step) => step.kind === "tool" && step.tool === payload.tool,
           {
             status: "done",
@@ -508,6 +563,7 @@ export function useAgentStream(options?: {
       } else if (payload.type === "answer") {
         setFinalAnswer(payload.text);
         setIsMock(Boolean(payload.mock));
+        finalizeRunningSteps();
         updateTurn({
           finalAnswer: payload.text,
           followUps: payload.followUps?.length ? payload.followUps : undefined,
@@ -523,6 +579,8 @@ export function useAgentStream(options?: {
           }) ?? historyRef.current;
         }
       } else if (payload.type === "done") {
+        finalizeRunningSteps();
+        updateTurn({ planStreamText: undefined });
         const nextStats = {
           steps: payload.steps,
           toolCalls: payload.toolCalls,
@@ -577,6 +635,7 @@ export function useAgentStream(options?: {
           }) ?? historyRef.current;
         }
       } else if (payload.type === "error") {
+        finalizeRunningSteps({ status: "error" });
         updateTurn({ status: "error" });
         appendTurnStep({
           id: crypto.randomUUID(),
@@ -592,8 +651,16 @@ export function useAgentStream(options?: {
         }
       }
     },
-    [appendTurnStep, patchLastTurnStep, updateTurn],
+    [appendTurnStep, finalizeRunningSteps, patchFirstRunningTurnStep, patchLastTurnStep, updateTurn],
   );
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    finalizeRunningSteps();
+    setRunning(false);
+    setPhase("idle");
+    appendLine("trace", "[client] 已手动停止");
+  }, [appendLine, finalizeRunningSteps]);
 
   const beginTurn = useCallback(
     (question: string) => {
@@ -641,6 +708,7 @@ export function useAgentStream(options?: {
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
           setPhase("error");
+          finalizeRunningSteps({ status: "error" });
           setLines((current) => [
             ...current,
             {
@@ -656,10 +724,11 @@ export function useAgentStream(options?: {
           }
         }
       } finally {
+        finalizeRunningSteps();
         setRunning(false);
       }
     },
-    [beginTurn, handlePayload, resetCurrentTurn, threadId, llmProvider],
+    [beginTurn, finalizeRunningSteps, handlePayload, resetCurrentTurn, threadId, llmProvider, updateTurn],
   );
 
   const resume = useCallback(
@@ -686,6 +755,7 @@ export function useAgentStream(options?: {
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
           setPhase("error");
+          finalizeRunningSteps({ status: "error" });
           setLines((current) => [
             ...current,
             {
@@ -696,10 +766,11 @@ export function useAgentStream(options?: {
           ]);
         }
       } finally {
+        finalizeRunningSteps();
         setRunning(false);
       }
     },
-    [handlePayload, threadId, updateTurn, llmProvider],
+    [finalizeRunningSteps, handlePayload, threadId, updateTurn, llmProvider],
   );
 
   const loadHistoryQuestion = useCallback((question: string) => {

@@ -74,6 +74,45 @@ function looksLikeTimeColumn(column: string) {
   return /date|time|day|month|week|dt|_at$/i.test(column);
 }
 
+function looksLikeCategoryColumn(column: string) {
+  return /status|state|type|name|category|stage|band|city|brand|region|label|code|渠道|状态|类型|名称|分类|阶段|区间|城市|品牌|区域|来源|编码/i.test(
+    column,
+  );
+}
+
+function looksLikeMeasureColumn(column: string) {
+  return /count|cnt|total|sum|amount|num|qty|quantity|rate|ratio|avg|max|min|value|数量|总计|合计|均值|占比|总额|数值/i.test(
+    column,
+  );
+}
+
+/** 数值型维度列（如状态码 0/1/6）在仅有数值列时仍应作为分类轴 */
+function reclassifyNumericDimensions(
+  numericCols: string[],
+  categoryCols: string[],
+): { numericCols: string[]; categoryCols: string[] } {
+  if (categoryCols.length > 0 || numericCols.length < 2) {
+    return { numericCols, categoryCols };
+  }
+
+  const measureCol =
+    numericCols.find(looksLikeMeasureColumn) ??
+    numericCols[numericCols.length - 1];
+  const dimensionCol =
+    numericCols.find(
+      (col) => col !== measureCol && looksLikeCategoryColumn(col),
+    ) ?? numericCols.find((col) => col !== measureCol);
+
+  if (!dimensionCol || !measureCol || dimensionCol === measureCol) {
+    return { numericCols, categoryCols };
+  }
+
+  return {
+    numericCols: numericCols.filter((col) => col !== dimensionCol),
+    categoryCols: [dimensionCol],
+  };
+}
+
 function defaultChartType(xKey: string, rowCount: number): ChartType {
   return rowCount >= 5 && looksLikeTimeColumn(xKey) ? "line" : "bar";
 }
@@ -255,10 +294,14 @@ export function buildChartSpecFromRows(
     return null;
   }
 
-  const numericCols = columns.filter((col) =>
+  let numericCols = columns.filter((col) =>
     rows.every((row) => row[col] === null || isNumeric(row[col])),
   );
-  const categoryCols = columns.filter((col) => !numericCols.includes(col));
+  let categoryCols = columns.filter((col) => !numericCols.includes(col));
+  ({ numericCols, categoryCols } = reclassifyNumericDimensions(
+    numericCols,
+    categoryCols,
+  ));
   const preferred = options?.preferredType
     ? parseChartType(options.preferredType)
     : undefined;
