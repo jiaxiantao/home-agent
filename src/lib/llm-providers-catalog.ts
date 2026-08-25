@@ -75,7 +75,6 @@ export const LLM_PROVIDER_CATALOG: LlmProviderDefinition[] = [
       model: "DEEPSEEK_MODEL",
     },
     signupUrl: "https://platform.deepseek.com/api_keys",
-    freeTier: true,
   },
   {
     id: "openrouter",
@@ -83,7 +82,7 @@ export const LLM_PROVIDER_CATALOG: LlmProviderDefinition[] = [
     shortLabel: "OpenRouter",
     kind: "cloud",
     defaultBaseURL: "https://openrouter.ai/api/v1",
-    defaultModel: "google/gemma-2-9b-it:free",
+    defaultModel: "stealth/ox-alpha",
     env: {
       baseURL: "OPENROUTER_BASE_URL",
       apiKey: "OPENROUTER_API_KEY",
